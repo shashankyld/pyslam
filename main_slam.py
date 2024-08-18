@@ -119,6 +119,7 @@ if __name__ == "__main__":
                 # 3D display (map display)
                 if viewer3D is not None:
                     viewer3D.draw_map(slam)
+                    print('viewer3D.draw_map')
 
                 img_draw = slam.map.draw_feature_trails(img)
                     

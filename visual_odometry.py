@@ -38,7 +38,26 @@ kAbsoluteScaleThreshold = 0.1        # absolute translation scale; it is also th
 kUseEssentialMatrixEstimation = True # using the essential matrix fitting algorithm is more robust RANSAC given five-point algorithm solver 
 kRansacProb = 0.999                  # (originally 0.999)
 kUseGroundTruthScale = True 
+ 
+''' 
+// q: Explain the logic of the VisualOdometry class to a non-expert.
+// a: The VisualOdometry class is a class that estimates the camera pose in a sequence of images. 
+    It uses a feature tracker to track features between frames and estimate the camera pose. 
+    The class keeps track of the current and previous images, the keypoints and descriptors of the features in the images, 
+    and the camera rotation and translation. It also uses ground truth data to estimate the scale of the translation. The class has methods
+    to process the first frame, track features in subsequent frames, estimate the camera pose, and update the history of poses and translations.
+    The class also has methods to draw the feature tracks on the images and manage the stage of processing the images.
+    The VisualOdometry class is a key component in the visual odometry pipeline, which is used in SLAM systems to estimate the camera trajectory
+    and map the environment.
 
+    // q: Explain about the scale in case where there is no ground truth available. Is it addressed in the code?
+    // a: In the code, the scale is estimated using the average pixel shift between the matched keypoints in consecutive frames.
+    If the average pixel shift is greater than a threshold and the absolute scale is greater than a threshold, the estimated translation is updated
+    using the ground truth scale. This approach helps to maintain a coherent trajectory by adjusting the translation based on the estimated scale.
+    However, without ground truth data, the scale estimation may not be accurate, and the trajectory may drift over time.
+    This issue is not fully addressed in the code, as it relies on ground truth data for scale estimation.
+
+'''
 
 # This class is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
 # It combines the simplest VO ingredients without performing any image point triangulation or 
