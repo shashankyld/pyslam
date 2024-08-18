@@ -57,6 +57,45 @@ kUseGroundTruthScale = True
     However, without ground truth data, the scale estimation may not be accurate, and the trajectory may drift over time.
     This issue is not fully addressed in the code, as it relies on ground truth data for scale estimation.
 
+// q: List of methods in the VisualOdometry class and their purpose.
+// a: The VisualOdometry class has the following methods:
+    - __init__: Initializes the VisualOdometry object with the camera model, ground truth data, and feature tracker.    
+    - getAbsoluteScale: Computes the absolute scale of the translation using ground truth data.
+    - computeFundamentalMatrix: Computes the fundamental matrix between two sets of keypoints.
+    - removeOutliersByMask: Removes outliers from the matched keypoints based on a mask.
+    - estimatePose: Estimates the camera pose between two frames using the essential matrix.
+    - processFirstFrame: Processes the first frame by detecting and computing features.
+    - processFrame: Processes a frame by tracking features, estimating the camera pose, and updating the keypoints history.
+    - track: Tracks features in a frame and updates the camera pose estimation.
+    - drawFeatureTracks: Draws the feature tracks on the image.
+    - updateHistory: Updates the history of poses and translations based on the estimated and ground truth data.
+
+// q: Explain the logic of the fundamental matrix computation and the essential matrix estimation - math behind it.
+// a: The fundamental matrix is a 3x3 matrix that relates corresponding points in two images taken by a pinhole camera.
+    It represents the epipolar geometry between the two images and is used to find the epipolar lines for feature matching.
+    The fundamental matrix is computed using the eight-point algorithm or the normalized eight-point algorithm.
+    The essential matrix is a 3x3 matrix that relates the camera poses between two images. It is derived from the fundamental matrix
+    and the camera intrinsic parameters. The essential matrix is used to estimate the relative camera pose between two frames.  
+    The essential matrix is computed using the fundamental matrix and the camera intrinsic matrix as E = K.T * F * K, where K is the camera intrinsic matrix.
+    The essential matrix is decomposed into the rotation and translation components using the singular value decomposition (SVD) method.
+    The rotation matrix R and translation vector t are estimated up to scale, and the scale is extracted from the ground truth data to recover the correct translation.
+
+// q: Explain the logic of the camera pose estimation and the use of the essential matrix in the VisualOdometry class.
+// a: The camera pose estimation in the VisualOdometry class is based on the essential matrix fitting algorithm, which uses the five-point algorithm solver by D. Nister.
+
+// q: Explaim SVD in the context of camera pose estimation.
+// a: Singular Value Decomposition (SVD) is a mathematical method used to decompose a matrix into three matrices: U, S, and V.
+    In the context of camera pose estimation, SVD is used to decompose the essential matrix into the rotation and translation components.
+    The essential matrix E is decomposed as E = U * S * V.T, where U and V are orthogonal matrices and S is a diagonal matrix with singular values.
+    The rotation matrix R and translation vector t are extracted from the U and V matrices to estimate the camera pose between two frames.
+
+// q: Give R and t in terms of the essential matrix E and its decomposition.
+// a: The essential matrix E is decomposed as E = U * S * V.T, where U and V are orthogonal matrices and S is a diagonal matrix with singular values.
+    A singular value is a scalar value that represents the scaling factor of the corresponding singular vector.
+    The rotation matrix R and translation vector t are extracted from the U and V matrices as follows:
+    - R = U * W * V.T, where W = [[0, -1, 0], [1, 0, 0], [0, 0, 1]] or [[0, 1, 0], [-1, 0, 0], [0, 0, 1]]
+    - t = u3, where u3 is the third column of the U matrix.
+
 '''
 
 # This class is a first start to understand the basics of inter frame feature tracking and camera pose estimation.
