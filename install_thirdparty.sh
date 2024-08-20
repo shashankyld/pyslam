@@ -1,3 +1,5 @@
+## This is from the Ubuntu 20 branch
+
 #!/usr/bin/env bash
 
 #set -e
@@ -93,15 +95,12 @@ else
         if [[ "$OSTYPE" == "darwin"* ]]; then
             git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin 
         fi 
-        cd pangolin
-        git apply ../pangolin.patch
-        cd ..
     fi
     cd pangolin
     if [ ! -f pangolin.cpython-*.so ]; then   
         make_dir build   
         cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_FFMPEG=OFF $EXTERNAL_OPTION # disable realsense 
+        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF $EXTERNAL_OPTION # disable realsense 
         make -j8
         cd ..
         #python setup.py install
@@ -122,8 +121,12 @@ if [ ! -d g2opy ]; then
     cd g2opy
     G2OPY_REVISION=5587024
     git checkout $G2OPY_REVISION
-    git apply ../g2opy.patch
-    cd ..     
+    cd ..
+    # copy local changes 
+    rsync ./g2opy_changes/types_six_dof_expmap.h ./g2opy/python/types/sba/types_six_dof_expmap.h
+    rsync ./g2opy_changes/sparse_optimizer.h ./g2opy/python/core/sparse_optimizer.h   
+    rsync ./g2opy_changes/python_CMakeLists.txt ./g2opy/python/CMakeLists.txt    
+    rsync ./g2opy_changes/eigen_types.h ./g2opy/python/core/eigen_types.h      
 fi
 cd g2opy
 if [ ! -f lib/g2o.cpython-*.so ]; then  
@@ -135,5 +138,4 @@ if [ ! -f lib/g2o.cpython-*.so ]; then
     #python3 setup.py install --user
 fi    
 cd $STARTING_DIR
-
 

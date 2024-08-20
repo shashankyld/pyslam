@@ -91,6 +91,7 @@ class Viewer3D(object):
         # pangolin.ParseVarsFile('app.cfg')
 
         pangolin.CreateWindowAndBind('Map Viewer', w, h)
+        print("###########################Pangolin Window created##########################")
         gl.glEnable(gl.GL_DEPTH_TEST)
         
         viewpoint_x = 0
@@ -103,13 +104,28 @@ class Viewer3D(object):
         self.scam = pangolin.OpenGlRenderState(self.proj, self.look_view)
         self.handler = pangolin.Handler3D(self.scam)
 
+        ## SHASHANK ###
+        left = pangolin.Attach(0.0)
+        right = pangolin.Attach(1.0)
+        bottom = pangolin.Attach(kUiWidth / w)
+        top = pangolin.Attach(1.0)
+        aspect = -w/h  # Only include aspect ratio if required by the function call
+
+
+
+
+        ## SHASHANK ###
+
         # Create Interactive View in window
         self.dcam = pangolin.CreateDisplay()
+        # self.dcam.SetBounds(left, right, bottom, top, aspect)
+
         self.dcam.SetBounds(0.0, 1.0, kUiWidth/w, 1.0, -w/h)
         self.dcam.SetHandler(pangolin.Handler3D(self.scam))
 
         self.panel = pangolin.CreatePanel('ui')
         self.panel.SetBounds(0.0, 1.0, 0.0, kUiWidth/w)
+        # self.panel.SetBounds(pangolin.Attach(0.0), pangolin.Attach(1.0), pangolin.Attach(0.0), pangolin.Attach(kUiWidth/w))
 
         self.do_follow = True
         self.is_following = True 
@@ -118,7 +134,7 @@ class Viewer3D(object):
         self.draw_covisibility = True        
         self.draw_spanning_tree = True           
         self.draw_loops = True                
-
+   
         #self.button = pangolin.VarBool('ui.Button', value=False, toggle=False)
         self.checkboxFollow = pangolin.VarBool('ui.Follow', value=True, toggle=True)
         self.checkboxCams = pangolin.VarBool('ui.Draw Cameras', value=True, toggle=True)
@@ -129,7 +145,7 @@ class Viewer3D(object):
         #self.float_slider = pangolin.VarFloat('ui.Float', value=3, min=0, max=5)
         #self.float_log_slider = pangolin.VarFloat('ui.Log_scale var', value=3, min=1, max=1e4, logscale=True)
         self.int_slider = pangolin.VarInt('ui.Point Size', value=kDefaultPointSize, min=1, max=10)  
-
+        
         self.pointSize = self.int_slider.Get()
 
         self.Twc = pangolin.OpenGlMatrix()
