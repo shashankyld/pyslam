@@ -355,6 +355,9 @@ Many improvements and additional features are currently under development:
 - [ ] map saving/loading 
 - [x] modern DL matching algorithms 
 - [ ] object detection and semantic segmentation 
-- [ ] 3D dense reconstruction 
+- [ ] 3D dense reconstruction
+
+## My Issues
+- Make sure you dont have pip version of the pypangolin and install from source.
 - [x] unified install procedure (single branch) for all OSs 
 
