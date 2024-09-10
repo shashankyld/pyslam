@@ -88,6 +88,34 @@ class FeatureTrackingResult(object):
         self.kps_ref_matched = None  # matched reference keypoints, kps_ref_matched = kps_ref[idxs_ref]
         self.kps_cur_matched = None  # matched current keypoints, kps_cur_matched = kps_cur[idxs_cur]
 
+    def __repr__(self):
+        return (
+            f"FeatureTrackingResult(\n"
+            f"  kps_ref={self.kps_ref},\n"
+            f"  kps_cur={self.kps_cur},\n"
+            f"  des_ref={self.des_ref},\n"
+            f"  des_cur={self.des_cur},\n"
+            f"  idxs_ref={self.idxs_ref},\n"
+            f"  idxs_cur={self.idxs_cur},\n"
+            f"  kps_ref_matched={self.kps_ref_matched},\n"
+            f"  kps_cur_matched={self.kps_cur_matched}\n"
+            f")"
+        )
+
+    # Method to print only length and datastructure of keypoints and descriptors
+    def __str__(self):
+        ''' TO call __repr__ use print(obj) and to call __str__ use str(obj) '''
+        return (
+            f"FeatureTrackingResult(\n"
+            f"  kps_ref={len(self.kps_ref)}x{type(self.kps_ref)},\n"
+            f"  kps_cur={len(self.kps_cur)}x{type(self.kps_cur)},\n"
+            f"  des_ref={len(self.des_ref)}x{type(self.des_ref)},\n"
+            f"  des_cur={len(self.des_cur)}x{type(self.des_cur)},\n"
+            f"  idxs_ref={len(self.idxs_ref)}x{type(self.idxs_ref)},\n"
+            f"  idxs_cur={len(self.idxs_cur)}x{type(self.idxs_cur)},\n"
+            f"  kps_ref_matched={len(self.kps_ref_matched)}x{type(self.kps_ref_matched)},\n"
+            f"  kps_cur_matched={len(self.kps_cur_matched)}x{type(self.kps_cur_matched)}\n"
+        )
 
 # Base class for a feature tracker.
 # It mainly contains a feature manager and a feature matcher. 

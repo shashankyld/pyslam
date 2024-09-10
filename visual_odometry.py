@@ -22,6 +22,9 @@ import cv2
 import platform 
 from enum import Enum
 
+from scipy.spatial import Delaunay
+
+
 from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
 from utils_geom import poseRt, is_rotation_matrix, closest_rotation_matrix
 from timer import TimerFps
@@ -219,17 +222,59 @@ class VisualOdometry(object):
         # track features 
         self.timer_feat.start()
         self.track_result = self.feature_tracker.track(self.prev_image, self.cur_image, self.kps_ref, self.des_ref)
+        print("############### FEATURE TRACKER RESULT #################")
+        # print(self.track_result)
+        # print(str(self.track_result))
+        print("############### FEATURE TRACKER RESULT END #################")
         self.timer_feat.refresh()
         # estimate pose 
         self.timer_pose_est.start()
+
+        
+
+        print("############### ESTIMATING POSE with kps_ref_matched, kps_cur_matched #################")
+        # print(self.track_result.kps_ref_matched)
+        print("############### ESTIMATING POSE with kps_ref_matched, kps_cur_matched END #################")
+
+        print(" ############## Delaunay Triangulation #################")
+        ref_tri = Delaunay(self.track_result.kps_ref_matched)
+        cur_tri = Delaunay(self.track_result.kps_cur_matched)
+        
+        
+
+        print(" ############## Delaunay Triangulation END #################")
+
+        
+
+
         R, t = self.estimatePose(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)     
         self.timer_pose_est.refresh()
         # update keypoints history  
-        self.kps_ref = self.track_result.kps_ref ##ere updating the reference keypoints with the current keypoints
+        self.kps_ref = self.track_result.kps_ref #here updating the reference keypoints with the current keypoints
         self.kps_cur = self.track_result.kps_cur
         self.des_cur = self.track_result.des_cur 
         self.num_matched_kps = self.kpn_ref.shape[0] 
         self.num_inliers =  np.sum(self.mask_match)
+
+        ## VISUALIZE THE PREVIOUS AND CURRENT KEYPOINTS in their respective frames
+        image_ref = cv2.cvtColor(self.prev_image, cv2.COLOR_GRAY2RGB)
+        image_cur = cv2.cvtColor(self.cur_image, cv2.COLOR_GRAY2RGB)
+
+
+        # Adding keypoints to the images 
+        for kp in self.track_result.kps_ref_matched:
+            cv2.circle(image_ref, (int(kp[0]), int(kp[1])), 3, (0, 0, 255), -1)
+            # Add len of keypoints on image top left
+            cv2.putText(image_ref, str(len(self.track_result.kps_ref_matched)), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        for kp in self.track_result.kps_cur_matched:
+            cv2.circle(image_cur, (int(kp[0]), int(kp[1])), 3, (0, 0, 255), -1)
+            # Add len of keypoints on image top left
+            cv2.putText(image_cur, str(len(self.track_result.kps_cur_matched)), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        cv2.imshow('Reference Frame with Keypoints', image_ref)
+        cv2.imshow('Current Frame with Keypoints', image_cur)
+        # Update the display in the loop
+        cv2.waitKey(1) # Time of update in milliseconds
+
         #compute average delta pixel shift
         self.average_pixel_shift = np.mean(np.abs(self.track_result.kps_ref_matched - self.track_result.kps_cur_matched))
         print(f'average pixel shift: {self.average_pixel_shift}')
