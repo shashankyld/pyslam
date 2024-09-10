@@ -225,7 +225,7 @@ class VisualOdometry(object):
         R, t = self.estimatePose(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)     
         self.timer_pose_est.refresh()
         # update keypoints history  
-        self.kps_ref = self.track_result.kps_ref
+        self.kps_ref = self.track_result.kps_ref ##ere updating the reference keypoints with the current keypoints
         self.kps_cur = self.track_result.kps_cur
         self.des_cur = self.track_result.des_cur 
         self.num_matched_kps = self.kpn_ref.shape[0] 
