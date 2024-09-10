@@ -179,6 +179,7 @@ class VisualOdometry(object):
 
     # fit essential matrix E with RANSAC such that:  p2.T * E * p1 = 0  where  E = [t21]x * R21
     # out: [Rrc, trc]   (with respect to 'ref' frame) 
+    # NB means Nota Bene (Note Well) - historically used to draw attention to something important
     # N.B.1: trc is estimated up to scale (i.e. the algorithm always returns ||trc||=1, we need a scale in order to recover a translation which is coherent with previous estimated poses)
     # N.B.2: this function has problems in the following cases: [see Hartley/Zisserman Book]
     # - 'geometrical degenerate correspondences', e.g. all the observed features lie on a plane (the correct model for the correspondences is an homography) or lie on a ruled quadric 
@@ -208,6 +209,7 @@ class VisualOdometry(object):
 
     def processFirstFrame(self):
         # only detect on the current image 
+        # Here kp means keypoints and des means descriptors, ref means reference frame
         self.kps_ref, self.des_ref = self.feature_tracker.detectAndCompute(self.cur_image)
         # convert from list of keypoints to an array of points 
         self.kps_ref = np.array([x.pt for x in self.kps_ref], dtype=np.float32) if self.kps_ref is not None else None

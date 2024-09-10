@@ -81,6 +81,11 @@ class PinholeCamera(Camera):
     # in:  uvs [Nx2]
     # out: uvs_undistorted array [Nx2] of undistorted coordinates  
     def undistort_points(self, uvs):
+        ''' 
+        This function undistorts a set of 2D points (uvs) using the camera calibration parameters (K, D).
+        Means that it removes the distortion from the points caused by the lens of the camera. 
+        
+        '''
         if self.is_distorted:
             #uvs_undistorted = cv2.undistortPoints(np.expand_dims(uvs, axis=1), self.K, self.D, None, self.K)   # =>  Error: while undistorting the points error: (-215:Assertion failed) src.isContinuous() 
             uvs_contiguous = np.ascontiguousarray(uvs[:, :2]).reshape((uvs.shape[0], 1, 2))
