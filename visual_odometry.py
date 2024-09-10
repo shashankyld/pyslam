@@ -23,7 +23,7 @@ import platform
 from enum import Enum
 
 from scipy.spatial import Delaunay
-
+from utils_delaunay import adjaceny_matrix, get_common_edges, get_dynamic_edges, get_dynamic_edges_2
 
 from feature_tracker import FeatureTrackerTypes, FeatureTrackingResult, FeatureTracker
 from utils_geom import poseRt, is_rotation_matrix, closest_rotation_matrix
@@ -231,6 +231,10 @@ class VisualOdometry(object):
         self.timer_pose_est.start()
 
         
+        ## VISUALIZE THE PREVIOUS AND CURRENT KEYPOINTS in their respective frames
+        image_ref = cv2.cvtColor(self.prev_image, cv2.COLOR_GRAY2RGB)
+        image_cur = cv2.cvtColor(self.cur_image, cv2.COLOR_GRAY2RGB)
+
 
         print("############### ESTIMATING POSE with kps_ref_matched, kps_cur_matched #################")
         # print(self.track_result.kps_ref_matched)
@@ -239,9 +243,24 @@ class VisualOdometry(object):
         print(" ############## Delaunay Triangulation #################")
         ref_tri = Delaunay(self.track_result.kps_ref_matched)
         cur_tri = Delaunay(self.track_result.kps_cur_matched)
+        adjaceny_matrix_ref = adjaceny_matrix(ref_tri)
+        dynamic_edges = get_dynamic_edges_2(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)
+        # Visualize the delaunay triangulation and the dynamic edges with different colors
+        for s in ref_tri.simplices:
+            # Three lines for each triangle
+            # Syntax is cv2.line(image, start_point, end_point, color, thickness)
+            for i in range(3):
+                cv2.line(image_ref, (int(self.track_result.kps_ref_matched[s[i]][0]), int(self.track_result.kps_ref_matched[s[i]][1])),
+                        (int(self.track_result.kps_ref_matched[s[(i+1)%3]][0]), int(self.track_result.kps_ref_matched[s[(i+1)%3]][1])), (255, 255, 255), 1)
+                
+        # Add how many edges on the image top left
+        cv2.putText(image_ref, str(len(ref_tri.simplices)), (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         
-        
-
+        for edge in dynamic_edges:
+            cv2.line(image_ref, (int(self.track_result.kps_ref_matched[edge[0]][0]), int(self.track_result.kps_ref_matched[edge[0]][1])),
+                    (int(self.track_result.kps_ref_matched[edge[1]][0]), int(self.track_result.kps_ref_matched[edge[1]][1])), (0, 0, 0), 3)
+        # Add how many dynamic edges on the image top left 
+        cv2.putText(image_ref, str(len(dynamic_edges)), (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
         print(" ############## Delaunay Triangulation END #################")
 
         
@@ -255,10 +274,6 @@ class VisualOdometry(object):
         self.des_cur = self.track_result.des_cur 
         self.num_matched_kps = self.kpn_ref.shape[0] 
         self.num_inliers =  np.sum(self.mask_match)
-
-        ## VISUALIZE THE PREVIOUS AND CURRENT KEYPOINTS in their respective frames
-        image_ref = cv2.cvtColor(self.prev_image, cv2.COLOR_GRAY2RGB)
-        image_cur = cv2.cvtColor(self.cur_image, cv2.COLOR_GRAY2RGB)
 
 
         # Adding keypoints to the images 
