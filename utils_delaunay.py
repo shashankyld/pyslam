@@ -89,3 +89,6 @@ def get_dynamic_edges_2(points1 : np.ndarray, points2 : np.ndarray):
 # maybe if I plot angle changes, I might find dynamic objects out of distribution
 ## Maybe params are best suited only for a specific type of motion, and on specific dataset
 ## How to make it more general?
+
+# Since edges still remain even after tuning and removing dynamic edges, BFS or DFS still results in a single cluster, 
+
