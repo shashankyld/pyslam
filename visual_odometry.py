@@ -244,7 +244,7 @@ class VisualOdometry(object):
         ref_tri = Delaunay(self.track_result.kps_ref_matched)
         cur_tri = Delaunay(self.track_result.kps_cur_matched)
         adjaceny_matrix_ref = adjaceny_matrix(ref_tri)
-        dynamic_edges = get_dynamic_edges_2(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)
+        dynamic_edges = get_dynamic_edges(self.track_result.kps_ref_matched, self.track_result.kps_cur_matched)
         # Visualize the delaunay triangulation and the dynamic edges with different colors
         for s in ref_tri.simplices:
             # Three lines for each triangle
