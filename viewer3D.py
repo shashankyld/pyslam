@@ -63,12 +63,12 @@ class Viewer3D(object):
     def __init__(self):
         self.map_state = None
         self.qmap = Queue()
-        self.vo_state = None
-        self.qvo = Queue()        
+        self.vo_state = None #vo_state here means visual odometry state
+        self.qvo = Queue()   #qvo here means queue for visual odometry    
         self._is_running  = Value('i',1)
         self._is_paused = Value('i',1)
         self.vp = Process(target=self.viewer_thread,
-                          args=(self.qmap, self.qvo,self._is_running ,self._is_paused,))
+                          args=(self.qmap, self.qvo,self._is_running ,self._is_paused,)) #vp here means viewer process
         self.vp.daemon = True
         self.vp.start()
 
@@ -92,7 +92,7 @@ class Viewer3D(object):
 
         pangolin.CreateWindowAndBind('Map Viewer', w, h)
         print("###########################Pangolin Window created##########################")
-        gl.glEnable(gl.GL_DEPTH_TEST)
+        gl.glEnable(gl.GL_DEPTH_TEST) # q: What is this? a: This is to enable depth testing. This is done by the GPU to determine which objects are in front of others.
         
         viewpoint_x = 0
         viewpoint_y = -40

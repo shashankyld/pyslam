@@ -44,7 +44,7 @@ kDrawOctaveColor = np.linspace(0, 255, 12)
 # - checking points visibility 
 class FrameBase(object):       
     _id = 0                     # shared frame counter    
-    _id_lock = RLock()     
+    _id_lock = RLock()    
     def __init__(self, camera, pose=None, id=None, timestamp=None):
         self._lock_pose = RLock()
         # frame camera info
@@ -524,7 +524,10 @@ class Frame(FrameBase):
 
 # match frames f1 and f2
 # out: a vector of match index pairs [idx1[i],idx2[i]] such that the keypoint f1.kps[idx1[i]] is matched with f2.kps[idx2[i]]
-def match_frames(f1: Frame, f2: Frame, ratio_test=None):     
+def match_frames(f1: Frame, f2: Frame, ratio_test=None):
+
+    print("shape of f1.des: ", f1.des.shape)
+    print("shape of f2.des: ", f2.des.shape)     
     matching_result = Frame.feature_matcher.match(f1.img, f2.img, f1.des, f2.des, ratio_test)
     return matching_result
     # idxs1, idxs2 = matching_result.idxs1, matching_result.idxs2

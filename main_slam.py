@@ -69,7 +69,7 @@ if __name__ == "__main__":
     
     num_features=2000 
 
-    tracker_type = FeatureTrackerTypes.DES_BF      # descriptor-based, brute force matching with knn 
+    tracker_type = FeatureTrackerTypes.DES_BF  # Default is DES_BF    # descriptor-based, brute force matching with knn 
     #tracker_type = FeatureTrackerTypes.DES_FLANN  # descriptor-based, FLANN-based matching 
 
     # select your tracker configuration (see the file feature_tracker_configs.py) 

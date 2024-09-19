@@ -252,6 +252,8 @@ class FeatureMatcher(object):
         result.des2 = des2
         result.kps1 = kps1
         result.kps2 = kps2
+        print("Shape of kps1: ", kps1)
+        print("Shape of kps2: ", kps2)
         if kVerbose:
             print(self.matcher_name,', norm ', self.norm_type)             
             print('matcher: ', self.matcher_type.name)  

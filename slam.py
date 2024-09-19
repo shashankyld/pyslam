@@ -115,7 +115,7 @@ class SlamState(Enum):
     LOST=3
 
 
-class TrackingHistory(object):
+class TrackingHistory(object): 
     def __init__(self):
         self.relative_frame_poses = []  # list of relative frame poses as g2o.Isometry3d() (see camera_pose.py)
         self.kf_references = []         # list of reference keyframes  
