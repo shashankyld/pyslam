@@ -156,7 +156,7 @@ class Slam(object):
 
 
 class Tracking(object):
-    def __init__(self, system):
+    def __init__(self, system): # system is the Slam object
         
         if kDebugDrawMatches: 
             Frame.is_store_imgs = True 
@@ -164,7 +164,6 @@ class Tracking(object):
         self.system = system                     
         self.camera = system.camera 
         self.map = system.map
-        
         self.local_mapping = system.local_mapping
                                 
         self.intializer = Initializer()

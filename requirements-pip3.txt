@@ -1,3 +1,4 @@
+open3d
 absl-py==1.4.0
 astor==0.8.1
 cycler==0.10.0

@@ -24,7 +24,7 @@ import math
 import time 
 
 import platform 
-
+import open3d as o3d
 from config import Config
 
 from slam import Slam, SlamState
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # select your tracker configuration (see the file feature_tracker_configs.py) 
     # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, SUPERPOINT, FAST_TFEAT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
     # WARNING: At present, SLAM is not able to support LOFTR and other "pure" image matchers (further details in the commenting notes of LOFTR in feature_tracker_configs.py).
-    tracker_config = FeatureTrackerConfigs.SUPERPOINT
+    tracker_config = FeatureTrackerConfigs.ORB2
     tracker_config['num_features'] = num_features
     tracker_config['tracker_type'] = tracker_type
     
@@ -86,8 +86,23 @@ if __name__ == "__main__":
     slam = Slam(cam, feature_tracker, groundtruth)
     time.sleep(1) # to show initial messages 
 
-    viewer3D = Viewer3D()
     
+    viewer3D = Viewer3D()
+    '''
+    vis = o3d.visualization.Visualizer()
+    vis.create_window(window_name='3D Viewer for Map', width=1280, height=720)
+    o3d_map = o3d.geometry.PointCloud()
+    # Add random points to the point cloud
+    points = np.random.rand(1000, 3)
+    o3d_map.points = o3d.utility.Vector3dVector(points)
+
+    vis.add_geometry(o3d_map)
+    grid = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1, origin=[0, 0, 0])
+    vis.add_geometry(grid)
+    vis.run()
+    '''
+
+
     if platform.system()  == 'Linux':    
         display2d = Display2D(cam.width, cam.height)  # pygame interface 
     else: 
@@ -145,17 +160,36 @@ if __name__ == "__main__":
                     if slam.tracking.descriptor_distance_sigma is not None: 
                         descriptor_sigma_signal = [img_id, slam.tracking.descriptor_distance_sigma]                    
                         matched_points_plt.draw(descriptor_sigma_signal,'descriptor distance $\sigma_{th}$',color='k')                                                                 
-                    matched_points_plt.refresh()    
-                
+                    matched_points_plt.refresh()   
+
+                '''
+                # Update open3D map 
+                o3d_map_points = np.array([p.pt for p in slam.map.points]) 
+                print("SHAPE OF MAP POINTS: ", o3d_map_points.shape)
+                if o3d_map_points.shape[0] > 0:
+                    o3d_map_points = np.array([p.pt for p in slam.map.points]) + np.random.rand(o3d_map_points.shape[0],3)*0.01
+                    print('o3d_map_points: ', o3d_map_points.shape)
+                    o3d_map.points = o3d.utility.Vector3dVector(o3d_map_points)        
+                    vis.update_geometry(o3d_map)
+                    vis.poll_events()
+                    vis.update_renderer()
+                else: 
+                    print('no points to display in the map')
+                    vis.update_geometry(o3d_map)
+                    vis.poll_events()
+                    vis.update_renderer()
+
                 duration = time.time()-time_start 
                 if(frame_duration > duration):
                     print('sleeping for frame')
                     time.sleep(frame_duration-duration)        
-                    
+                ''' 
             img_id += 1  
+            
         else:
             time.sleep(1)                                 
         
+
         # get keys 
         key = matched_points_plt.get_key()  
         key_cv = cv2.waitKey(1) & 0xFF    
@@ -190,7 +224,8 @@ if __name__ == "__main__":
         
         if viewer3D is not None:
             is_paused = not viewer3D.is_paused()         
-                        
+
+    # vis.destroy_window()            
     slam.quit()
     
     #cv2.waitKey(0)

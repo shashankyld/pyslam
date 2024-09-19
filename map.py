@@ -22,7 +22,7 @@ import numpy as np
 import json
 import math 
 import cv2
-
+import open3d as o3d
 from collections import Counter, deque
 
 from ordered_set import OrderedSet # from https://pypi.org/project/ordered-set/
@@ -442,6 +442,7 @@ class Map(object):
         #             ff.points[i] = pids[p]
         #     self.keyframes.append(ff)
         pass
+
 
 
 
