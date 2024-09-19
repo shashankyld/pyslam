@@ -52,6 +52,10 @@ alt="Feature matching and Visual Odometry" width="600" border="1" />
 </center>
 
 --- 
+
+#### Things to address 
+1. Fix LIGHTGLUE with SUPERPOINT in the slam
+
 ## Install 
 
 First, clone this repo and its modules by running 
