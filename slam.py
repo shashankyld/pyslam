@@ -87,6 +87,28 @@ if not kVerbose:
 
 
 class SlamState(Enum):
+    # This Enum class defines the possible states of the SLAM system 
+    ''' 
+    Basic use of Enum class:
+    class Color(Enum):
+        RED = 1
+        GREEN = 2
+        BLUE = 3
+
+    print(Color.RED)  # This will print: Color.RED, why not 1? because Enum is a class that inherits from object, and it overrides the __str__ method.
+    The point of using Enum is to have a set of possible values that you know in advance. 
+    Other way to have same functionality is to use a class with class variables. 
+    Example:
+    class Color:
+        RED = 1
+        GREEN = 2
+        BLUE = 3
+
+    print(Color.RED)  # 1
+    Enum is more readable and more robust, because it is impossible to assign a value that is not in the list of possible values.
+    In the example above with Enum, if you try to assign a value that is not in the list of possible values, you will get an error.
+    But with class variables, you can assign any value to the variable, even if it is not in the list of possible values.
+    '''
     NO_IMAGES_YET=0,
     NOT_INITIALIZED=1,
     OK=2,
