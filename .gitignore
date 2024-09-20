@@ -12,6 +12,7 @@ thirdparty/g2opy
 thirdparty/pangolin
 thirdparty/opencv-python
 thirdparty/contextdesc/pretrained 
+thirdparty/segment-anything-2
 matches.txt 
 map.png
 .vscode 

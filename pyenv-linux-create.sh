@@ -47,6 +47,7 @@ cd $ENVS_PATH
 
 #export PYSLAM_PYTHON_VERSION="3.6.9"
 export PYSLAM_PYTHON_VERSION="3.8.10"
+# export PYSLAM_PYTHON_VERSION_SHORT="3.10"
 
 # actually create the virtual environment 
 if [ ! -d $ENV_PATH/bin ]; then 

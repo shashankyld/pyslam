@@ -15,7 +15,8 @@ then
     exit
 fi
 
-export PYSLAM_PYTHON_VERSION="3.8.10"
+# export PYSLAM_PYTHON_VERSION="3.8.10"
+export PYSLAM_PYTHON_VERSION_SHORT="3.10"
 
 #conda create --name $ENV_NAME --file requirements-conda.txt -c conda-forge
 # or (easier)

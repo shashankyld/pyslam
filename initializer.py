@@ -132,7 +132,8 @@ class Initializer(object):
             Printer.red('Inializer: ko - not enough features!') 
             self.num_failures += 1
             return out, is_ok
-
+        print("In tracking All about f_curr:", f_cur.kps.shape, f_cur.kpsn.shape, f_cur.octaves.shape, f_cur.sizes.shape, f_cur.angles.shape)
+        print("In tracking All about f_ref:", f_ref.kps.shape, f_ref.kpsn.shape, f_ref.octaves.shape, f_ref.sizes.shape, f_ref.angles.shape)
         # find keypoint matches
         matching_result = match_frames(f_cur, f_ref, kFeatureMatchRatioTestInitializer)      
         idxs_cur, idxs_ref = np.asarray(matching_result.idxs1), np.asarray(matching_result.idxs2)      

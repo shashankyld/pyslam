@@ -60,11 +60,15 @@ install_pip_package kornia_moons==0.2.9
 install_pip_package importlib_metadata==8.0.0
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    install_pip_package torch==2.1           # torch==2.2.0 causes some segmentation faults on mac
-    install_pip_package torchvision==0.16         
+    # install_pip_package torch==2.1
+    # install_pip_package torchvision==0.16
+    install_pip_package torch==2.3.1      # Default 2.1      # torch==2.2.0 causes some segmentation faults on mac
+    install_pip_package torchvision==0.18.1  # Default 0.16        
 else 
-    install_pip_package torch==2.2.0
-    install_pip_package torchvision==0.17               
+    # install_pip_package torch==2.2.0 
+    # install_pip_package torchvision==0.17
+    install_pip_package torch==2.3.1      
+    install_pip_package torchvision==0.18.1               
 fi 
 
 install_pip_package rerun-sdk #==0.17.0

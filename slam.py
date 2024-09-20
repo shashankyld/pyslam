@@ -229,6 +229,16 @@ class Tracking(object):
         if kLogKFinfoToFile:
             self.kf_info_logger = Logging.setup_file_logger('kf_info_logger', 'kf_info.log',formatter=Logging.simple_log_formatter)
                  
+    
+    def mask_f_cur_points(self,f_cur, mask):
+        ''' 
+        SHASHANK: Given a mask, mask the keypoints of f_cur
+        '''
+        # Mask is given as a image with 0 and 1 values
+        # Mask the keypoints of f_cur
+
+        pass
+
 
     # estimate a pose from a fitted essential mat; 
     # since we do not have an interframe translation scale, this fitting can be used to detect outliers, estimate interframe orientation and translation direction 
@@ -293,7 +303,6 @@ class Tracking(object):
         print('>>>> tracking previous frame ...')        
         is_search_frame_by_projection_failure = False 
         use_search_frame_by_projection = self.motion_model.is_ok and kUseSearchFrameByProjection and kUseMotionModel
-        
         if use_search_frame_by_projection: 
             # search frame by projection: match map points observed in f_ref with keypoints of f_cur
             print('search frame by projection') 
@@ -536,6 +545,20 @@ class Tracking(object):
         # build current frame 
         self.timer_frame.start()        
         f_cur = Frame(img, self.camera, timestamp=timestamp) 
+
+        ##########SHASHANK############
+        # Generate a fake mask with 0s and 1s, 0s on the left and 1s on the right
+        mask = np.zeros((len(img), len(img[0])))
+        mask[:, len(img[0])//2:] = 1
+        print("Everything about f_cur: ", f_cur.kps.shape, f_cur.kpsn.shape, f_cur.octaves.shape, f_cur.sizes.shape, f_cur.angles.shape)
+
+        f_cur.apply_mask(mask)
+        print("f_cur.img.shape: ", f_cur.img.shape)
+        # Drop the image
+        f_cur.drop_img()
+        print("Everything about f_cur: ", f_cur.kps.shape, f_cur.kpsn.shape, f_cur.octaves.shape, f_cur.sizes.shape, f_cur.angles.shape)
+        ###########SHASHANK############
+        
         self.f_cur = f_cur 
         print("frame: ", f_cur.id)        
         self.timer_frame.refresh()   
@@ -543,15 +566,18 @@ class Tracking(object):
         # reset indexes of matches 
         self.idxs_ref = [] 
         self.idxs_cur = []           
-        
+        print("System state: ", self.state)
         if self.state == SlamState.NO_IMAGES_YET: 
             # push first frame in the inizializer 
             self.intializer.init(f_cur) 
+            print("Everything about f_cur: ", f_cur.kps.shape, f_cur.kpsn.shape, f_cur.octaves.shape, f_cur.sizes.shape, f_cur.angles.shape)
+
             self.state = SlamState.NOT_INITIALIZED
             return # EXIT (jump to second frame)
         
         if self.state == SlamState.NOT_INITIALIZED:
             # try to inizialize 
+            print("Everything about f_cur: ", f_cur.kps.shape, f_cur.kpsn.shape, f_cur.octaves.shape, f_cur.sizes.shape, f_cur.angles.shape)
             initializer_output, intializer_is_ok = self.intializer.initialize(f_cur, img)
             if intializer_is_ok:
                 kf_ref = initializer_output.kf_ref
