@@ -16,8 +16,35 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+'''
+Explanation:
 
+    Purpose: This code defines several classes for storing and querying global image descriptors used in loop closure detection. It provides different implementations with varying levels of complexity and efficiency.
+    Database (Abstract Class):
+        This is an abstract base class that defines the common interface for all database implementations.
+        It includes methods for querying (query), adding (add), and managing descriptors (size, reset, load, save).
+        Derived classes must implement the query and size methods.
+    SimpleDatabase:
+        This is a simple implementation that stores descriptors as a list of NumPy arrays.
+        It uses a brute-force approach for querying, comparing the query descriptor to all descriptors in the database.
+    SimpleTorchDatabase:
+        This is similar to SimpleDatabase but stores descriptors as PyTorch tensors.
+        It's useful when working with deep learning models that output PyTorch tensors.
+    FlannDatabase:
+        This implementation uses the FLANN library for efficient approximate nearest neighbor search.
+        It builds an index of the descriptors to speed up queries.
+    FaissDatabase:
+        This implementation uses the FAISS library, which is another efficient library for similarity search.
+        FAISS is particularly well-suited for high-dimensional data and can leverage GPUs for acceleration.
 
+Key Concepts:
+
+    Loop Closure: The process of recognizing previously visited places in a map, crucial for correcting accumulated drift in visual SLAM.
+    Global Descriptor: A compact representation of an image that captures its overall appearance.
+    Nearest Neighbor Search: Finding the most similar descriptors in a database to a given query descriptor.
+    FLANN: Fast Library for Approximate Nearest Neighbors, an efficient library for similarity search.
+    FAISS: Facebook AI Similarity Search, another efficient library for similarity search, often used for high-dimensional data and deep learning applications.
+'''
 import os
 import time
 import math 
