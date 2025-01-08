@@ -16,7 +16,30 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+    Purpose: This code defines a base class (VocabularyData) and several derived classes for managing vocabulary data used in loop closure detection. It handles different vocabulary formats and provides functionality for downloading vocabularies if needed.
+    VocabularyData (Base Class):
+        This class stores information about the vocabulary, including the file path, descriptor type, descriptor dimension, and URLs for downloading.
+        The check_download method checks if the vocabulary file exists and downloads it from a URL (e.g., Google Drive) if necessary.
+    Derived Classes:
+        DBowOrbVocabularyDataTxt: Represents an ORB vocabulary stored in a text file (.txt).
+        DBow2OrbVocabularyData: Represents an ORB vocabulary stored in a DBoW2 binary file (.dbow2).
+        DBow3OrbVocabularyData: Represents an ORB vocabulary stored in a DBoW3 binary file (.dbow3).
+        VladOrbVocabularyData: Represents an ORB vocabulary used for VLAD (Vector of Locally Aggregated Descriptors), stored in a text file (.txt).
+    Vocabulary Downloading:
+        The check_download method in the base class handles downloading vocabularies from URLs if they are not found locally.
+        This is useful for providing pre-trained vocabularies that can be easily downloaded and used in different SLAM systems.
+
+Key Concepts:
+
+    Loop Closure: Recognizing previously visited places in a map.
+    Vocabulary: A set of visual words used to represent images in a bag-of-words approach.
+    ORB Features: Efficient binary features used for image matching.
+    DBoW2, DBoW3: Bag-of-Words algorithms for loop closure detection.
+    VLAD: Vector of Locally Aggregated Descriptors, another method for loop closure.
+'''
 
 import os
 import time
