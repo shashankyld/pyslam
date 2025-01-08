@@ -16,7 +16,36 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+    Purpose: This code defines the base classes and data structures for loop detection in PYSLAM. It provides a common framework for different loop detection methods (e.g., DBoW, NetVLAD).
+    Classes:
+        LoopDetectorTaskType: An enum defining the types of tasks that can be processed by the loop detector.
+        LoopDetectKeyframeData: Stores the keyframe data required for loop detection.
+        LoopDetectorTask: Represents a task for the loop detector.
+        LoopDetectorOutput: Stores the output of a loop detection task.
+        LoopDetectorBase: Base class for loop detectors, providing common functionality.
+    Loop Detection Pipeline: The code outlines the basic steps involved in loop detection:
+        Create a LoopDetectorTask with the keyframe data and task type.
+        Pass the task to the run_task method of a LoopDetectorBase subclass.
+        The run_task method performs the loop detection and returns a LoopDetectorOutput object.
+        The LoopDetectorOutput contains information about potential loop closure candidates.
+    Key Methods:
+        compute_local_des_if_needed: Computes local descriptors if needed.
+        compute_global_des: Computes a global descriptor from local descriptors and the image.
+        run_task: Runs a loop detection task.
+        compute_reference_similarity_score: Computes a reference similarity score for loop closure candidates.
+    Similarity Matrix and Visualization: The code includes functionality for managing a similarity matrix and visualizing loop closure candidates.
+
+Key Concepts:
+
+    Loop Detection: The process of identifying previously visited places in a map, which is essential for correcting accumulated drift in visual SLAM.
+    Loop Detector: An algorithm that compares images or features to identify potential loop closures.
+    Global Descriptor: A compact representation of an image that captures its overall appearance.
+    Local Descriptor: A description of a local feature (e.g., keypoint) in an image.
+    Similarity Matrix: A matrix that stores the similarity scores between pairs of images or keyframes.
+'''
 
 import os
 import time
