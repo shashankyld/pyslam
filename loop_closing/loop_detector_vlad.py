@@ -16,7 +16,50 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+    Purpose: This code implements a loop closure detector using the VLAD algorithm. VLAD is a method for aggregating local feature descriptors into a compact global descriptor.
+    Vocabulary: It requires a pre-trained VLAD vocabulary, which is a set of cluster centers learned from a large collection of local descriptors.
+    VLAD Feature Extraction: The VLAD class is used to extract VLAD vectors from local descriptors.
+    Database: The code uses different database implementations (SimpleDatabase, FlannDatabase, FaissDatabase) to store and query global descriptors. The choice of database depends on the desired efficiency and scalability.
+    Loop Detection:
+        The compute_global_des method computes a global descriptor (VLAD vector) for an image by aggregating its local descriptors using the VLAD vocabulary.
+        The run_task method handles loop closure and relocalization tasks. It computes global descriptors, adds keyframes to the database, and queries the database for candidates.
+
+Key Concepts:
+
+    Loop Closure: Recognizing previously visited places.
+    VLAD (Vector of Locally Aggregated Descriptors): A method for aggregating local features into a global descriptor.
+    Vocabulary: A set of cluster centers used to represent local features.
+    Nearest Neighbor Search: Finding the most similar descriptors in a database.
+    FLANN, FAISS: Efficient libraries for nearest neighbor search
+###################################
+
+VLAD
+
+    Focus: Aggregating local feature descriptors into a single, discriminative vector.
+    Process:
+        Local Feature Extraction: Extract local features (e.g., SIFT, ORB) and their descriptors from an image.
+        Vocabulary Learning: Learn a "visual vocabulary" by clustering a large set of local descriptors. These clusters represent common visual patterns.
+        VLAD Encoding: For each image, compute the difference between each local descriptor and its nearest cluster center (visual word). Accumulate these differences into a single vector, which represents the image.
+
+DBoW
+
+    Focus: Representing images as histograms of "visual words."
+    Process:
+        Local Feature Extraction: Extract local features and their descriptors.
+        Vocabulary Creation: Build a vocabulary of visual words by clustering local descriptors.
+        Bag-of-Words Representation: Create a histogram for each image, counting how many times each visual word appears in the image.
+
+Here's a table summarizing the key differences:
+Feature	VLAD	DBoW
+Representation	Single vector of aggregated differences	Histogram of visual word occurrences
+Encoding	Accumulates differences between descriptors and cluster centers	Counts occurrences of visual words
+Discriminative Power	Generally higher, captures more fine-grained information	Can be less discriminative, loses some information about descriptor distribution
+Computational Cost	Can be higher due to the aggregation process	Generally lower, simpler computation
+Memory Usage	Lower, single vector per image	Can be higher, especially with large vocabularies
+'''
 
 import os
 import time
