@@ -1,3 +1,33 @@
+'''
+Explanation:
+
+    Purpose: This code implements a keyframe database using a bag-of-words (DBoW) approach, which is a common technique for loop closure detection and relocalization in visual SLAM.
+    Data Structures:
+        inverted_file: A dictionary that maps word IDs to lists of keyframes containing that word. This allows for efficient retrieval of keyframes that share words with a query keyframe or frame.
+        mutex: A lock used to ensure thread safety when accessing the inverted_file.
+    Methods:
+        __init__: Initializes the database with a visual vocabulary (voc) and an empty inverted_file.
+        add: Adds a keyframe to the database by associating it with the words in its descriptor.
+        erase: Removes a keyframe from the database.
+        clear: Clears the database.
+        detect_loop_candidates: This is the core method for loop closure detection. It takes a query keyframe and a minimum score as input and returns a list of potential loop closure candidates. The method works by:
+            Identifying keyframes that share words with the query keyframe.
+            Discarding keyframes that are already connected to the query keyframe in the pose graph.
+            Computing a similarity score between the query keyframe and the remaining candidate keyframes.
+            Filtering the candidates based on the score and a neighborhood consistency check.
+        detect_relocalization_candidates: This method is similar to detect_loop_candidates but is used for relocalization (i.e., estimating the camera pose in a known map). It takes a query frame as input and returns a list of potential relocalization candidates.
+
+Key Concepts:
+
+    Bag-of-Words (DBoW): A technique for representing images as histograms of visual words. This allows for efficient comparison of images based on their word frequencies.
+    Visual Vocabulary: A set of representative visual words learned from a large collection of images.
+    Inverted Index: A data structure that maps words to the documents (or in this case, keyframes) containing those words.
+    Loop Closure Detection: The process of recognizing previously visited places in a map, which is crucial for correcting accumulated drift in visual SLAM.
+    Relocalization: The process of estimating the camera pose in a known map, which is useful for robot navigation and augmented reality applications.
+
+'''
+
+
 from collections import defaultdict
 from threading import Lock
 
