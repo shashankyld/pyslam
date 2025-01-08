@@ -16,7 +16,26 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+    Purpose: This code implements a loop closure detector using the DBoW2 algorithm. DBoW2 is a bag-of-words approach that represents images as histograms of visual words.
+    ORB Features: This implementation specifically works with ORB (Oriented FAST and Rotated BRIEF) features, which are binary features known for their efficiency.
+    Vocabulary: It requires a pre-trained ORB vocabulary, which is a set of visual words learned from a large collection of images. The vocabulary is loaded from a file (.txt or .dbow2).
+    Keyframe Database: The code uses a KeyFrameOrbDatabase from the pydbow2 library to store and query keyframes based on their BoW representations.
+    Loop Detection:
+        The compute_global_des method computes a global descriptor (BoW vector) for an image by transforming its local ORB descriptors into a histogram of visual words.
+        The db_query method queries the keyframe database to find potential loop closure candidates based on the similarity of their BoW vectors.
+        The run_task method handles different types of loop detection tasks, including loop closure and relocalization. It computes global descriptors, adds keyframes to the database, and queries the database for candidates.
+
+Key Concepts:
+
+    Loop Closure: Recognizing previously visited places in a map.
+    Bag-of-Words (BoW): Representing images as histograms of visual words.
+    ORB Features: Efficient binary features used for image matching.
+    Vocabulary: A set of visual words learned from a dataset of images.
+    Keyframe: A representative frame in a SLAM system that is used for mapping and loop closure.
+'''
 
 import os
 import time
