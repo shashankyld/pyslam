@@ -16,7 +16,33 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+This code defines two important functions for loop closure detection in PYSLAM:
+
+    loop_detector_factory:
+        This function acts like a factory, creating different types of loop detectors based on the input configuration.
+        It takes parameters like global_descriptor_type (e.g., DBOW3, VLAD) and local_feature_manager_config to determine which loop detector to create and how to configure it.
+        It also handles the creation of an independent local feature manager if needed. This allows the loop closure to use different local features than the main SLAM system.
+        The function returns a fully configured loop detector object ready to be used for loop closure detection.
+
+    loop_detector_config_check:
+        This function is responsible for checking the compatibility between the loop detector's configuration and the type of features used in the SLAM system.
+        It ensures that the loop detector can correctly process the features extracted by the SLAM system.
+        Specifically, it checks:
+            DBOW2 compatibility: DBOW2 only works with ORB features. If the SLAM system uses a different feature type, the function raises an error and suggests solutions like using an independent ORB feature manager or switching to DBOW3.
+            Vocabulary compatibility: If the loop detector uses a vocabulary (like in bag-of-words methods), the function checks if the vocabulary's feature type matches the feature type used by the loop detector. If there's a mismatch, it raises an error and suggests creating a new vocabulary or using an independent feature manager with the correct feature type.
+
+Key Concepts:
+
+    Loop Closure: The process of recognizing previously visited places in SLAM, crucial for correcting accumulated errors.
+    Loop Detector: An algorithm that compares images or features to find loop closures.
+    Global Descriptor: A compact representation of an image's overall appearance.
+    Local Descriptor: Describes a small patch or keypoint in an image.
+    Vocabulary: A set of "visual words" used to represent images in bag-of-words methods.
+    Feature Manager: Extracts and manages local features in images.
+'''
 
 import os
 import time
