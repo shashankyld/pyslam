@@ -16,7 +16,24 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+    Purpose: This code defines the LoopDetectingProcess class, which handles the loop detection process in PYSLAM. It runs in a separate process to improve efficiency and utilizes a loop detector (e.g., DBoW, NetVLAD) to identify potential loop closure candidates.
+    Multiprocessing: The code uses torch.multiprocessing to create a separate process for loop detection. This allows the loop detection to run in parallel with the main SLAM process, improving performance.
+    Loop Detector: The loop_detector object is an instance of a LoopDetectorBase subclass (e.g., DBoW3) and is responsible for performing the actual loop detection.
+    Queues: The code uses queues (q_in, q_out, q_out_reloc) to communicate between the main SLAM process and the loop detection process. The main process adds tasks to q_in, and the loop detection process retrieves tasks from q_in and puts the results in q_out or q_out_reloc.
+    Synchronization: The code uses conditions (q_in_condition, q_out_condition, q_out_reloc_condition) to synchronize the main process and the loop detection process. The conditions ensure that the main process doesn't try to retrieve results before they are available.
+    Task Types: The LoopDetectorTaskType enum defines different types of tasks that can be processed by the loop detection process, including LOOP_CLOSURE, RELOCALIZATION, LOAD, and SAVE.
+
+Key Concepts:
+
+    Loop Detection: The process of identifying previously visited places in a map, which is essential for correcting accumulated drift in visual SLAM.
+    Loop Detector: An algorithm that compares images or features to identify potential loop closures.
+    Multiprocessing: A technique for running multiple processes concurrently, which can improve performance on multi-core processors.
+    Queues: Data structures that allow processes to communicate by sending and receiving messages.
+    Conditions: Synchronization primitives that allow processes to wait for certain conditions to be met before proceeding.
+'''
 
 import os
 import time
