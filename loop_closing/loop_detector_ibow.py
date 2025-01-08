@@ -16,7 +16,26 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+'''
+Explanation:
 
+    Purpose: This code implements a loop closure detector using the iBoW-LCD algorithm. iBoW-LCD is an incremental bag-of-words approach that builds the vocabulary online as new images are processed.
+    Binary Descriptors: iBoW-LCD works with binary descriptors. If the input descriptors are non-binary, they are converted to binary using the transform_float_to_binary_descriptor function.
+    Incremental Vocabulary: Unlike DBoW2, which requires a pre-trained vocabulary, iBoW-LCD builds the vocabulary incrementally as new images are added. This makes it more adaptable to different environments and datasets.
+    Loop Closure Detection:
+        The run_task method handles both loop closure and relocalization tasks.
+        For loop closure, it adds the current keyframe to the iBoW database (self.lc_detector.process).
+        For relocalization, it queries the database without adding the current frame (self.lc_detector.process_without_pushing).
+        The result object contains information about the loop closure status, including the candidate ID, score, and inlier count.
+
+Key Concepts:
+
+    Loop Closure: Recognizing previously visited places.
+    Incremental Bag-of-Words: Building the vocabulary online as new images are processed.
+    Binary Descriptors: Descriptors that are represented as binary strings.
+    iBoW-LCD: An incremental bag-of-words approach for loop closure detection.
+    Relocalization: Estimating the camera pose in a known map.
+'''
 
 import os
 import time
