@@ -16,7 +16,33 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+    Purpose: This code defines various scoring functions used to compare global image descriptors in loop closure detection. It provides implementations for SAD (Sum of Absolute Differences) and cosine similarity, including a version for PyTorch tensors.
+    SCoreType (Enum):
+        This enum defines the different types of scoring functions available.
+    ScoreBase (Abstract Class):
+        This is an abstract base class for all scoring functions.
+        It defines the common interface, including the __call__ method that allows the object to be called as a function.
+    ScoreSad:
+        This class implements the SAD scoring function.
+        It computes the average SAD between two descriptors, handling potential NaN (Not a Number) values.
+    ScoreCosine:
+        This class implements the cosine similarity scoring function.
+        It computes the cosine similarity between two descriptors, which measures the angle between them.
+    ScoreTorchCosine:
+        This class implements the cosine similarity scoring function using PyTorch tensors.
+        It's useful when working with deep learning models that output PyTorch tensors.
+
+Key Concepts:
+
+    Loop Closure: The process of recognizing previously visited places in a map.
+    Global Descriptor: A compact representation of an image that captures its overall appearance.
+    Scoring Function: A function that measures the similarity between two global descriptors.
+    SAD (Sum of Absolute Differences): A simple distance metric that measures the absolute difference between corresponding elements of two descriptors.
+    Cosine Similarity: A similarity metric that measures the angle between two vectors.
+'''
 
 import os
 import time
