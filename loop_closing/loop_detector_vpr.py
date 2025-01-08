@@ -16,7 +16,29 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Explanation:
 
+    Purpose: This code defines a base class (LoopDetectorVprBase) for loop detectors that use various Visual Place Recognition (VPR) techniques. It provides a common framework for different global descriptor types and database implementations.
+    LoopDetectorVprBase:
+        This class handles the initialization, loading, saving, and querying of global descriptors for loop closure detection.
+        It supports various global descriptor types like HDC-DELF, SAD, AlexNet, NetVLAD, CosPlace, and EigenPlaces.
+        It uses a database (self.global_db) to store and efficiently query global descriptors.
+        The init_global_feature_extractor method initializes the appropriate global feature extractor based on the specified name.
+        The compute_global_des method computes the global descriptor from an image using the initialized extractor.
+        The run_task method handles different loop detection tasks (loop closure and relocalization) by computing global descriptors, adding them to the database, and querying for candidates.
+    Derived Classes:
+        The code includes derived classes (LoopDetectorHdcDelf, LoopDetectorSad, etc.) for each supported global descriptor type. These classes inherit from LoopDetectorVprBase and provide specific implementations for each descriptor.
+
+Key Concepts:
+
+    Loop Closure: Recognizing previously visited places.
+    Visual Place Recognition (VPR): Techniques for recognizing places based on their visual appearance.
+    Global Descriptor: A compact representation of an image that captures its overall visual characteristics.
+    Local Feature: A distinctive point or region in an image (e.g., corner, blob).
+    Database: A structure for efficiently storing and querying global descriptors.
+    FAISS: Facebook AI Similarity Search, an efficient library for similarity search and clustering.
+'''
 
 import os
 import time
