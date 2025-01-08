@@ -16,6 +16,65 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+'''
+Here's a breakdown of the code:
+
+1. Header:
+
+    The initial comments provide information about the code's origin, licensing (GNU GPL v3), and copyright. It seems to be part of a larger project called PYSLAM, adapted from another project called contextdesc.
+
+2. Imports:
+
+    numpy: For numerical operations.
+    cv2: OpenCV library for computer vision tasks (though not directly used in this specific code).
+    os: For interacting with the operating system (mainly for caching).
+    torch: PyTorch library for deep learning and tensor operations.
+    einops: For advanced tensor manipulation (like rearranging dimensions).
+    fast_pytorch_kmeans: For efficient K-means clustering in PyTorch.
+    torch.nn.functional: Provides access to neural network functions (like normalization).
+    typing: For type hinting, improving code readability and maintainability.
+
+3. VLAD Class:
+
+    __init__: This is the constructor of the class. It initializes various parameters:
+        num_clusters: The number of clusters (visual words) in the VLAD vocabulary.
+        desc_dim: The dimensionality of the local descriptors.
+        intra_norm: Whether to apply intra-normalization to the VLAD vector.
+        norm_descs: Whether to normalize the input descriptors.
+        dist_mode: The distance metric used for K-means clustering ('euclidean' or 'cosine').
+        vlad_mode: The type of assignment of descriptors to clusters ('hard' or 'soft').
+        soft_temp: Temperature parameter for soft assignment.
+        cache_dir: Directory for caching VLAD vectors and intermediate results.
+
+    can_use_cache_vlad: Checks if the cache directory is valid and contains the cluster centers.
+
+    can_use_cache_ids: Checks if the cache directory contains cached data for specific image IDs.
+
+    fit:  This method generates the cluster centers (vocabulary) using K-means clustering on the provided training descriptors. It can also load pre-computed cluster centers from the cache.
+
+    fit_and_generate:  Fits the VLAD model and generates VLAD descriptors for a batch of training images.
+
+    load and save: Methods to load and save the cluster centers from/to a file.
+
+    generate:  Generates the VLAD vector for a single query image given its local descriptors. It handles both hard and soft assignment of descriptors to clusters.
+
+    generate_multi:  Generates VLAD vectors for multiple query images.
+
+    generate_res_vec: Computes the residual vectors (difference between descriptors and cluster centers).
+
+    generate_multi_res_vec: Computes residual vectors for multiple images.
+
+    place_recognition_query: Performs place recognition by comparing the VLAD vector of a query image to VLAD vectors of database images.
+
+    score:  A static method to compute the cosine similarity between two VLAD descriptors.
+
+In essence, the VLAD class provides a comprehensive implementation of the VLAD algorithm, including:
+
+    Vocabulary creation: Learning cluster centers through K-means.
+    VLAD generation: Creating VLAD vectors from local descriptors using hard or soft assignment.
+    Caching: Storing intermediate results and cluster centers for efficiency.
+    Place recognition: Using VLAD for image retrieval and similarity search.
+'''
 
 import numpy as np
 import cv2
