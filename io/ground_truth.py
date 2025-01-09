@@ -33,11 +33,13 @@ class GroundTruthType(Enum):
     EUROC = 4
     REPLICA = 5
     SIMPLE = 6
+    BONN = 7
 
 
 kScaleSimple = 1.0
 kScaleKitti = 1.0  
-kScaleTum = 1.0    
+kScaleTum = 1.0  
+kScaleBONN = 1.0  
 kScaleEuroc = 1.0
 kScaleReplica = 1.0
 
@@ -63,6 +65,10 @@ def groundtruth_factory(settings):
         if 'associations' in settings:
             associations = settings['associations']        
         return TumGroundTruth(path, name, associations, start_frame_id, GroundTruthType.TUM)
+    if type == 'bonn':          
+        if 'associations' in settings:
+            associations = settings['associations']        
+        return BONNGroundTruth(path, name, associations, start_frame_id, GroundTruthType.BONN)
     if type == 'euroc':         
         return EurocGroundTruth(path, name, associations, start_frame_id, GroundTruthType.EUROC)
     if type == 'replica':         
@@ -437,6 +443,123 @@ class TumGroundTruth(GroundTruth):
             Printer.red(f'ERROR: {num_missing_associations} missing associations!')
         return matches       
 
+class BONNGroundTruth(GroundTruth):
+    def __init__(self, path, name, associations=None, start_frame_id=0, type = GroundTruthType.BONN): 
+        super().__init__(path, name, associations, start_frame_id, type)
+        self.scale = kScaleBONN
+        self.filename=path + '/' + name + '/' + 'groundtruth.txt'     # N.B.: this may depend on how you deployed the groundtruth files 
+        self.file_associations=path + '/' + name + '/' + associations # N.B.: this may depend on how you name the associations file
+        
+        base_path = os.path.dirname(self.filename)
+        print('base_path: ', base_path)
+                
+        with open(self.filename) as f:
+            self.data = f.readlines()[3:] # skip the first three rows, which are only comments 
+            self.data = [line.strip().split() for line in  self.data] 
+        if self.data is None:
+            sys.exit('ERROR while reading groundtruth file!') 
+        if self.file_associations is not None: 
+            with open(self.file_associations) as f:
+                self.associations = f.readlines()
+                self.associations = [line.strip().split() for line in self.associations] 
+            if self.associations is None:
+                sys.exit('ERROR while reading associations file!')   
+                
+        associations_file = base_path + '/gt_associations.json'
+        if not os.path.exists(associations_file):
+            Printer.orange('Computing groundtruth associations (one-time operation)...')             
+            self.association_matches = self.associate(self.associations, self.data)
+            # save associations
+            with open(associations_file, 'w') as f:
+                json.dump(self.association_matches, f)
+        else: 
+            with open(associations_file, 'r') as f:
+                data = json.load(f)
+                self.association_matches = {int(k): v for k, v in data.items()}
+    def getDataLine(self, frame_id):
+        #return self.data[self.association_matches[frame_id][1]]
+        return self.data[self.association_matches[frame_id][0]]
+    # return timestamp,x,y,z,scale
+    def getTimestampPositionAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1) 
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3])     
+        except:
+            x_prev, y_prev, z_prev = None, None, None
+        ss = self.getDataLine(frame_id)
+        timestamp = float(ss[0]) 
+        x = self.scale*float(ss[1])
+        y = self.scale*float(ss[2])
+        z = self.scale*float(ss[3])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        return timestamp,x,y,z,abs_scale 
+        
+    # return timestamp, x,y,z, qx,qy,qz,qw, scale
+    def getTimestampPoseAndAbsoluteScale(self, frame_id):
+        frame_id+=self.start_frame_id
+        try:
+            ss = self.getDataLine(frame_id-1) 
+            x_prev = self.scale*float(ss[1])
+            y_prev = self.scale*float(ss[2])
+            z_prev = self.scale*float(ss[3])
+        except:
+            x_prev, y_prev, z_prev = None, None, None     
+        ss = self.getDataLine(frame_id)
+        timestamp = float(ss[0]) 
+        x = self.scale*float(ss[1])
+        y = self.scale*float(ss[2])
+        z = self.scale*float(ss[3])
+        qx = float(ss[4])
+        qy = float(ss[5])
+        qz = float(ss[6])
+        qw = float(ss[7])
+        if x_prev is None:
+            abs_scale = 1
+        else:
+            abs_scale = np.sqrt((x - x_prev)*(x - x_prev) + (y - y_prev)*(y - y_prev) + (z - z_prev)*(z - z_prev))
+        return timestamp,x,y,z, qx,qy,qz,qw,abs_scale    
+    
+    @staticmethod
+    def associate(first_list, second_list, offset=0, max_difference=0.025*(10**9)):
+        """
+        Associate two dictionaries of (stamp,data). As the time stamps never match exactly, we aim 
+        to find the closest match for every input tuple.
+        
+        Input:
+        first_list -- first list of (stamp,data) tuples
+        second_list -- second list of (stamp,data) tuples
+        offset -- time offset between both dictionaries (e.g., to model the delay between the sensors)
+        max_difference -- search radius for candidate generation
+        Output:
+        matches -- map: index_stamp_first -> (index_stamp_second, diff_stamps, first_timestamp, second_timestamp)
+        
+        """
+        potential_matches = [(abs(float(a[0]) - (float(b[0]) + offset)), ia, ib) # a[0] and b[0] extract the first element which is a timestamp 
+                            for ia,a in enumerate(first_list)      #for counter, value in enumerate(some_list)
+                            for ib,b in enumerate(second_list)
+                            if abs(float(a[0])  - (float(b[0])  + offset)) < max_difference]
+        potential_matches.sort()
+        matches = {}
+        first_flag = [False]*len(first_list)
+        second_flag = [False]*len(second_list)
+        for diff, ia, ib in potential_matches:
+            if first_flag[ia] is False and second_flag[ib] is False:
+                #first_list.remove(a)
+                first_flag[ia] = True
+                #second_list.remove(b)
+                second_flag[ib] = True 
+                matches[ia]= (ib, diff, first_list[ia][0], second_list[ib][0])
+        missing_associations = [(ia,a) for ia,a in enumerate(first_list) if first_flag[ia] is False]
+        num_missing_associations = len(missing_associations)
+        if num_missing_associations > 0:
+            Printer.red(f'ERROR: {num_missing_associations} missing associations!')
+        return matches       
 
 class EurocGroundTruth(GroundTruth):
     kReadTumConversion = False
