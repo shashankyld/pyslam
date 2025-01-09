@@ -16,7 +16,84 @@
 * You should have received a copy of the GNU General Public License
 * along with PYSLAM. If not, see <http://www.gnu.org/licenses/>.
 """
+''' 
+Angle difference and distance on the unit circle (S1):
 
+    s1_diff_deg(angle1, angle2): Calculates the difference between two angles (in degrees) on the unit circle, returning the smallest difference.
+    s1_dist_deg(angle1, angle2): Calculates the positive distance between two angles (in degrees) on the unit circle.
+    s1_diff_rad(angle1, angle2): Same as s1_diff_deg, but with angles in radians.
+    s1_dist_rad(angle1, angle2): Same as s1_dist_deg, but with angles in radians.
+
+Pose and transformation related:
+
+    poseRt(R, t): Creates a 4x4 homogeneous transformation matrix from a 3x3 rotation matrix (R) and a 3x1 translation vector (t).
+    inv_poseRt(R, t): Calculates the inverse of a homogeneous transformation matrix given R and t.
+    inv_T(T): Calculates the inverse of a 4x4 homogeneous transformation matrix (T).
+
+Sim3Pose class:
+
+    __init__(self, R, t, s): Constructor for the Sim3Pose class, representing a pose with rotation, translation, and scale.
+    __repr__(self): Returns a string representation of the Sim3Pose object.
+    from_matrix(self, T): Creates a Sim3Pose object from a 4x4 transformation matrix.
+    from_se3_matrix(self, T): Creates a Sim3Pose object from a 4x4 SE(3) transformation matrix (no scale).
+    matrix(self): Returns the 4x4 homogeneous transformation matrix of the pose.
+    inverse_matrix(self): Returns the inverse of the transformation matrix.
+    to_se3_matrix(self): Converts the Sim3Pose to an SE(3) matrix (ignoring scale).
+    inverse(self): Returns the inverse of the Sim3Pose.
+    copy(self): Creates a copy of the Sim3Pose object.
+    map(self, p3d): Maps a 3D point using the Sim3Pose transformation.
+    __matmul__(self, other): Defines the @ operator for Sim3Pose objects, allowing composition of transformations.
+
+Vector and point operations:
+
+    normalize_vector(v): Normalizes a vector and returns the normalized vector and its original norm.
+    normalize_vector2(v): Normalizes a vector and returns only the normalized vector.
+    add_ones(x): Adds a column of ones to a matrix or a single 1 to a vector, for homogeneous coordinates.
+    add_ones_1D(x): Adds a 1 to a 1D vector.
+    normalize(Kinv, pts): Normalizes image points using the inverse of the camera intrinsic matrix (Kinv).
+    skew(w): Creates a skew-symmetric matrix from a 3D vector.
+
+Distance calculations:
+
+    hamming_distance(a, b): Calculates the Hamming distance between two binary descriptors.
+    hamming_distances(a, b): Calculates Hamming distances between arrays of binary descriptors.
+    l2_distance(a, b): Calculates the L2 distance between two vectors.
+    l2_distances(a, b): Calculates L2 distances between arrays of vectors.
+
+Triangulation:
+
+    triangulate_point(pose1, pose2, pt1, pt2): Triangulates a 3D point from two camera poses and corresponding image points.
+    triangulate_points(pose1, pose2, pts1, pts2, mask=None): Triangulates multiple 3D points.
+    triangulate_points_with_mask(pose1, pose2, pts1, pts2, mask): Triangulates points with a mask to select specific points.
+    triangulate_normalized_points(pose_1w, pose_2w, kpn_1, kpn_2): Triangulates points using normalized image coordinates.
+
+Epipolar geometry and pose estimation:
+
+    computeF12(f1, f2): Computes the fundamental matrix and infinite homography between two frames.
+    check_dist_epipolar_line(kp1, kp2, F12, sigma2_kp2): Checks if a point satisfies the epipolar constraint given the fundamental matrix.
+    estimate_pose_ess_mat(kpn_ref, kpn_cur, method, prob, threshold): Estimates the relative pose between two frames using the essential matrix.
+
+Rotation matrices and quaternions:
+
+    yaw_matrix(yaw): Creates a rotation matrix for a yaw rotation (around the z-axis).
+    pitch_matrix(pitch): Creates a rotation matrix for a pitch rotation (around the y-axis).
+    roll_matrix(roll): Creates a rotation matrix for a roll rotation (around the x-axis).
+    qvec2rotmat(qvec): Converts a quaternion vector to a rotation matrix.
+    rotmat2qvec(R): Converts a rotation matrix to a quaternion vector.
+    xyzq2Tmat(x, y, z, qx, qy, qz, qw): Creates a 4x4 transformation matrix from position and quaternion.
+
+Homography and matrix utilities:
+
+    homography_matrix(img, roll, pitch, yaw, tx, ty, tz): Computes a homography matrix for a given image and transformation.
+    is_rotation_matrix(R): Checks if a matrix is a valid rotation matrix.
+    closest_orthogonal_matrix(A): Computes the closest orthogonal matrix to a given matrix.
+    closest_rotation_matrix(A): Computes the closest rotation matrix to a given matrix.
+
+Trajectory alignment:
+
+    AlignmentEstimatedAndGroundTruthData class: A data structure to store alignment results.
+    align_trajs_with_svd(...): Aligns two trajectories (estimated and ground truth) using Singular Value Decomposition (SVD).
+'''
 import os
 import numpy as np
 import cv2
