@@ -808,9 +808,44 @@ class Tracking:
             self.poses.append(poseRt(self.cur_R, p))
             self.pose_timestamps.append(f_cur.timestamp)
 
+    def apply_mask(self, frame: Frame, mask: np.ndarray):
+        """
+        Masks out features in the frame based on the provided mask.
+
+        Args:
+            frame: The frame to apply the mask to.
+            mask: A binary mask with the same size as the frame's image. 
+                  Pixels with value 0 in the mask will be masked out.
+        """
+        if frame.kps is None or len(frame.kps) == 0:
+            return
+
+        kps_int = frame.kps.astype(int)  # Convert keypoint coordinates to integers
+
+        # Check if keypoints fall within the masked region
+        mask_values_at_kps = mask[kps_int[:, 1], kps_int[:, 0]]  # Get mask values at keypoint locations
+        valid_kps_mask = mask_values_at_kps == 0  # Keypoints where mask value is greater than 0 are valid
+
+        # Filter keypoints and related data
+        frame.kps = frame.kps[valid_kps_mask]
+        frame.kpsu = frame.kpsu[valid_kps_mask]
+        frame.kpsn = frame.kpsn[valid_kps_mask]
+        frame.octaves = frame.octaves[valid_kps_mask]
+        frame.sizes = frame.sizes[valid_kps_mask]
+        frame.angles = frame.angles[valid_kps_mask]
+        frame.des = frame.des[valid_kps_mask]
+        if frame.depths is not None:
+            frame.depths = frame.depths[valid_kps_mask]
+        if frame.kps_ur is not None:
+            frame.kps_ur = frame.kps_ur[valid_kps_mask]
+        frame.points = frame.points[valid_kps_mask]
+        frame.outliers = frame.outliers[valid_kps_mask]
+
+        # Reset the KD-tree - because the keypoints have changed
+        frame._kd = None  
 
     # @ main track method @
-    def track(self, img, img_right, depth, img_id, timestamp=None):
+    def track(self, img, img_right, depth, img_id, timestamp=None, mask=None):
         Printer.cyan(f'@tracking {self.sensor_type.name}, img id: {img_id}, frame id: {Frame.next_id()}, state: {self.state.name}')
         time_start = time.time()
                 
@@ -836,7 +871,13 @@ class Tracking:
         self.timer_frame.start()        
         f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id) 
         self.f_cur = f_cur 
-        #print("frame: ", f_cur.id)        
+        #print("frame: ", f_cur.id) 
+
+        # apply mask to the frame
+        if mask is not None:
+            self.apply_mask(f_cur, mask)
+
+
         self.timer_frame.refresh()   
         
         # reset indexes of matches 

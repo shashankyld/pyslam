@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
 
     # Processing the dataset 
-    img_id = 215
+    img_id = 215  # 215 is close to human entrance
     while True: 
         # if img_id == 2:
         #     break   
@@ -120,13 +120,38 @@ if __name__ == "__main__":
             # Entry point to dynamic object segmentation
             #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
             maskrcnn = MaskRCNNUtils()
+            logging.debug("Estimating dynamic mask")
             dynamic_mask = maskrcnn.human_mask(img)
             rr.log("dynamic_mask", rr.Image(dynamic_mask))
 
+
+            ## TODO: 1. After the mask is obtained from SAM2 from previous time stamp, Apply tracking as usual as done below
+
             # SLAM processing
             time_start = time.time() 
-            slam.track(img, img_right, depth_img, img_id, timestamp)
+            slam.track(img, img_right, depth_img, img_id, timestamp, mask = dynamic_mask)
             logging.debug("SLAM tracking took %f seconds", time.time() - time_start)
+
+            ## TODO: 
+            # 1. After the tracking is done, get the current frame and apply delaunay triangulation - This gives 2D mesh connecting features close to each other in the image
+            # 2. Get the 3D points for these features that already excludes the masked dynamic objects in the current frame
+            # 3. Get the local map from previous frame (Or remove points in the latest local frame by removing points added after tracking is done, I guess this is valid only if the local map is updated after tracking is done)
+            # 4. From 2D delaunay triangulation, create an efficient datastruture for pairing feautres with in the delaunay triangles
+            # 5. For each edge in the delaunay triangle, track its length in 3D
+            # 6. For rigid objects, the length of the edges should be constant, if not - then the edge is connecting two different rigid objects
+            # 7. All static objects and world together can be considered as a single rigid object (highly likely that they will have the majority of the edges)
+            # 8. Create an algotithm to seperate the features in 2D into connected graphs of rigid objects can be static or dynamic
+            # 9. For all the connected components that have lower edges than the highest group, they are dynamic objects
+            # 10. Now for the next frame, send these features detected as dynamic objects to the segmentation prompt for a better mask
+
+            # Getting access to the current frame properties after being populated by the SLAM system
+            cur_frame = slam.tracking.f_cur  # Class Frame
+            cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
+            logging.debug("logging current frame points to rerun")
+            rr.log("frame/curr_frame_points", rr.Points3D(cur_frame_points, colors=cur_frame_colors, radii=0.01))
+            
+
+
 
             # Logging global and local map points to rerun
             logging.debug("logging global and local map points to rerun")
