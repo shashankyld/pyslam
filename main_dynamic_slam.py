@@ -16,6 +16,7 @@ import numpy as np
 from utils_rerun import log_image
 from utils_depth import depth2pointcloud
 from utils_maskrcnn import MaskRCNNUtils 
+from utils_delaunay import delaunay_visualization, filter_delaunay_edges_by_3d_distance, filter_delaunay_edges_by_3d_distance_last_frame , get_connected_components, delaunay_dynamic_visualization
 from rerun_interface import Rerun
 import time
 import math
@@ -122,6 +123,8 @@ if __name__ == "__main__":
             maskrcnn = MaskRCNNUtils()
             logging.debug("Estimating dynamic mask")
             dynamic_mask = maskrcnn.human_mask(img)
+            # Set full black mask by force with one channel
+            dynamic_mask = np.zeros_like(img)[:, :, 0]
             rr.log("dynamic_mask", rr.Image(dynamic_mask))
 
 
@@ -143,6 +146,13 @@ if __name__ == "__main__":
             # 8. Create an algotithm to seperate the features in 2D into connected graphs of rigid objects can be static or dynamic
             # 9. For all the connected components that have lower edges than the highest group, they are dynamic objects
             # 10. Now for the next frame, send these features detected as dynamic objects to the segmentation prompt for a better mask
+            # 11. Actually, for every frame, and its delaunay triangulation, we can just use the edges in the current frame and query distance directly from the local map. 
+
+                
+
+            # Task1 - Run Delaunay triangulation on the current frame
+            delaunay_image = delaunay_visualization(slam)
+            rr.log("delaunay_triangulation", rr.Image(delaunay_image))
 
             # Getting access to the current frame properties after being populated by the SLAM system
             cur_frame = slam.tracking.f_cur  # Class Frame
@@ -150,6 +160,17 @@ if __name__ == "__main__":
             logging.debug("logging current frame points to rerun")
             rr.log("frame/curr_frame_points", rr.Points3D(cur_frame_points, colors=cur_frame_colors, radii=0.01))
             
+            # Task2 - delaunay triangulation to networkx graph
+            # Filter delaunay edges by 3D distance
+            graph = filter_delaunay_edges_by_3d_distance(slam)
+            logging.debug("logging graph to rerun")
+            
+            # Connected components of the graph
+            connected_components = get_connected_components(graph)
+            logging.debug("logging connected components to rerun")
+            img_dynamic_objects = delaunay_dynamic_visualization(slam)
+            rr.log("dynamic_objects", rr.Image(img_dynamic_objects))
+
 
 
 
@@ -160,7 +181,8 @@ if __name__ == "__main__":
             local_map_points = slam.map.local_map.get_points_as_np()
             rr.log("local_map/points", rr.Points3D(local_map_points[0], colors=local_map_points[1], radii=0.02))
             
-            
+            # Drop the image from the frame object
+            # slam.tracking.f_cur.drop_img() # TODO: Try to implement drop after two frames
 
             img_id += 1
             time.sleep(0.01)

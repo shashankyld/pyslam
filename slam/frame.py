@@ -296,7 +296,7 @@ class FrameShared:
     descriptor_distance  = None
     descriptor_distances = None
     oriented_features    = False     
-    is_store_imgs        = False     # used by Frame to store images when needed for debugging or processing purposes
+    is_store_imgs        = True    # used by Frame to store images when needed for debugging or processing purposes
                 
     @staticmethod
     def set_tracker(feature_tracker, force=False):
@@ -521,8 +521,13 @@ class Frame(FrameBase):
     @staticmethod
     def set_tracker(feature_tracker, force=False):
         FrameShared.set_tracker(feature_tracker, force)
-        Frame._id = 0           
-     
+        Frame._id = 0      
+
+    def drop_img(self):
+        self.img = None
+        print('dropped img from frame')
+        return self     
+        
     # KD tree of undistorted keypoints
     @property
     def kd(self):
