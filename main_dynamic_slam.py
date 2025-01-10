@@ -4,7 +4,7 @@
 # Platform: Linux (Ubuntu 20.04)
 
 from config import Config
-from dataset import dataset_factory
+from dataset import dataset_factory, SensorType
 from ground_truth import groundtruth_factory
 import logging 
 from camera import PinholeCamera
@@ -15,6 +15,8 @@ import rerun as rr
 import numpy as np
 from utils_rerun import log_image
 from utils_depth import depth2pointcloud
+from utils_maskrcnn import MaskRCNNUtils 
+from rerun_interface import Rerun
 import time
 import math
 
@@ -70,24 +72,32 @@ if __name__ == "__main__":
 
     # Setting up Rerun
     rr.init("dynamic slam", spawn=True)
+    
+    
+    # TODO: Figure out a way to save the rerun logs, should be simple
+    # rr.save("/home/shashank/Documents/UniBonn/thesis/pyslam/logs/save_test.rrd")
+
     # TODO : Load GT trajectory to rerun at the start 
     # TODO : CLue - check about the data type of gt_traj3d - it is np.float32 but is it valid?  
     # rr.log("GT/trajectory", rr.LineStrips3D([gt_traj3d], colors=[0, 255, 0], radii=0.008, labels=["GT trajectory"]))
     # # like point cloud 
     # rr.log("GT/trajectory", rr.Points3D(gt_traj3d, colors=[0, 255, 0], radii=0.008, labels=["GT trajectory"]))
+    Rerun.log_gt_trajectory(points=gt_traj3d)
 
 
     # Processing the dataset 
-    img_id = 0
+    img_id = 215
     while True: 
-        if img_id == 25:
-            break   
+        # if img_id == 2:
+        #     break   
 
         img, depth_img = None, None 
 
+        # Check if dataset is ok
         if dataset.isOk(): 
             logging.debug("dataset is ok") 
             img = dataset.getImage(img_id)
+            img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
             depth_img = dataset.getDepth(img_id)
             logging.debug("img_id: %d", img_id)
 
@@ -106,8 +116,31 @@ if __name__ == "__main__":
                                        config.cam_settings["Camera.cx"], config.cam_settings["Camera.cy"], 
                                        max_depth=100000.0, min_depth=0.0)
             rr.log("frame/point_cloud", rr.Points3D(point_cloud.points, colors=point_cloud.colors))
+
+            # Entry point to dynamic object segmentation
+            #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
+            maskrcnn = MaskRCNNUtils()
+            dynamic_mask = maskrcnn.human_mask(img)
+            rr.log("dynamic_mask", rr.Image(dynamic_mask))
+
+            # SLAM processing
+            time_start = time.time() 
+            slam.track(img, img_right, depth_img, img_id, timestamp)
+            logging.debug("SLAM tracking took %f seconds", time.time() - time_start)
+
+            # Logging global and local map points to rerun
+            logging.debug("logging global and local map points to rerun")
+            map_points_xyz, map_points_colors = slam.map.get_points_as_np()
+            rr.log("map/points", rr.Points3D(map_points_xyz, colors=map_points_colors, radii=0.01))
+            local_map_points = slam.map.local_map.get_points_as_np()
+            rr.log("local_map/points", rr.Points3D(local_map_points[0], colors=local_map_points[1], radii=0.02))
+            
+            
+
             img_id += 1
             time.sleep(0.01)
+
+        # When dataset is not ok or image is None
         else:
             logging.debug("Either Dataset is not ok or image is None")
             break

@@ -162,7 +162,12 @@ class Map(object):
     
     def get_points(self): 
         with self._lock:       
-            return self.points.copy()   
+            return self.points.copy()  
+
+    def get_points_as_np(self):
+        with self._lock:
+            return np.array([p._pt for p in self.points.copy()]), np.array([p.color for p in self.points.copy()])/ 255.0
+         
         
     def num_points(self):
         with self._lock: 
@@ -733,8 +738,12 @@ class LocalMapBase(object):
     
     def get_points(self): 
         with self._lock:       
-            return self.points.copy()  
-        
+            return self.points.copy() 
+
+    def get_points_as_np(self):
+        with self._lock:
+            return np.array([p._pt for p in self.points.copy()]), np.array([p.color for p in self.points.copy()])/ 255.0
+                 
     def num_points(self):
         with self._lock: 
             return len(self.points)                

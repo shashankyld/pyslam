@@ -161,7 +161,14 @@ class Rerun:
         rr.log("world/" + trajectory_string, rr.LineStrips3D([points],
             # rr.Radius.ui_points produces radii that the viewer interprets as given in ui points.
             radii=size,
-            colors=color))        
+            colors=color))   
+    @staticmethod
+    def log_gt_trajectory(points: np.ndarray, trajectory_string: str = "trajectory", color = [255,0,0], size=0.2) -> None:
+        points = np.array(points).reshape(-1,3)
+        rr.log("world/" + trajectory_string, rr.LineStrips3D([points],
+            # rr.Radius.ui_points produces radii that the viewer interprets as given in ui points.
+            radii=size,
+            colors=color), static=True)        
             
     @staticmethod
     def log_3d_camera_pose(frame_id: int, camera: Camera, pose, color = [0,255,0], size=1.0):
