@@ -270,6 +270,7 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.GBA_kf_id = 0
         self.Tcw_GBA = None
         self.Tcw_before_GBA = None
+
         
         if hasattr(frame, '_kd'):     
             self._kd = frame._kd 

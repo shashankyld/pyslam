@@ -72,7 +72,7 @@ if __name__ == "__main__":
     print("gt_traj3d: ", gt_traj3d.shape)
 
     # Setting up Rerun
-    rr.init("dynamic slam", spawn=True)
+    # rr.init("dynamic slam", spawn=True)
     
     
     # TODO: Figure out a way to save the rerun logs, should be simple
@@ -83,11 +83,11 @@ if __name__ == "__main__":
     # rr.log("GT/trajectory", rr.LineStrips3D([gt_traj3d], colors=[0, 255, 0], radii=0.008, labels=["GT trajectory"]))
     # # like point cloud 
     # rr.log("GT/trajectory", rr.Points3D(gt_traj3d, colors=[0, 255, 0], radii=0.008, labels=["GT trajectory"]))
-    Rerun.log_gt_trajectory(points=gt_traj3d)
+    # Rerun.log_gt_trajectory(points=gt_traj3d)
 
 
     # Processing the dataset 
-    img_id = 215  # 215 is close to human entrance
+    img_id = 0 # 215 is close to human entrance
     while True: 
         # if img_id == 2:
         #     break   
@@ -107,11 +107,11 @@ if __name__ == "__main__":
             next_timestamp = dataset.getNextTimestamp() 
             frame_duration = next_timestamp - timestamp if (timestamp is not None and next_timestamp is not None) else -1.0 
             logging.debug("image with id %d has timestamp %f and next_timestamp %f, frame_duration: %f", img_id, timestamp, next_timestamp, frame_duration)
-            rr.set_time_sequence("frame", img_id) 
+            # rr.set_time_sequence("frame", img_id) 
             logging.debug("logging data associated to id %d to rerun", img_id)
 
-            rr.log("frame/camera", rr.Image(img))
-            rr.log("frame/depth", rr.DepthImage(depth_img))
+            # rr.log("frame/camera", rr.Image(img))
+            # rr.log("frame/depth", rr.DepthImage(depth_img))
             point_cloud = depth2pointcloud(depth_img, img, 
                                        config.cam_settings["Camera.fx"], config.cam_settings["Camera.fy"], 
                                        config.cam_settings["Camera.cx"], config.cam_settings["Camera.cy"], 
@@ -123,9 +123,10 @@ if __name__ == "__main__":
             maskrcnn = MaskRCNNUtils()
             logging.debug("Estimating dynamic mask")
             dynamic_mask = maskrcnn.human_mask(img)
+
             # Set full black mask by force with one channel
-            dynamic_mask = np.zeros_like(img)[:, :, 0]
-            rr.log("dynamic_mask", rr.Image(dynamic_mask))
+            # dynamic_mask = np.zeros_like(img)[:, :, 0]
+            # rr.log("dynamic_mask", rr.Image(dynamic_mask))
 
 
             ## TODO: 1. After the mask is obtained from SAM2 from previous time stamp, Apply tracking as usual as done below
@@ -150,26 +151,30 @@ if __name__ == "__main__":
 
                 
 
-            # Task1 - Run Delaunay triangulation on the current frame
-            delaunay_image = delaunay_visualization(slam)
-            rr.log("delaunay_triangulation", rr.Image(delaunay_image))
+            # # Task1 - Run Delaunay triangulation on the current frame
+            # delaunay_image = delaunay_visualization(slam)
+            # rr.log("delaunay_triangulation", rr.Image(delaunay_image))
 
             # Getting access to the current frame properties after being populated by the SLAM system
             cur_frame = slam.tracking.f_cur  # Class Frame
             cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
+
+            # Add mask to the current frame 
+            cur_frame.add_mask(dynamic_mask)
+
             logging.debug("logging current frame points to rerun")
-            rr.log("frame/curr_frame_points", rr.Points3D(cur_frame_points, colors=cur_frame_colors, radii=0.01))
+            # rr.log("frame/curr_frame_points", rr.Points3D(cur_frame_points, colors=cur_frame_colors, radii=0.01))
             
-            # Task2 - delaunay triangulation to networkx graph
-            # Filter delaunay edges by 3D distance
-            graph = filter_delaunay_edges_by_3d_distance(slam)
-            logging.debug("logging graph to rerun")
+            # # Task2 - delaunay triangulation to networkx graph
+            # # Filter delaunay edges by 3D distance
+            # graph = filter_delaunay_edges_by_3d_distance(slam)
+            # logging.debug("logging graph to rerun")
             
-            # Connected components of the graph
-            connected_components = get_connected_components(graph)
-            logging.debug("logging connected components to rerun")
-            img_dynamic_objects = delaunay_dynamic_visualization(slam)
-            rr.log("dynamic_objects", rr.Image(img_dynamic_objects))
+            # # Connected components of the graph
+            # connected_components = get_connected_components(graph)
+            # logging.debug("logging connected components to rerun")
+            # img_dynamic_objects = delaunay_dynamic_visualization(slam)
+            # rr.log("dynamic_objects", rr.Image(img_dynamic_objects))
 
 
 
@@ -177,16 +182,20 @@ if __name__ == "__main__":
             # Logging global and local map points to rerun
             logging.debug("logging global and local map points to rerun")
             map_points_xyz, map_points_colors = slam.map.get_points_as_np()
-            rr.log("map/points", rr.Points3D(map_points_xyz, colors=map_points_colors, radii=0.01))
+            # rr.log("map/points", rr.Points3D(map_points_xyz, colors=map_points_colors, radii=0.01))
             local_map_points = slam.map.local_map.get_points_as_np()
-            rr.log("local_map/points", rr.Points3D(local_map_points[0], colors=local_map_points[1], radii=0.02))
+            # rr.log("local_map/points", rr.Points3D(local_map_points[0], colors=local_map_points[1], radii=0.02))
             
             # Drop the image from the frame object
             # slam.tracking.f_cur.drop_img() # TODO: Try to implement drop after two frames
 
             img_id += 1
             time.sleep(0.01)
-
+            print(img_id/351 * 100, "% progress is done")
+            if img_id ==351 :
+                # Save the map 
+                slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/slam_state/")
+                break
         # When dataset is not ok or image is None
         else:
             logging.debug("Either Dataset is not ok or image is None")

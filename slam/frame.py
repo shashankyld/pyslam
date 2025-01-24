@@ -352,6 +352,8 @@ class Frame(FrameBase):
         self.img = None          # image (copy of img if available)
         self.img_right = None    # right image (copy of img_right if available)       
         self.depth_img = None    # depth (copy of depth if available)
+
+        self.dynamic_mask = None # mask for dynamic objects detection (if available)
                                                         
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
@@ -527,6 +529,10 @@ class Frame(FrameBase):
         self.img = None
         print('dropped img from frame')
         return self     
+    
+    def add_dynamic_mask(self, mask):
+        self.dynamic_mask = mask.copy()
+        return self
         
     # KD tree of undistorted keypoints
     @property
@@ -885,6 +891,45 @@ class Frame(FrameBase):
                 #print(f'unproject_points_3d: Rwc: {self._pose.Rwc}, Ow: {self._pose.Ow}')
                 pts3d = (self._pose.Rwc @ pts3d.T + self._pose.Ow[:, np.newaxis]).T
             return pts3d, pts3d_mask
+        else:
+            return None, None
+        
+    def get_dense_depth_map(self, transform_in_world=False, mask = None):
+        if self.depth_img is not None:
+            # Unproject every pixel in the depth image
+            depth_values = self.depth_img.reshape(-1, 1)  # Shape (height * width, 1)
+            rgb_values = self.img.reshape(-1, 3)  # Shape (height * width, 3)
+            K = self.camera.K
+            K_inv = np.linalg.inv(K)  # Inverse of camera intrinsic matrix
+            # Generate (u, v) coordinates for each pixel in the image
+            u, v = np.meshgrid(np.arange(self.depth_img.shape[1]), np.arange(self.depth_img.shape[0]))
+            u = u.reshape(-1)  # Flatten u
+            v = v.reshape(-1)  # Flatten v
+            uv = np.stack([u, v, np.ones_like(u)], axis=0)  # Shape (3, height * width)
+            # Unproject (u, v) coordinates to 3D camera coordinates
+            norm_coords = np.dot(K_inv, uv)  # Shape (3, height * width)
+            norm_coords = norm_coords.T  # Shape (height * width, 3)
+            # Multiply depth values with normalized coordinates element-wise
+            pts3d = norm_coords * depth_values  # Shape (height * width, 3)
+            # Apply mask if provided
+            if mask is not None:
+                # Ensure mask is binary and flattened
+                mask = mask.astype(bool).flatten()
+                # Flip boolean values in mask
+                mask = np.logical_not(mask)
+
+                # Debug: Check shapes for consistency
+                assert mask.shape[0] == pts3d.shape[0], f"Mask shape {mask.shape} does not match pts3d shape {pts3d.shape}"
+
+                # Filter points and RGB values using the mask
+                pts3d = pts3d[mask]
+                rgb_values = rgb_values[mask]
+
+
+            # Optionally transform points to world coordinates if required
+            if transform_in_world:
+                pts3d = (self._pose.Rwc @ pts3d.T + self._pose.Ow[:, np.newaxis]).T  # Shape (height * width, 3)
+            return pts3d, rgb_values
         else:
             return None, None
                                                                
