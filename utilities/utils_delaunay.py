@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay, KDTree
 import cv2
 import networkx as nx
 
@@ -88,6 +88,67 @@ def delaunay_triangulation(slam):
     tri = Delaunay(slam.tracking.f_cur.kpsu.copy().astype(int))
     graph = convert_delauany_to_networkx(tri)
     return graph
+
+'''
+def draw_simplicies_on_image(slam):
+    curr_frame = slam.tracking.f_cur
+    img = curr_frame.img.copy()
+    tri = Delaunay(curr_frame.kpsu.copy().astype(int))
+    for simplex in tri.simplices:
+        cv2.line(img, tuple(curr_frame.kpsu[simplex[0]].astype(int)), tuple(curr_frame.kpsu[simplex[1]].astype(int)), (0, 255, 0), 1)
+        cv2.line(img, tuple(curr_frame.kpsu[simplex[1]].astype(int)), tuple(curr_frame.kpsu[simplex[2]].astype(int)), (0, 255, 0), 1)
+        cv2.line(img, tuple(curr_frame.kpsu[simplex[2]].astype(int)), tuple(curr_frame.kpsu[simplex[0]].astype(int)), (0, 255, 0), 1)
+    return img
+'''
+
+def convert_frame_to_kdtree(slam, id=-1):
+    if id == -1:
+        curr_frame = slam.tracking.f_cur
+        img = curr_frame.img.copy()
+        kpsu = curr_frame.kpsu.copy().astype(int)
+        kp_desc = curr_frame.des.copy()
+    elif id == -2:
+        curr_frame = slam.map.get_frame(-2)
+        img = curr_frame.img.copy()
+        kpsu = curr_frame.kpsu.copy().astype(int)
+        kp_desc = curr_frame.des.copy()
+    kdtree = KDTree(kpsu) # Creating a KDTree from the keypoints
+    dict = {}
+    for i in range(len(kpsu)):
+        dict[tuple(kpsu[i])] = {}
+        dict[tuple(kpsu[i])]['desc'] = kp_desc[i]
+        dict[tuple(kpsu[i])]['id'] = i
+        dict[tuple(kpsu[i])]['neighbors'] = []
+    
+    simplicies = Delaunay(kpsu)
+    for simplex in simplicies.simplices:
+        # For each edge, without duplicates - add to each kp in the dictionary - its neighbors desc 
+        '''
+        ### LIKE THIS ####
+        # dict = {"(x1,y1)": {"desc" : "desc1", "id" : 1, "neighbors" : ["(kp2, desc2)", "(kp3, desc3)"]}}
+        '''
+        for i in range(3):
+            if tuple(kpsu[simplex[i]]) not in dict:
+                # Will only happen if the point is not in the dictionary - which should not happen
+                print("Error: Point not in dictionary")
+                dict[tuple(kpsu[simplex[i]])] = {}
+                dict[tuple(kpsu[simplex[i]])]['desc'] = kp_desc[simplex[i]]
+                dict[tuple(kpsu[simplex[i]])]['id'] = simplex[i]
+                dict[tuple(kpsu[simplex[i]])]['neighbors'] = []
+            for j in range(3):
+                # Add the neighbors to the dictionary
+                if i != j: # Avoid adding the same point as a neighbor
+                    dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+    return dict
+
+
+
+def draw_simplicies_on_image(img, dict):
+    # Use the kdtree
+    for key in dict:
+        for neighbor in dict[key]['neighbors']:
+            cv2.line(img, key, neighbor[0], (0, 255, 0), 1)
+    return img
 
 
 

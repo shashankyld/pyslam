@@ -16,10 +16,13 @@ import numpy as np
 from utils_rerun import log_image
 from utils_depth import depth2pointcloud
 from utils_maskrcnn import MaskRCNNUtils 
-from utils_delaunay import delaunay_visualization, filter_delaunay_edges_by_3d_distance, filter_delaunay_edges_by_3d_distance_last_frame , get_connected_components, delaunay_dynamic_visualization
+from utils_delaunay import delaunay_visualization, filter_delaunay_edges_by_3d_distance, filter_delaunay_edges_by_3d_distance_last_frame , get_connected_components, delaunay_dynamic_visualization, draw_simplicies_on_image, convert_frame_to_kdtree
 from rerun_interface import Rerun
 import time
 import math
+import cv2
+from config_parameters import Parameters  
+from search_points import search_frame_by_projection
 
 
 
@@ -116,13 +119,13 @@ if __name__ == "__main__":
                                        config.cam_settings["Camera.fx"], config.cam_settings["Camera.fy"], 
                                        config.cam_settings["Camera.cx"], config.cam_settings["Camera.cy"], 
                                        max_depth=100000.0, min_depth=0.0)
-            rr.log("frame/point_cloud", rr.Points3D(point_cloud.points, colors=point_cloud.colors))
+            # rr.log("frame/point_cloud", rr.Points3D(point_cloud.points, colors=point_cloud.colors))
 
             # Entry point to dynamic object segmentation
             #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
-            maskrcnn = MaskRCNNUtils()
-            logging.debug("Estimating dynamic mask")
-            dynamic_mask = maskrcnn.human_mask(img)
+            # maskrcnn = MaskRCNNUtils()
+            # logging.debug("Estimating dynamic mask")
+            # dynamic_mask = maskrcnn.human_mask(img)
 
             # Set full black mask by force with one channel
             # dynamic_mask = np.zeros_like(img)[:, :, 0]
@@ -133,7 +136,7 @@ if __name__ == "__main__":
 
             # SLAM processing
             time_start = time.time() 
-            slam.track(img, img_right, depth_img, img_id, timestamp, mask = dynamic_mask)
+            slam.track(img, img_right, depth_img, img_id, timestamp, mask = None)
             logging.debug("SLAM tracking took %f seconds", time.time() - time_start)
 
             ## TODO: 
@@ -158,15 +161,94 @@ if __name__ == "__main__":
             # Getting access to the current frame properties after being populated by the SLAM system
             cur_frame = slam.tracking.f_cur  # Class Frame
             cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
+            curr_img = cur_frame.img
 
             # Add mask to the current frame 
-            cur_frame.add_mask(dynamic_mask)
+            # cur_frame.add_mask(dynamic_mask)
 
             logging.debug("logging current frame points to rerun")
             # rr.log("frame/curr_frame_points", rr.Points3D(cur_frame_points, colors=cur_frame_colors, radii=0.01))
             
-            # # Task2 - delaunay triangulation to networkx graph
-            # # Filter delaunay edges by 3D distance
+            # Task2 - delaunay triangulation to networkx graph
+            # Filter delaunay edges by 3D distance
+
+            # Time 
+            time_start = time.time()
+            curr_dict = convert_frame_to_kdtree(slam)
+            logging.debug("Converting frame to kdtree took %f seconds", time.time() - time_start)
+            delaunay_image = draw_simplicies_on_image(curr_img, curr_dict)
+            # Show this image 
+            cv2.imshow("Delaunay Triangulation", delaunay_image)
+            cv2.waitKey(2)
+
+            # Filter delaunay edges by 3D distance
+            if img_id > 0:
+                print("Iffff")
+                # # We will have access to prev_dict. 
+                prev_frame = slam.map.get_frame(-2)
+                prev_img = prev_frame.img.copy()
+                prev_delaunay_image = draw_simplicies_on_image(prev_img, prev_dict)
+                cv2.imshow("Prev Delaunay Triangulation", prev_delaunay_image)
+                cv2.waitKey(2)
+
+                
+                ''' 
+                    # dict = {"(x1,y1)": {"desc" : "desc1", "id" : 1, "neighbors" : ["(kp2, desc2)", "(kp3, desc3)"]}}
+                    # prev_dict = {"(x1,y1)": {"desc" : "desc1", "id" : 1, "neighbors" : ["(kp4, desc4)", "(kp3, desc3)"]}}
+                    # common_nodes = ["(x1,y1)"]
+                    # common_neighbors = ["(kp3, desc3)"]
+                    # common_edges = ["(x1,y1)_(kp3, desc3)"] - dist = kp3 - x1,y1
+                '''
+                # Matching across two frames is needed.
+                print("Number of detected keypoints in the current frame: ", len(cur_frame.kpsu))
+                print("Number of detected keypoints in the previous frame: ", len(prev_frame.kpsu))
+                idxs_ref, idxs_cur = slam.tracking.idxs_ref, slam.tracking.idxs_cur
+                print("Idxs ref: ", len(idxs_ref))
+                print("Idxs cur: ", len(idxs_cur))
+                
+                # Print descriptors of the matching keypoints - 1st one
+                print("Descriptors of the matching keypoints - 1st one")
+                if len(idxs_ref) > 0 and len(idxs_cur) > 0:
+                    print(slam.tracking.f_ref.des[idxs_ref[0]])
+                    print(slam.tracking.f_cur.des[idxs_cur[1]])
+
+                for idx in range(len(idxs_ref)):
+                    print("Idx: ", idx)
+
+    
+                        
+
+                
+
+                # common_edges = get_common_edges(prev_dict, curr_dict) 
+                # logging.debug("Common edges: ", common_edges)
+                # # Filter edges by 3D distance
+                # diff_dist = difference_btw_edges(common_edges, prev_dict, curr_dict)
+                # logging.debug("Difference in distance: ", diff_dist)
+                # # Delete edges that have changed distance in 3D 
+                # curr_dict = delete_edges_by_3d_distance(diff_dist, curr_dict) 
+                # logging.debug("Edges deleted by 3D distance: ", curr_dict)
+                # # Connected components of the graph 
+                # connected_components = get_connected_components(curr_dict)
+                # logging.debug("Connected components: ", connected_components)
+                # # Get the dynamic objects 
+                # dynamic_objects = get_dynamic_objects(connected_components)
+                # logging.debug("Dynamic objects: ", dynamic_objects)
+                
+            prev_dict = curr_dict
+
+            # print("Curr Dict: ", curr_dict)
+            '''
+            curr_frame_kps = cur_frame.kpsu.copy().astype(int)
+            from scipy.spatial import Delaunay
+            delaunay_triangulation = Delaunay(curr_frame_kps)
+            print("Curr KPs: ", curr_frame_kps)
+            print("Delaunay Triangulation Done: ", delaunay_triangulation.simplices)
+            logging.debug("Delauany Triangulation Done: ", delaunay_triangulation.simplices)
+            simplicies_image = draw_simplicies_on_image(slam)
+            
+            '''
+
             # graph = filter_delaunay_edges_by_3d_distance(slam)
             # logging.debug("logging graph to rerun")
             
@@ -190,9 +272,9 @@ if __name__ == "__main__":
             # slam.tracking.f_cur.drop_img() # TODO: Try to implement drop after two frames
 
             img_id += 1
-            time.sleep(0.01)
+            time.sleep(0.0001)
             print(img_id/351 * 100, "% progress is done")
-            if img_id ==351 :
+            if img_id ==10 :
                 # Save the map 
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/slam_state/")
                 break
