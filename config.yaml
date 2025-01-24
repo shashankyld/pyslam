@@ -82,7 +82,8 @@ KITTI_DATASET:
 TUM_DATASET:
   type: tum
   sensor_type: rgbd # Here, 'sensor_type' can be 'mono' or 'rgbd'
-  base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
+  # base_path: /home/luigi/Work/datasets/rgbd_datasets/tum
+  base_path: /home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/ # DATA FROM LEGION
   #
   #name: rgbd_dataset_freiburg3_long_office_household
   #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    

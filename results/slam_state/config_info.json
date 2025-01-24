@@ -1,0 +1,18 @@
+{
+    "feature_tracker_config": {
+        "num_features": 2000,
+        "num_levels": 8,
+        "scale_factor": 1.2,
+        "detector_type": "FeatureDetectorTypes.ORB2",
+        "descriptor_type": "FeatureDescriptorTypes.ORB2",
+        "sigma_level0": 1.0,
+        "match_ratio_test": 0.7,
+        "tracker_type": "FeatureTrackerTypes.DES_BF"
+    },
+    "loop_detector_config": {
+        "global_descriptor_type": "GlobalDescriptorType.DBOW3",
+        "local_feature_manager_config": null,
+        "local_descriptor_aggregation_type": "LocalDescriptorAggregationType.DBOW3",
+        "vocabulary_data": "{\"vocab_file_path\":\"\\\/home\\\/shashank\\\/Documents\\\/UniBonn\\\/thesis\\\/pyslam\\\/loop_closing\\\/..\\\/data\\\/ORBvoc.dbow3\",\"descriptor_type\":\"FeatureDescriptorTypes.ORB2\",\"descriptor_dimension\":32,\"url_vocabulary\":\"https:\\\/\\\/drive.google.com\\\/uc?id=13xmRtop_ow3aPtv3qCT5beG19_mlogqI\",\"url_type\":\"gdrive\",\"class_name\":\"DBow3OrbVocabularyData\"}"
+    }
+}
