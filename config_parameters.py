@@ -196,3 +196,6 @@ class Parameters:
     kChi2Mono = 5.991 # chi-square 2 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
     kChi2Stereo = 7.815 # chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
 
+    # Visualization 
+    kShowDebugImages = False
+

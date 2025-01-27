@@ -18,13 +18,14 @@ from utils_depth import depth2pointcloud
 from utils_maskrcnn import MaskRCNNUtils 
 from utils_delaunay import delaunay_visualization, filter_delaunay_edges_by_3d_distance, filter_delaunay_edges_by_3d_distance_last_frame , get_connected_components, delaunay_dynamic_visualization, draw_simplicies_on_image, convert_frame_to_kdtree
 from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
+from utils_draw import visualize_matched_kps
 from rerun_interface import Rerun
 import time
 import math
 import cv2
 from config_parameters import Parameters  
 from search_points import search_frame_by_projection
-
+import random
 
 
 
@@ -178,20 +179,23 @@ if __name__ == "__main__":
             time_start = time.time()
             curr_dict = convert_frame_to_kdtree(slam)
             logging.debug("Converting frame to kdtree took %f seconds", time.time() - time_start)
-            delaunay_image = draw_simplicies_on_image(curr_img, curr_dict)
-            # Show this image 
-            cv2.imshow("Delaunay Triangulation", delaunay_image)
-            cv2.waitKey(2)
+            
 
             # Filter delaunay edges by 3D distance
             if img_id > 0:
                 print("Iffff")
+
+
+                delaunay_image = draw_simplicies_on_image(curr_img, curr_dict)
+                # Show this image 
+                # cv2.imshow("Delaunay Triangulation", delaunay_image)
+                # cv2.waitKey(2)
                 # # We will have access to prev_dict. 
                 prev_frame = slam.map.get_frame(-2)
                 prev_img = prev_frame.img.copy()
                 prev_delaunay_image = draw_simplicies_on_image(prev_img, prev_dict)
-                cv2.imshow("Prev Delaunay Triangulation", prev_delaunay_image)
-                cv2.waitKey(2)
+                # cv2.imshow("Prev Delaunay Triangulation", prev_delaunay_image)
+                # cv2.waitKey(2)
 
                 
                 ''' 
@@ -207,6 +211,26 @@ if __name__ == "__main__":
                 idxs_ref, idxs_cur = slam.tracking.idxs_ref, slam.tracking.idxs_cur
                 print("Idxs ref: ", len(idxs_ref))
                 print("Idxs cur: ", len(idxs_cur))
+
+                
+                if Parameters.kShowDebugImages:
+                    visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur)
+
+                # Keypoint in current frames which are common with the previous frame
+                print("Common keypoints between the two frames: ", idxs_cur)
+                print("keys of current dict: ", curr_dict.keys())   
+                # common_cur_kps = [tuple(cur_frame.kps[i]) for i in idxs_cur] # Make cur_frame_kps[i] which is a list of two floatings points to ints before converting to tuple
+                common_cur_kps = [tuple(map(int, cur_frame.kpsu[i])) for i in idxs_cur]
+                print("Common keypoints in the current frame: ", common_cur_kps)
+
+                if len(common_cur_kps) > 0:
+                    first_common_kp = common_cur_kps[0]
+                    print("First common keypoint: ", curr_dict[first_common_kp]['neighbors'])
+
+                
+
+
+
                 
                 # Print descriptors of the matching keypoints - 1st one
                 print("Descriptors of the matching keypoints - 1st one")
@@ -220,8 +244,6 @@ if __name__ == "__main__":
                         print("Hamming distance between the descriptors: ", hamming_distance(slam.tracking.f_ref.des[idxs_ref[0]], slam.tracking.f_cur.des[idxs_cur[i]]))
 
                 
-                for idx in range(len(idxs_ref)):
-                    print("Idx: ", idx)
 
     
                         
@@ -282,7 +304,7 @@ if __name__ == "__main__":
             img_id += 1
             time.sleep(0.0001)
             print(img_id/351 * 100, "% progress is done")
-            if img_id ==3:
+            if img_id ==15:
                 # Save the map 
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/slam_state/")
                 break

@@ -272,3 +272,20 @@ def draw_random_img(shape):
     img_background = cv2.GaussianBlur(img_background,ksize=(0,0),sigmaX=1)
     return img_background  
 
+
+def visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur, fraction=0.05):
+    # Visualize the common keypoints on current frame and previous frame - stack them side by side and draw lines connecting the keypoints
+    stacked_image = np.hstack((prev_frame.img, cur_frame.img))
+    num_keypoints = len(idxs_ref)
+    selected_indices = random.sample(range(num_keypoints), int(fraction * num_keypoints))
+    for idx in selected_indices:
+        kp_ref = prev_frame.kpsu[idxs_ref[idx]]
+        kp_cur = cur_frame.kpsu[idxs_cur[idx]]
+        # Draw the stacked image
+        cv2.circle(stacked_image, (int(kp_ref[0]), int(kp_ref[1])), 1, (0, 255, 0), -1)
+        cv2.circle(stacked_image, (int(kp_cur[0] + prev_frame.img.shape[1]), int(kp_cur[1])), 1, (0, 255, 0), -1)
+        cv2.line(stacked_image, (int(kp_ref[0]), int(kp_ref[1])), (int(kp_cur[0] + prev_frame.img.shape[1]), int(kp_cur[1])), np.random.randint(0, 255, 3).tolist(), 1)
+    cv2.imshow("Stacked Image", stacked_image)
+    cv2.waitKey(2)
+
+    

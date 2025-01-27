@@ -102,6 +102,12 @@ def draw_simplicies_on_image(slam):
 '''
 
 def convert_frame_to_kdtree(slam, id=-1):
+    ''' 
+    Input : SLAM object, id of the frame to be converted to a KDTree
+    Output : Dictionary with the keypoints as the keys and the neighbors, desc and id as the values
+    '''
+
+
     if id == -1:
         curr_frame = slam.tracking.f_cur
         img = curr_frame.img.copy()
@@ -138,6 +144,7 @@ def convert_frame_to_kdtree(slam, id=-1):
             for j in range(3):
                 # Add the neighbors to the dictionary
                 if i != j: # Avoid adding the same point as a neighbor
+                    # Check if the neighbor is already in the list
                     dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
     return dict
 
