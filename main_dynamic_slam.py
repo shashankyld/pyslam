@@ -17,12 +17,14 @@ from utils_rerun import log_image
 from utils_depth import depth2pointcloud
 from utils_maskrcnn import MaskRCNNUtils 
 from utils_delaunay import delaunay_visualization, filter_delaunay_edges_by_3d_distance, filter_delaunay_edges_by_3d_distance_last_frame , get_connected_components, delaunay_dynamic_visualization, draw_simplicies_on_image, convert_frame_to_kdtree
+from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
 from rerun_interface import Rerun
 import time
 import math
 import cv2
 from config_parameters import Parameters  
 from search_points import search_frame_by_projection
+
 
 
 
@@ -210,8 +212,14 @@ if __name__ == "__main__":
                 print("Descriptors of the matching keypoints - 1st one")
                 if len(idxs_ref) > 0 and len(idxs_cur) > 0:
                     print(slam.tracking.f_ref.des[idxs_ref[0]])
+                    print(slam.tracking.f_cur.des[idxs_cur[0]])
                     print(slam.tracking.f_cur.des[idxs_cur[1]])
+                    # Compute hamming distance between the descriptors
+                    
+                    for i in range(10):
+                        print("Hamming distance between the descriptors: ", hamming_distance(slam.tracking.f_ref.des[idxs_ref[0]], slam.tracking.f_cur.des[idxs_cur[i]]))
 
+                
                 for idx in range(len(idxs_ref)):
                     print("Idx: ", idx)
 
@@ -274,7 +282,7 @@ if __name__ == "__main__":
             img_id += 1
             time.sleep(0.0001)
             print(img_id/351 * 100, "% progress is done")
-            if img_id ==10 :
+            if img_id ==3:
                 # Save the map 
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/slam_state/")
                 break
