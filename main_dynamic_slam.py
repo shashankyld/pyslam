@@ -47,7 +47,7 @@ if __name__ == "__main__":
     camera = PinholeCamera(config)
     logging.debug("camera: %s", camera)
 
-    num_features = 5000
+    num_features = 2000
     if config.num_features_to_extract > 0:
         num_features = config.num_features_to_extract   
     logging.debug("num_features overriden to: %d", num_features)
@@ -185,7 +185,7 @@ if __name__ == "__main__":
   
             if img_id > starting_img_id:
                 print("Iffff")
-
+                print("Frame id: ", img_id)
 
                 delaunay_image = draw_simplicies_on_image(curr_img, curr_dict)
                 # Show this image 
@@ -211,6 +211,8 @@ if __name__ == "__main__":
                 print("Number of detected keypoints in the current frame: ", len(cur_frame.kpsu))
                 print("Number of detected keypoints in the previous frame: ", len(prev_frame.kpsu))
                 idxs_ref, idxs_cur = slam.tracking.idxs_ref, slam.tracking.idxs_cur
+
+
                 print("Idxs ref: ", len(idxs_ref))
                 print("Idxs cur: ", len(idxs_cur))
 
