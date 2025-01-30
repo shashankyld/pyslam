@@ -16,9 +16,9 @@ import numpy as np
 from utils_rerun import log_image
 from utils_depth import depth2pointcloud
 from utils_maskrcnn import MaskRCNNUtils 
-from utils_delaunay import delaunay_visualization, filter_delaunay_edges_by_3d_distance, filter_delaunay_edges_by_3d_distance_last_frame , get_connected_components, delaunay_dynamic_visualization, draw_simplicies_on_image, convert_frame_to_kdtree
+from utils_delaunay import delaunay_visualization, filter_delaunay_edges_by_3d_distance, filter_delaunay_edges_by_3d_distance_last_frame , get_connected_components, delaunay_dynamic_visualization, draw_simplicies_on_image, convert_frame_to_kdtree, get_common_edges
 from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
-from utils_draw import visualize_matched_kps
+from utils_draw import visualize_matched_kps , visualize_matched_edges
 from rerun_interface import Rerun
 import time
 import math
@@ -26,6 +26,8 @@ import cv2
 from config_parameters import Parameters  
 from search_points import search_frame_by_projection
 import random
+
+
 
 
 
@@ -45,7 +47,7 @@ if __name__ == "__main__":
     camera = PinholeCamera(config)
     logging.debug("camera: %s", camera)
 
-    num_features = 2000 
+    num_features = 2000
     if config.num_features_to_extract > 0:
         num_features = config.num_features_to_extract   
     logging.debug("num_features overriden to: %d", num_features)
@@ -93,7 +95,8 @@ if __name__ == "__main__":
 
 
     # Processing the dataset 
-    img_id = 0 # 215 is close to human entrance
+    starting_img_id = 215 # 215 is close to human entrance
+    img_id = starting_img_id
     while True: 
         # if img_id == 2:
         #     break   
@@ -179,10 +182,12 @@ if __name__ == "__main__":
             time_start = time.time()
             curr_dict = convert_frame_to_kdtree(slam)
             logging.debug("Converting frame to kdtree took %f seconds", time.time() - time_start)
-            
+            # time_start_gpu = time.time()
+            # curr_dict_gpu = convert_frame_to_kdtree_gpu(slam)
+            # logging.debug("Converting frame to kdtree GPU took %f seconds", time.time() - time_start_gpu)
 
             # Filter delaunay edges by 3D distance
-            if img_id > 0:
+            if img_id > starting_img_id:
                 print("Iffff")
 
 
@@ -216,32 +221,42 @@ if __name__ == "__main__":
                 if Parameters.kShowDebugImages:
                     visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur)
 
-                # Keypoint in current frames which are common with the previous frame
-                print("Common keypoints between the two frames: ", idxs_cur)
-                print("keys of current dict: ", curr_dict.keys())   
-                # common_cur_kps = [tuple(cur_frame.kps[i]) for i in idxs_cur] # Make cur_frame_kps[i] which is a list of two floatings points to ints before converting to tuple
-                common_cur_kps = [tuple(map(int, cur_frame.kpsu[i])) for i in idxs_cur]
-                print("Common keypoints in the current frame: ", common_cur_kps)
-
-                if len(common_cur_kps) > 0:
-                    first_common_kp = common_cur_kps[0]
-                    print("First common keypoint: ", curr_dict[first_common_kp]['neighbors'])
-
-                
+                common_edges_overall = get_common_edges(idxs_ref, idxs_cur, prev_dict, curr_dict, prev_frame, cur_frame)
 
 
-
-                
-                # Print descriptors of the matching keypoints - 1st one
-                print("Descriptors of the matching keypoints - 1st one")
-                if len(idxs_ref) > 0 and len(idxs_cur) > 0:
-                    print(slam.tracking.f_ref.des[idxs_ref[0]])
-                    print(slam.tracking.f_cur.des[idxs_cur[0]])
-                    print(slam.tracking.f_cur.des[idxs_cur[1]])
-                    # Compute hamming distance between the descriptors
                     
-                    for i in range(10):
-                        print("Hamming distance between the descriptors: ", hamming_distance(slam.tracking.f_ref.des[idxs_ref[0]], slam.tracking.f_cur.des[idxs_cur[i]]))
+
+                # print("Common edges overall in the previous frame: ", common_edges_overall_prev)
+
+
+                if Parameters.kShowDebugImages:
+                    visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_edges_overall, fraction=1)
+
+                
+                    
+
+                
+
+
+                # if len(common_cur_kps) > 0:
+                #     first_common_kp = common_cur_kps[0]
+                #     print("First common keypoint: ", curr_dict[first_common_kp]['neighbors'])
+
+                
+
+
+
+                
+                # # Print descriptors of the matching keypoints - 1st one
+                # print("Descriptors of the matching keypoints - 1st one")
+                # if len(idxs_ref) > 0 and len(idxs_cur) > 0:
+                #     print(slam.tracking.f_ref.des[idxs_ref[0]])
+                #     print(slam.tracking.f_cur.des[idxs_cur[0]])
+                #     print(slam.tracking.f_cur.des[idxs_cur[1]])
+                #     # Compute hamming distance between the descriptors
+                    
+                #     for i in range(10):
+                #         print("Hamming distance between the descriptors: ", hamming_distance(slam.tracking.f_ref.des[idxs_ref[0]], slam.tracking.f_cur.des[idxs_cur[i]]))
 
                 
 
@@ -304,7 +319,7 @@ if __name__ == "__main__":
             img_id += 1
             time.sleep(0.0001)
             print(img_id/351 * 100, "% progress is done")
-            if img_id ==15:
+            if img_id ==150:
                 # Save the map 
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/slam_state/")
                 break

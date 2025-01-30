@@ -32,7 +32,7 @@ class Parameters:
     
     
     # Number of desired keypoints per frame 
-    kNumFeatures=2000
+    kNumFeatures=5000
     
 
     # Point triangulation 
@@ -134,7 +134,7 @@ class Parameters:
         
     
     # Loop closing
-    kUseLoopClosing = True                                  # To enable/disable loop closing.
+    kUseLoopClosing = True                               # To enable/disable loop closing.
     kMinDeltaFrameForMeaningfulLoopClosure = 10
     kMaxResultsForLoopClosure = 5
     kLoopDetectingTimeoutPopKeyframe=0.5 # [s]
@@ -197,5 +197,5 @@ class Parameters:
     kChi2Stereo = 7.815 # chi-square 3 DOFs, used for reprojection error  (Hartley Zisserman pg 119)
 
     # Visualization 
-    kShowDebugImages = False
+    kShowDebugImages = True
 

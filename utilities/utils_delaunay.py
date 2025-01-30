@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial import Delaunay, KDTree
 import cv2
 import networkx as nx
+import torch
 
 def get_connected_components(graph):
   """
@@ -145,10 +146,163 @@ def convert_frame_to_kdtree(slam, id=-1):
                 # Add the neighbors to the dictionary
                 if i != j: # Avoid adding the same point as a neighbor
                     # Check if the neighbor is already in the list
-                    dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+                    # print(dict[tuple(kpsu[simplex[i]])]['neighbors'])
+                    
+                    # if (kpsu[simplex[j]], kp_desc[simplex[j]]) not in dict[tuple(kpsu[simplex[i]])]['neighbors']:
+                    #     dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+                    
+                    # dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+
+                    if (tuple(kpsu[simplex[j]]), tuple(kp_desc[simplex[j]])) not in dict[tuple(kpsu[simplex[i]])]['neighbors']:
+                        dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), tuple(kp_desc[simplex[j]])))
     return dict
 
+def get_common_edges(idxs_ref, idxs_cur, prev_dict, curr_dict, prev_frame, cur_frame):
+                    # Keypoint in current frames which are common with the previous frame
+                    # print("Common keypoints between the two frames: ", idxs_cur)
+                    # print("keys of current dict: ", curr_dict.keys())   
+                    # common_cur_kps = [tuple(cur_frame.kps[i]) for i in idxs_cur] # Make cur_frame_kps[i] which is a list of two floatings points to ints before converting to tuple
+                    common_cur_kps = [tuple(map(int, cur_frame.kpsu[i])) for i in idxs_cur]
+                    print("Common keypoints in the current frame: ", len(common_cur_kps))
+                    common_prev_kps = [tuple(map(int, prev_frame.kpsu[i])) for i in idxs_ref]
+                    print("Common keypoints in the previous frame: ", len(common_prev_kps))
 
+                    # 3D retrieval of the common keypoints 
+                    common_cur_kps_3d_pts, common_cur_kps_3d_rgb = cur_frame.unproject_points_3d(idxs_cur, transform_in_world=True)
+                    print("Common keypoints in 3D in the current frame: ", len(common_cur_kps_3d_pts))
+                    common_prev_kps_3d_pts, common_prev_kps_3d_rgb = prev_frame.unproject_points_3d(idxs_ref, transform_in_world=True)
+
+
+                    common_edges_overall = []
+                    # For each common keypoint, find if there are any common edges compared to previous frame
+                    for i in range(len(common_cur_kps)):
+                        cur_common_idx = i
+                        cur_common_kp = common_cur_kps[i]
+                        cur_common_kp_3d = common_cur_kps_3d_pts[i]
+                        cur_common_kp_rgb = common_cur_kps_3d_rgb[i]
+                        cur_common_neighbors = curr_dict[cur_common_kp]['neighbors'] 
+                        cur_common_neighbors_idxs = []
+                        for neighbor in cur_common_neighbors:
+                            # print("Neighbor: ", neighbor)
+                            # print("Type of neighbor: ", type(neighbor))
+                            neighbor = neighbor[0] # First element of the tuple is the neighbor
+                            # Check if the neighbor is in the common keypoints of the current frame - try to find the index of the neighbor in the common keypoints
+                            if neighbor in common_cur_kps:
+                                neighbor_idx = common_cur_kps.index(neighbor)
+                                cur_common_neighbors_idxs.append(neighbor_idx)
+
+                            
+
+                        # print("Common neighbors for the current keypoint which are also in previous frame: ", cur_common_neighbors_idxs)
+                        # previous frame common keypoint 
+                        prev_common_idx = i 
+                        prev_common_kp = common_prev_kps[i]
+                        prev_common_kp_3d = common_prev_kps_3d_pts[i]
+                        prev_common_kp_rgb = common_prev_kps_3d_rgb[i]
+                        prev_common_neighbors = prev_dict[prev_common_kp]['neighbors']
+                        prev_common_neighbors_idxs = []
+                        for neighbor in prev_common_neighbors:
+                            neighbor = neighbor[0]
+                            if neighbor in common_prev_kps:
+                                neighbor_idx = common_prev_kps.index(neighbor)
+                                prev_common_neighbors_idxs.append(neighbor_idx)
+
+
+                        # Find common edges 
+                        common_edges = []
+                        for neighbor_idx in cur_common_neighbors_idxs:
+                            if neighbor_idx in prev_common_neighbors_idxs:
+                                common_edges.append((cur_common_idx, neighbor_idx))
+
+                        # print("Common edges for the current keypoint: ", common_edges)
+                        common_edges_overall.extend(common_edges)
+                    
+                    # print("Common edges overall: ", common_edges_overall)
+                    print("Number of common edges overall: ", len(common_edges_overall))
+
+                    # print("Common edges overall: ", common_edges_overall)
+                    # Delete duplicate edges 
+                    common_edges_overall = list(set(common_edges_overall))
+                    print("Number of common edges overall after removing duplicates: ", len(common_edges_overall))
+                    # print("Common edges overall after removing duplicates: ", common_edges_overall)
+
+                    # Create a similar list of common edges for the previous frame
+                    common_edges_overall_prev = []
+                    for i in range(len(common_edges_overall)):
+                        edge = common_edges_overall[i]
+                        # SAME list to be used for the previous frame
+                        common_edges_overall_prev.append(edge) 
+
+                    return common_edges_overall
+
+
+def convert_frame_to_kdtree_gpu(slam, id=-1):
+    ''' 
+    GPU-accelerated version using PyTorch for neighbor computation
+    Input : SLAM object, id of the frame to be converted to a KDTree
+    Output : Dictionary with keypoints as keys and neighbors, desc, id as values
+    '''
+    
+    # Get keypoints and descriptors (original CPU data)
+    if id == -1:
+        curr_frame = slam.tracking.f_cur
+        kpsu = curr_frame.kpsu.copy().astype(int)
+        kp_desc = curr_frame.des.copy()
+    elif id == -2:
+        curr_frame = slam.map.get_frame(-2)
+        kpsu = curr_frame.kpsu.copy().astype(int)
+        kp_desc = curr_frame.des.copy()
+
+    # Convert to PyTorch tensors and move to GPU
+    kpsu_tensor = torch.tensor(kpsu, device='cuda')
+    kp_desc_tensor = torch.tensor(kp_desc, device='cuda')
+
+    # CPU-based Delaunay triangulation
+    tri = Delaunay(kpsu)
+    simplices = tri.simplices
+
+    # Generate all edges from simplices on CPU
+    edges = []
+    for s in simplices:
+        edges.extend([[s[0], s[1]], [s[1], s[2]], [s[0], s[2]]])
+    edges = torch.tensor(edges, dtype=torch.long, device='cuda')
+
+    # GPU-accelerated edge processing
+    # Remove duplicate edges (undirected)
+    sorted_edges, _ = torch.sort(edges, dim=1)
+    unique_edges = torch.unique(sorted_edges, dim=0)
+    
+    # Create bidirectional edges
+    bidirectional_edges = torch.cat([unique_edges, unique_edges.flip(1)], dim=0)
+
+    # Group by source nodes using GPU sorting
+    sources = bidirectional_edges[:, 0]
+    targets = bidirectional_edges[:, 1]
+    sorted_sources, indices = torch.sort(sources)
+    sorted_targets = targets[indices]
+
+    # Get unique sources and their neighbor counts
+    unique_sources, counts = torch.unique_consecutive(sorted_sources, return_counts=True)
+    split_targets = torch.split(sorted_targets, counts.tolist())
+
+    # Build neighbor dictionary on CPU
+    neighbors_dict = {}
+    for src, tgts in zip(unique_sources.cpu().numpy(), split_targets):
+        unique_tgts = torch.unique(tgts).cpu().numpy()
+        neighbors_dict[src] = [tuple(kpsu[idx]) for idx in unique_tgts]
+
+    # Build result dictionary
+    result_dict = {}
+    for i, kp in enumerate(kpsu):
+        kp_tuple = tuple(kp)
+        result_dict[kp_tuple] = {
+            'desc': kp_desc[i],
+            'id': i,
+            'neighbors': [(tuple(kpsu[n]), tuple(kp_desc[n])) 
+                         for n in neighbors_dict.get(i, [])]
+        }
+    print("GPU-accelerated KDTree computation done.")
+    return result_dict
 
 def draw_simplicies_on_image(img, dict):
     # Use the kdtree
@@ -222,6 +376,7 @@ def filter_delaunay_edges_by_3d_distance(slam, distance_threshold=0.05):
                 print(f"Invalid IDs: id1={id1}, id2={id2}")
 
     return graph  # Return the filtered graph
+
 
 
 

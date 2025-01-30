@@ -273,8 +273,9 @@ def draw_random_img(shape):
     return img_background  
 
 
-def visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur, fraction=0.05):
+def visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur, fraction=1):
     # Visualize the common keypoints on current frame and previous frame - stack them side by side and draw lines connecting the keypoints
+    print("Visualizing {} keypoints between frames.".format(len(idxs_ref)))
     stacked_image = np.hstack((prev_frame.img, cur_frame.img))
     num_keypoints = len(idxs_ref)
     selected_indices = random.sample(range(num_keypoints), int(fraction * num_keypoints))
@@ -289,3 +290,137 @@ def visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur, fraction=0.
     cv2.waitKey(2)
 
     
+# def visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_edges_overall, fraction=0.05):
+#     """
+#     Visualizes edges (connections between keypoints) that are common between the current and previous frames.
+    
+#     Args:
+#         prev_frame: Previous frame object containing keypoints and image.
+#         cur_frame: Current frame object containing keypoints and image.
+#         idxs_ref: Indices of keypoints in the previous frame that are matched.
+#         idxs_cur: Indices of keypoints in the current frame that are matched.
+#         common_edges_overall: List of edges (tuples) representing connections between common keypoints.
+#         fraction: Fraction of edges to visualize (default: 0.05).
+#     """
+#     # Stack the previous and current images side by side
+#     stacked_image = np.hstack((prev_frame.img, cur_frame.img))
+    
+#     if len(common_edges_overall) == 0:
+#         print("No common edges to visualize.")
+#         return
+    
+#     # Randomly select a subset of edges based on the specified fraction
+#     num_edges = len(common_edges_overall)
+#     selected_edges = random.sample(common_edges_overall, max(1, int(fraction * num_edges)))
+    
+#     prev_width = prev_frame.img.shape[1]  # Width of the previous image for offsetting current frame
+    
+#     for edge in selected_edges:
+#         i, j = edge  # Indices in the common keypoints list
+        
+#         # Retrieve keypoints from previous frame using idxs_ref
+#         prev_kp1 = tuple(map(int, prev_frame.kpsu[idxs_ref[i]]))
+#         prev_kp2 = tuple(map(int, prev_frame.kpsu[idxs_ref[j]]))
+        
+#         # Retrieve keypoints from current frame using idxs_cur and adjust x-coordinate for stacking
+#         cur_kp1 = tuple(map(int, cur_frame.kpsu[idxs_cur[i]]))
+#         cur_kp2 = tuple(map(int, cur_frame.kpsu[idxs_cur[j]]))
+#         cur_kp1_right = (cur_kp1[0] + prev_width, cur_kp1[1])
+#         cur_kp2_right = (cur_kp2[0] + prev_width, cur_kp2[1])
+        
+#         # Generate a random color for consistent visualization across frames
+#         color = tuple(np.random.randint(0, 255, 3).tolist())
+        
+#         # Draw edges in the previous frame (left side)
+#         cv2.line(stacked_image, prev_kp1, prev_kp2, color, 1)
+        
+#         # Draw edges in the current frame (right side)
+#         cv2.line(stacked_image, cur_kp1_right, cur_kp2_right, color, 1)
+        
+#         # Draw circles at keypoints and connecting lines across frames (optional)
+#         cv2.circle(stacked_image, prev_kp1, 2, color, -1)
+#         cv2.circle(stacked_image, prev_kp2, 2, color, -1)
+#         cv2.circle(stacked_image, cur_kp1_right, 2, color, -1)
+#         cv2.circle(stacked_image, cur_kp2_right, 2, color, -1)
+#         cv2.line(stacked_image, prev_kp1, cur_kp1_right, color, 1)
+#         cv2.line(stacked_image, prev_kp2, cur_kp2_right, color, 1)
+    
+#     cv2.imshow("Matched Edges Between Frames", stacked_image)
+#     cv2.waitKey(2)
+
+
+def visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_edges_overall, fraction=1, scale_factor=2, line_thickness=3):
+    """
+    Visualizes edges (connections between keypoints) that are common between the current and previous frames,
+    without drawing connecting lines between the two images. The image is resized for better visibility,
+    and the edge thickness is increased.
+
+    Args:
+        prev_frame: Previous frame object containing keypoints and image.
+        cur_frame: Current frame object containing keypoints and image.
+        idxs_ref: Indices of keypoints in the previous frame that are matched.
+        idxs_cur: Indices of keypoints in the current frame that are matched.
+        common_edges_overall: List of edges (tuples) representing connections between common keypoints.
+        fraction: Fraction of edges to visualize (default: 0.05).
+        scale_factor: Factor to scale the image size (default: 2).
+        line_thickness: Thickness of the lines used to draw edges (default: 2).
+    """
+    # Stack the previous and current images side by side
+    stacked_image = np.hstack((prev_frame.img, cur_frame.img))
+    
+    if len(common_edges_overall) == 0:
+        print("No common edges to visualize.")
+        return
+    
+    # Randomly select a subset of edges based on the specified fraction
+    num_edges = len(common_edges_overall)
+    selected_edges = random.sample(common_edges_overall, max(1, int(fraction * num_edges)))
+    
+    prev_width = prev_frame.img.shape[1]  # Width of the previous image for offsetting current frame
+    
+    # Resize the stacked image to make it bigger
+    stacked_image = cv2.resize(stacked_image, (stacked_image.shape[1] * scale_factor, stacked_image.shape[0] * scale_factor))
+    
+    # Scale factor for keypoints
+    scale = (scale_factor, scale_factor)
+    
+    print("Visualizing {} edges between frames.".format(len(selected_edges)))
+    
+    for edge in selected_edges:
+        # Generate a random color for consistent visualization across frames
+        color = tuple(np.random.randint(0, 255, 3).tolist())
+        i, j = edge  # Indices in the common keypoints list
+        
+        # Retrieve keypoints from previous frame using idxs_ref
+        prev_kp1 = tuple(map(int, prev_frame.kpsu[idxs_ref[i]]))
+        prev_kp2 = tuple(map(int, prev_frame.kpsu[idxs_ref[j]]))
+        
+        # Retrieve keypoints from current frame using idxs_cur and adjust x-coordinate for stacking
+        cur_kp1 = tuple(map(int, cur_frame.kpsu[idxs_cur[i]]))
+        cur_kp2 = tuple(map(int, cur_frame.kpsu[idxs_cur[j]]))
+        
+        # Apply scale to keypoints for resized image
+        prev_kp1 = (int(prev_kp1[0] * scale[0]), int(prev_kp1[1] * scale[1]))
+        prev_kp2 = (int(prev_kp2[0] * scale[0]), int(prev_kp2[1] * scale[1]))
+        cur_kp1 = (int(cur_kp1[0] * scale[0]), int(cur_kp1[1] * scale[1]))
+        cur_kp2 = (int(cur_kp2[0] * scale[0]), int(cur_kp2[1] * scale[1]))
+
+        # Offset the current keypoints' x-coordinate based on the width of the previous image
+        cur_kp1_right = (cur_kp1[0] + prev_width * scale_factor, cur_kp1[1])
+        cur_kp2_right = (cur_kp2[0] + prev_width * scale_factor, cur_kp2[1])
+        
+        # Draw thicker edges in the previous frame (left side)
+        cv2.line(stacked_image, prev_kp1, prev_kp2, color, line_thickness)
+        
+        # Draw thicker edges in the current frame (right side)
+        cv2.line(stacked_image, cur_kp1_right, cur_kp2_right, color, line_thickness)
+        
+        # Draw circles at keypoints (optional)
+        cv2.circle(stacked_image, prev_kp1, 2, color, -1)
+        cv2.circle(stacked_image, prev_kp2, 2, color, -1)
+        cv2.circle(stacked_image, cur_kp1_right, 2, color, -1)
+        cv2.circle(stacked_image, cur_kp2_right, 2, color, -1)
+
+    # Display the enlarged image
+    cv2.imshow("Matched Edges Between Frames", stacked_image)
+    cv2.waitKey(2)
