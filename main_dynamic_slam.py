@@ -47,7 +47,7 @@ if __name__ == "__main__":
     camera = PinholeCamera(config)
     logging.debug("camera: %s", camera)
 
-    num_features = 2000
+    num_features = 5000
     if config.num_features_to_extract > 0:
         num_features = config.num_features_to_extract   
     logging.debug("num_features overriden to: %d", num_features)
@@ -95,7 +95,7 @@ if __name__ == "__main__":
 
 
     # Processing the dataset 
-    starting_img_id = 215 # 215 is close to human entrance
+    starting_img_id = 0 # 215 is close to human entrance
     img_id = starting_img_id
     while True: 
         # if img_id == 2:
@@ -206,7 +206,7 @@ if __name__ == "__main__":
                     # common_neighbors = ["(kp3, desc3)"]
                     # common_edges = ["(x1,y1)_(kp3, desc3)"] - dist = kp3 - x1,y1
                 '''
-                
+
                 # Matching across two frames is needed.
                 print("Number of detected keypoints in the current frame: ", len(cur_frame.kpsu))
                 print("Number of detected keypoints in the previous frame: ", len(prev_frame.kpsu))
@@ -239,6 +239,7 @@ if __name__ == "__main__":
             img_id += 1
             time.sleep(0.0001)
             print(img_id/351 * 100, "% progress is done")
+            
             if img_id ==150:
                 # Save the map 
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/slam_state/")
