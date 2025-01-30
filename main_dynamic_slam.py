@@ -182,11 +182,7 @@ if __name__ == "__main__":
             time_start = time.time()
             curr_dict = convert_frame_to_kdtree(slam)
             logging.debug("Converting frame to kdtree took %f seconds", time.time() - time_start)
-            # time_start_gpu = time.time()
-            # curr_dict_gpu = convert_frame_to_kdtree_gpu(slam)
-            # logging.debug("Converting frame to kdtree GPU took %f seconds", time.time() - time_start_gpu)
-
-            # Filter delaunay edges by 3D distance
+  
             if img_id > starting_img_id:
                 print("Iffff")
 
@@ -210,6 +206,7 @@ if __name__ == "__main__":
                     # common_neighbors = ["(kp3, desc3)"]
                     # common_edges = ["(x1,y1)_(kp3, desc3)"] - dist = kp3 - x1,y1
                 '''
+                
                 # Matching across two frames is needed.
                 print("Number of detected keypoints in the current frame: ", len(cur_frame.kpsu))
                 print("Number of detected keypoints in the previous frame: ", len(prev_frame.kpsu))
@@ -222,89 +219,12 @@ if __name__ == "__main__":
                     visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur)
 
                 common_edges_overall = get_common_edges(idxs_ref, idxs_cur, prev_dict, curr_dict, prev_frame, cur_frame)
-
-
-                    
-
                 # print("Common edges overall in the previous frame: ", common_edges_overall_prev)
-
 
                 if Parameters.kShowDebugImages:
                     visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_edges_overall, fraction=1)
-
-                
-                    
-
-                
-
-
-                # if len(common_cur_kps) > 0:
-                #     first_common_kp = common_cur_kps[0]
-                #     print("First common keypoint: ", curr_dict[first_common_kp]['neighbors'])
-
-                
-
-
-
-                
-                # # Print descriptors of the matching keypoints - 1st one
-                # print("Descriptors of the matching keypoints - 1st one")
-                # if len(idxs_ref) > 0 and len(idxs_cur) > 0:
-                #     print(slam.tracking.f_ref.des[idxs_ref[0]])
-                #     print(slam.tracking.f_cur.des[idxs_cur[0]])
-                #     print(slam.tracking.f_cur.des[idxs_cur[1]])
-                #     # Compute hamming distance between the descriptors
-                    
-                #     for i in range(10):
-                #         print("Hamming distance between the descriptors: ", hamming_distance(slam.tracking.f_ref.des[idxs_ref[0]], slam.tracking.f_cur.des[idxs_cur[i]]))
-
-                
-
-    
-                        
-
-                
-
-                # common_edges = get_common_edges(prev_dict, curr_dict) 
-                # logging.debug("Common edges: ", common_edges)
-                # # Filter edges by 3D distance
-                # diff_dist = difference_btw_edges(common_edges, prev_dict, curr_dict)
-                # logging.debug("Difference in distance: ", diff_dist)
-                # # Delete edges that have changed distance in 3D 
-                # curr_dict = delete_edges_by_3d_distance(diff_dist, curr_dict) 
-                # logging.debug("Edges deleted by 3D distance: ", curr_dict)
-                # # Connected components of the graph 
-                # connected_components = get_connected_components(curr_dict)
-                # logging.debug("Connected components: ", connected_components)
-                # # Get the dynamic objects 
-                # dynamic_objects = get_dynamic_objects(connected_components)
-                # logging.debug("Dynamic objects: ", dynamic_objects)
-                
+     
             prev_dict = curr_dict
-
-            # print("Curr Dict: ", curr_dict)
-            '''
-            curr_frame_kps = cur_frame.kpsu.copy().astype(int)
-            from scipy.spatial import Delaunay
-            delaunay_triangulation = Delaunay(curr_frame_kps)
-            print("Curr KPs: ", curr_frame_kps)
-            print("Delaunay Triangulation Done: ", delaunay_triangulation.simplices)
-            logging.debug("Delauany Triangulation Done: ", delaunay_triangulation.simplices)
-            simplicies_image = draw_simplicies_on_image(slam)
-            
-            '''
-
-            # graph = filter_delaunay_edges_by_3d_distance(slam)
-            # logging.debug("logging graph to rerun")
-            
-            # # Connected components of the graph
-            # connected_components = get_connected_components(graph)
-            # logging.debug("logging connected components to rerun")
-            # img_dynamic_objects = delaunay_dynamic_visualization(slam)
-            # rr.log("dynamic_objects", rr.Image(img_dynamic_objects))
-
-
-
 
             # Logging global and local map points to rerun
             logging.debug("logging global and local map points to rerun")
