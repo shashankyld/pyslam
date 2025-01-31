@@ -116,8 +116,8 @@ if __name__ == "__main__":
             maskrcnn = MaskRCNNUtils()
             logging.debug("Estimating dynamic mask")
             dynamic_mask = maskrcnn.human_mask(img)
-            # Set full black mask by force with one channel
-            dynamic_mask = np.zeros_like(img)[:, :, 0]
+            # # Set full black mask by force with one channel
+            # dynamic_mask = np.zeros_like(img)[:, :, 0]
             
 
 
@@ -226,7 +226,7 @@ if __name__ == "__main__":
             
             if img_id ==300:
                 # Save the map 
-                slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/maskrcnn_500_slam_state/")
+                slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/maskrcnn_500_slam_state_2/")
                 break
         # When dataset is not ok or image is None
         else:

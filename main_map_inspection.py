@@ -17,6 +17,8 @@ from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 import os 
 import signal
 import open3d as o3d
+from utils_maskrcnn import MaskRCNNUtils 
+
 def signal_handler(sig, frame):
     print('You pressed Ctrl+C!')
     sys.exit(0)
@@ -40,17 +42,46 @@ if __name__ == "__main__":
     cv2.namedWindow('keyframe', cv2.WINDOW_NORMAL)
     # List to hold point clouds 
     point_clouds = []
+
+    # If .ply file already exists, open it and bypass the visualization loop
+    if os.path.exists(args.output_path + ".ply"):
+        print("PLY file already exists. Loading it...")
+        final_point_cloud = o3d.io.read_point_cloud(args.output_path + ".ply")
+        vis = o3d.visualization.Visualizer()
+        vis.create_window(window_name='3D Pose Visualization')
+        # Add a coordinate frame to visualize the scene
+        coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1)
+        vis.add_geometry(coordinate_frame)
+        vis.add_geometry(final_point_cloud)
+        # Set an initial viewpoint (adjust parameters as needed) 
+        view_control = vis.get_view_control()
+        # Run the visualizer
+        vis.run() 
+        vis.destroy_window()
+        sys.exit(0)
+
     # Iterate over the keyframes 
     for i in range(len(keyframes)):
         keyframe = keyframes[i]
         img = keyframe.img
         # Get frame id 
         frame_id = keyframe.id 
-        # Get the mask for the keyframe - name is same as rgb image with the similar frame id - time stamp 
-        mask_names_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_crowd/masks"
-        mask_ordered_names = sorted([f for f in os.listdir(mask_names_path) if f.endswith(".png")])
-        mask_name = mask_names_path + "/" + mask_ordered_names[frame_id]
-        mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
+        
+        
+        # # Get the mask for the keyframe - name is same as rgb image with the similar frame id - time stamp 
+        # mask_names_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_crowd/masks"
+        # mask_ordered_names = sorted([f for f in os.listdir(mask_names_path) if f.endswith(".png")])
+        # mask_name = mask_names_path + "/" + mask_ordered_names[frame_id]
+        # mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
+
+        maskrcnn = MaskRCNNUtils()
+        mask = maskrcnn.human_mask(img)
+        # Dilate the mask with a kernel of 5x5
+        kernel = np.ones((5,5), np.uint8)
+        mask = cv2.dilate(mask, kernel, iterations=4) # This is to make sure that the mask covers the entire human body
+
+        
+        
         pose = keyframe.pose  
         points, rgb_values = keyframe.get_dense_depth_map(transform_in_world=True, mask=mask)
         print("Number of points: ", len(points))
@@ -65,7 +96,7 @@ if __name__ == "__main__":
         # Update the window with the new image
         cv2.imshow('keyframe', img)
         # Add mask to the image to same window
-        mask = cv2.imread(mask_name)
+        # mask = cv2.imread(mask_name)
         cv2.imshow('mask', mask)
 
         
@@ -86,8 +117,11 @@ if __name__ == "__main__":
     final_point_cloud = o3d.geometry.PointCloud()
     for pc in point_clouds:
         final_point_cloud += pc 
+    # Save the point cloud to a file 
+    o3d.io.write_point_cloud(args.output_path + ".ply", final_point_cloud)
     # Add the final accumulated point cloud to the visualizer
     vis.add_geometry(final_point_cloud)
+    
     # Set an initial viewpoint (adjust parameters as needed) 
     view_control = vis.get_view_control()
     # Run the visualizer
