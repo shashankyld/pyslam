@@ -25,7 +25,7 @@ matches.txt
 map.png
 .project
 data/videos/webcam
-data/*
+data/slam_state_dense_reconstruction.ply
 
 kf_info.log 
 local_mapping.log 
