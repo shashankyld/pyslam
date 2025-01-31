@@ -23,6 +23,7 @@ import cv2
 
 import random
 import string
+from utils_delaunay import draw_simplicies_on_image
 
 
 # draw a list of points with different random colors on a input image 
@@ -288,6 +289,16 @@ def visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur, fraction=1)
         cv2.line(stacked_image, (int(kp_ref[0]), int(kp_ref[1])), (int(kp_cur[0] + prev_frame.img.shape[1]), int(kp_cur[1])), np.random.randint(0, 255, 3).tolist(), 1)
     cv2.imshow("Stacked Image", stacked_image)
     cv2.waitKey(2)
+
+def visualize_common_simplicies(curr_img, prev_img, curr_dict, prev_dict):
+    curr_delaunay_img = draw_simplicies_on_image(curr_img, curr_dict)
+    prev_delaunay_img = draw_simplicies_on_image(prev_img, prev_dict)
+    stacked_image = np.hstack((prev_delaunay_img, curr_delaunay_img))
+    cv2.imshow("Common Simplicies", stacked_image)
+    cv2.waitKey(2)
+
+    
+
 
     
 # def visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_edges_overall, fraction=0.05):

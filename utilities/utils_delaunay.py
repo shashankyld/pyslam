@@ -3,6 +3,7 @@ from scipy.spatial import Delaunay, KDTree
 import cv2
 import networkx as nx
 import torch
+import open3d as o3d
 
 def get_connected_components(graph):
   """
@@ -157,11 +158,215 @@ def convert_frame_to_kdtree(slam, id=-1):
                         dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), tuple(kp_desc[simplex[j]])))
     return dict
 
+def convert_frame_to_kdtree_masked(slam, idxs_cur=[], id=-1):
+    ''' 
+    Input : SLAM object, id of the frame to be converted to a KDTree
+    Output : Dictionary with the keypoints as the keys and the neighbors, desc and id as the values
+    '''
+    # TODO - TRY TO FIX THE DUPLICATES PROBLEM
+
+
+    if id == -1:
+        curr_frame = slam.tracking.f_cur
+        img = curr_frame.img.copy()
+        kpsu = curr_frame.kpsu.copy().astype(int)
+        kp_desc = curr_frame.des.copy()
+    elif id == -2:
+        curr_frame = slam.map.get_frame(-2)
+        img = curr_frame.img.copy()
+        kpsu = curr_frame.kpsu.copy().astype(int)
+        kp_desc = curr_frame.des.copy()
+
+    # if len(idxs_cur) != len(np.unique(idxs_cur)):
+    #     print("Warning: Duplicates found in idxs_cur")
+    #     values, counts = np.unique(idxs_cur, return_counts=True)
+    #     print("Duplicates:", values[counts > 1])
+
+
+    print("Length of kpsu: ", len(kpsu)) 
+    
+    print("Length of idxs_cur: ", len(idxs_cur))
+    # if len(idxs_cur) != len(np.unique(idxs_cur)):
+    #     print("Warning: Duplicates found in idxs_cur")
+    #     values, counts = np.unique(idxs_cur, return_counts=True)
+    #     print("Duplicates:", len(values[counts > 1]), values[counts > 1])
+
+    if len(idxs_cur) !=0:
+        kpsu = kpsu[idxs_cur]
+        kp_desc = kp_desc[idxs_cur]
+        # now len(kpsu) == len(kp_desc) == len(idxs_cur) 
+
+
+    print("Length of kpsu after masking: ", len(kpsu))
+
+    # Remove duplicates from the keypoints and descriptors
+    kpsu, indices = np.unique(kpsu, axis=0, return_index=True)
+    kp_desc = kp_desc[indices]
+
+    print("Length of kpsu after removing duplicates: ", len(kpsu))
+
+
+    # Add early exit for insufficient points
+    if len(kpsu) < 3:
+        print("Warning: Not enough keypoints for Delaunay (%d)" % len(kpsu))
+        return {}
+
+    # kdtree = KDTree(kpsu) # Creating a KDTree from the keypoints
+    dict = {}
+    for i in range(len(kpsu)):
+        dict[tuple(kpsu[i])] = {}
+        dict[tuple(kpsu[i])]['desc'] = kp_desc[i]
+        dict[tuple(kpsu[i])]['id'] = i
+        dict[tuple(kpsu[i])]['neighbors'] = []
+    
+    simplicies = Delaunay(kpsu)
+    for simplex in simplicies.simplices:
+        # For each edge, without duplicates - add to each kp in the dictionary - its neighbors desc 
+        '''
+        ### LIKE THIS ####
+        # dict = {"(x1,y1)": {"desc" : "desc1", "id" : 1, "neighbors" : ["(kp2, desc2)", "(kp3, desc3)"]}}
+        '''
+        for i in range(3):
+            if tuple(kpsu[simplex[i]]) not in dict:
+                # Will only happen if the point is not in the dictionary - which should not happen
+                print("Error: Point not in dictionary")
+                dict[tuple(kpsu[simplex[i]])] = {}
+                dict[tuple(kpsu[simplex[i]])]['desc'] = kp_desc[simplex[i]]
+                dict[tuple(kpsu[simplex[i]])]['id'] = simplex[i]
+                dict[tuple(kpsu[simplex[i]])]['neighbors'] = []
+            for j in range(3):
+                # Add the neighbors to the dictionary
+                if i != j: # Avoid adding the same point as a neighbor
+                    # Check if the neighbor is already in the list
+                    # print(dict[tuple(kpsu[simplex[i]])]['neighbors'])
+                    
+                    # if (kpsu[simplex[j]], kp_desc[simplex[j]]) not in dict[tuple(kpsu[simplex[i]])]['neighbors']:
+                    #     dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+                    
+                    # dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+
+                    if (tuple(kpsu[simplex[j]]), tuple(kp_desc[simplex[j]])) not in dict[tuple(kpsu[simplex[i]])]['neighbors']:
+                        dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), tuple(kp_desc[simplex[j]])))
+    return dict
+
+# def convert_frame_to_reference_dict(slam, id=-1):
+#     ''' 
+#     Input : SLAM object, id of the frame to be converted to a KDTree
+#     Output : Dictionary with the keypoints as the keys and the neighbors, desc and id as the values, but for only the  keypoints that are common with the previous frame - given by idxs_cur 
+#     '''
+
+
+#     if id == -1:
+#         curr_frame = slam.tracking.f_cur
+#         img = curr_frame.img.copy()
+#         kpsu = curr_frame.kpsu.copy().astype(int)
+#         kp_desc = curr_frame.des.copy()
+#     elif id == -2:
+#         curr_frame = slam.map.get_frame(-2)
+#         img = curr_frame.img.copy()
+#         kpsu = curr_frame.kpsu.copy().astype(int)
+#         kp_desc = curr_frame.des.copy()
+#     kdtree = KDTree(kpsu) # Creating a KDTree from the keypoints
+#     dict = {}
+#     for i in range(len(kpsu)):
+#         dict[tuple(kpsu[i])] = {}
+#         dict[tuple(kpsu[i])]['desc'] = kp_desc[i]
+#         dict[tuple(kpsu[i])]['id'] = i
+#         dict[tuple(kpsu[i])]['neighbors'] = []
+    
+#     simplicies = Delaunay(kpsu)
+#     for simplex in simplicies.simplices:
+#         # For each edge, without duplicates - add to each kp in the dictionary - its neighbors desc 
+#         '''
+#         ### LIKE THIS ####
+#         # dict = {"(x1,y1)": {"desc" : "desc1", "id" : 1, "neighbors" : ["(kp2, desc2)", "(kp3, desc3)"]}}
+#         '''
+#         for i in range(3):
+#             if tuple(kpsu[simplex[i]]) not in dict:
+#                 # Will only happen if the point is not in the dictionary - which should not happen
+#                 print("Error: Point not in dictionary")
+#                 dict[tuple(kpsu[simplex[i]])] = {}
+#                 dict[tuple(kpsu[simplex[i]])]['desc'] = kp_desc[simplex[i]]
+#                 dict[tuple(kpsu[simplex[i]])]['id'] = simplex[i]
+#                 dict[tuple(kpsu[simplex[i]])]['neighbors'] = []
+#             for j in range(3):
+#                 # Add the neighbors to the dictionary
+#                 if i != j: # Avoid adding the same point as a neighbor
+#                     # Check if the neighbor is already in the list
+#                     # print(dict[tuple(kpsu[simplex[i]])]['neighbors'])
+                    
+#                     # if (kpsu[simplex[j]], kp_desc[simplex[j]]) not in dict[tuple(kpsu[simplex[i]])]['neighbors']:
+#                     #     dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+                    
+#                     # dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), kp_desc[simplex[j]]))
+
+#                     if (tuple(kpsu[simplex[j]]), tuple(kp_desc[simplex[j]])) not in dict[tuple(kpsu[simplex[i]])]['neighbors']:
+#                         dict[tuple(kpsu[simplex[i]])]['neighbors'].append((tuple(kpsu[simplex[j]]), tuple(kp_desc[simplex[j]])))
+#     return dict
+
+
+def convert_frame_to_reference_dict(slam, idxs_cur, id=-1):
+    ''' 
+    Input : SLAM object, idxs_cur (indices of keypoints common with previous frame), id of the frame to be converted to a KDTree
+    Output : Dictionary with only the common keypoints as the keys and the neighbors, desc, and id as the values
+    '''
+    if id == -1:
+        curr_frame = slam.tracking.f_cur
+    elif id == -2:
+        curr_frame = slam.map.get_frame(-2)
+    else:
+        raise ValueError("Invalid frame ID")
+    
+    img = curr_frame.img.copy()
+    kpsu = curr_frame.kpsu.copy().astype(int)
+    kp_desc = curr_frame.des.copy()
+    
+    # Select only keypoints that are common with the previous frame
+    kpsu = kpsu[idxs_cur]
+    kp_desc = kp_desc[idxs_cur]
+    
+    kdtree = KDTree(kpsu)  # Creating a KDTree from the keypoints
+    
+    keypoint_dict = {}
+    for i, idx in enumerate(idxs_cur):
+        key = tuple(kpsu[i])
+        keypoint_dict[key] = {
+            'desc': tuple(kp_desc[i]),
+            'id': idx,  # Original index
+            'neighbors': []
+        }
+    
+    if len(kpsu) >= 3:  # Delaunay requires at least 3 points
+        simplices = Delaunay(kpsu)
+        for simplex in simplices.simplices:
+            for i in range(3):
+                key_i = tuple(kpsu[simplex[i]])
+                for j in range(3):
+                    if i != j:
+                        key_j = tuple(kpsu[simplex[j]])
+                        neighbor_desc = tuple(kp_desc[simplex[j]])
+                        if (key_j, neighbor_desc) not in keypoint_dict[key_i]['neighbors']:
+                            keypoint_dict[key_i]['neighbors'].append((key_j, neighbor_desc))
+    
+    return keypoint_dict
+
+
+def get_common_edges_2():
+    return None
+
+
 def get_common_edges(idxs_ref, idxs_cur, prev_dict, curr_dict, prev_frame, cur_frame):
                     # Keypoint in current frames which are common with the previous frame
                     # print("Common keypoints between the two frames: ", idxs_cur)
                     # print("keys of current dict: ", curr_dict.keys())   
                     # common_cur_kps = [tuple(cur_frame.kps[i]) for i in idxs_cur] # Make cur_frame_kps[i] which is a list of two floatings points to ints before converting to tuple
+
+                    ''' 
+                        # Remove duplicates from the keypoints and descriptors
+                        kpsu, indices = np.unique(kpsu, axis=0, return_index=True)
+                        kp_desc = kp_desc[indices]
+                        @Apply same logic for common_cur_kps and common_prev_kps
+                    '''
                     common_cur_kps = [tuple(map(int, cur_frame.kpsu[i])) for i in idxs_cur]
                     print("Common keypoints in the current frame: ", len(common_cur_kps))
                     common_prev_kps = [tuple(map(int, prev_frame.kpsu[i])) for i in idxs_ref]
@@ -171,7 +376,10 @@ def get_common_edges(idxs_ref, idxs_cur, prev_dict, curr_dict, prev_frame, cur_f
                     common_cur_kps_3d_pts, common_cur_kps_3d_rgb = cur_frame.unproject_points_3d(idxs_cur, transform_in_world=True)
                     print("Common keypoints in 3D in the current frame: ", len(common_cur_kps_3d_pts))
                     common_prev_kps_3d_pts, common_prev_kps_3d_rgb = prev_frame.unproject_points_3d(idxs_ref, transform_in_world=True)
-
+                    print("Common keypoints in 3D in the previous frame: ", len(common_prev_kps_3d_pts))
+                    
+                    print("Previous _dict: ", len(prev_dict))
+                    print("Current _dict: ", len(curr_dict))
 
                     common_edges_overall = []
                     # For each common keypoint, find if there are any common edges compared to previous frame
