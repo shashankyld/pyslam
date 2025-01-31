@@ -25,7 +25,7 @@ matches.txt
 map.png
 .project
 data/videos/webcam
-data/*.ply
+data/*
 
 kf_info.log 
 local_mapping.log 
