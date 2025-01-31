@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
 
     # Processing the dataset 
-    starting_img_id = 0 # 215 is close to human entrance
+    starting_img_id = 150 # 215 is close to human entrance
     img_id = starting_img_id
     while True: 
 
@@ -111,10 +111,19 @@ if __name__ == "__main__":
                                        config.cam_settings["Camera.cx"], config.cam_settings["Camera.cy"], 
                                        max_depth=100000.0, min_depth=0.0)
 
+            # Entry point to dynamic object segmentation
+            #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
+            maskrcnn = MaskRCNNUtils()
+            logging.debug("Estimating dynamic mask")
+            dynamic_mask = maskrcnn.human_mask(img)
+            # Set full black mask by force with one channel
+            dynamic_mask = np.zeros_like(img)[:, :, 0]
+            
+
 
             # SLAM processing
             time_start = time.time() 
-            slam.track(img, img_right, depth_img, img_id, timestamp, mask = None)
+            slam.track(img, img_right, depth_img, img_id, timestamp, mask = dynamic_mask)
             logging.debug("SLAM tracking took %f seconds", time.time() - time_start)
 
 
@@ -215,9 +224,9 @@ if __name__ == "__main__":
             time.sleep(0.0001)
           
             
-            if img_id ==290:
+            if img_id ==300:
                 # Save the map 
-                slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/slam_state/")
+                slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/maskrcnn_500_slam_state/")
                 break
         # When dataset is not ok or image is None
         else:
