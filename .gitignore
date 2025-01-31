@@ -58,6 +58,6 @@ thirdparty/protoc
 logs/*.log
 logs/*.rrd
 
-
+results/maskrcnn*
 .env
 .env.bak
