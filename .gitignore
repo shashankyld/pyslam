@@ -62,3 +62,4 @@ logs/*.rrd
 results/*
 .env
 .env.bak
+data/slam_state_dense_reconstruction.ply
