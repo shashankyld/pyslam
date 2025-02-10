@@ -146,6 +146,8 @@ class MatcherUtils:
                         idxs2[index]=m.trainIdx
         return np.array(idxs1), np.array(idxs2)
 
+    
+
     # input: des1 = query-descriptors, des2 = train-descriptors
     # output: idxs1, idxs2  (vectors of corresponding indexes in des1 and des2, respectively)
     # N.B.: this may return matches where a trainIdx index is associated to two (or more) queryIdx indexes
@@ -421,6 +423,7 @@ class FeatureMatcher(object):
         else:
             matcher = cv2.BFMatcher(self.norm_type, self.cross_check) #if self.parallel else self.matcher            
             if not row_matching:
+
                 """
                 The result of matches = matcher.knnMatch() is a list of cv2.DMatch objects. 
                 A DMatch object has the following attributes:
@@ -431,7 +434,8 @@ class FeatureMatcher(object):
                 """            
                 matches = matcher.knnMatch(des1, des2, k=2)  #knnMatch(queryDescriptors,trainDescriptors)
                 #return MatcherUtils.goodMatchesSimple(matches, des1, des2, ratio_test)   # <= N.B.: this generates problem in SLAM since it can produce matches where a trainIdx index is associated to two (or more) queryIdx indexes
-                idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test)                    
+                idxs1, idxs2 = MatcherUtils.goodMatchesOneToOne(matches, des1, des2, ratio_test) 
+                # idxs1, idxs2 = MatcherUtils.shashank_matches(matches, des1, des2)                   
             else: 
                 assert(max_disparity is not None)
                 # we perform row matching for stereo images (matching rectified left and right images)

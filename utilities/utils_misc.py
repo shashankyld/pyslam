@@ -45,17 +45,20 @@ def remove_duplicates_from_index_arrays(idxs_ref, idxs_cur):
     return idxs_ref_updated, idxs_cur_updated
 
 
-def delaunay_with_kps(frame, idxs):
+def delaunay_with_kps(frame, idxs, all_kps=False):
     kps = frame.kps
     if len(idxs) == 0:
         print("Warning: No keypoints available for Delaunay triangulation.")
         return None
 
-    kps = kps[idxs]  # Filter keypoints
+    if not all_kps:
+        kps = kps[idxs]
+    
 
     if len(kps) < 3:  # Delaunay needs at least 3 points
         print("Warning: Not enough points for triangulation.")
         return None
+    
     
     # Convert to int if necessary
     kps = kps.astype(np.int32)

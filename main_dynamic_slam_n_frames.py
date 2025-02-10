@@ -11,6 +11,7 @@ from camera import PinholeCamera
 from feature_tracker_configs import FeatureTrackerConfigs
 from loop_detector_configs import LoopDetectorConfigs
 from slam import Slam, SlamState
+from feature_tracker import feature_tracker_factory
 import rerun as rr
 import numpy as np
 from utils_rerun import log_image
@@ -64,7 +65,8 @@ if __name__ == "__main__":
     # Setting loop closing 
     loop_detection_config = LoopDetectorConfigs.DBOW3 # Using DBOW3 loop detector
 
-    # Setting SLAM object 
+    # Setting SLAM object
+    custom_feature_tracker = feature_tracker_factory(**feature_tracker_config) 
     slam = Slam(camera, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None, environment_type=dataset.environmentType())
     slam.set_viewer_scale(dataset.scale_viewer_3d) #TODO: Check if this is necessary, looks like it is used, but check if it is necessary by check different values of scale_viewer_3d
     logging.debug("slam: %s", slam)
@@ -153,8 +155,21 @@ if __name__ == "__main__":
                 idxs_ref, idxs_cur, _ = search_frame_by_projection(prev_frame, cur_frame, max_reproj_distance=2*Parameters.kMaxReprojectionDistanceFrame,
                                                                                  max_descriptor_distance=0.5*slam.tracking.descriptor_distance_sigma,
                                                                                  is_monocular=(slam.tracking.sensor_type == SensorType.STEREO))
+                # Matching to get humans as well
+                c_kps1, c_des1 = custom_feature_tracker.detectAndCompute(prev_img)
+                c_kps2, c_des2 = custom_feature_tracker.detectAndCompute(curr_img)
+                
+
+                # matching_results = custom_feature_tracker.matcher.match(prev_img, curr_img,c_des1, c_des2, c_kps1, c_kps2)
+                matching_results = custom_feature_tracker.matcher.match(prev_img, curr_img,prev_frame.des, cur_frame.des, prev_frame.kps, cur_frame.kps)
+
+                idxs_ref, idxs_cur = matching_results.idxs1, matching_results.idxs2
+
+                
                 print("Idxs ref: ", len(idxs_ref))
                 print("Idxs cur: ", len(idxs_cur))
+                # print("C Idxs ref: ", len(c_idxs_ref))
+                # print("C Idxs cur: ", len(c_idxs_cur))
 
 
                 # Duplicate idxs check - duplicates imply that the same keypoint is matched to multiple keypoints - matching error. 
@@ -178,10 +193,14 @@ if __name__ == "__main__":
 
                 if len(idxs_cur) > 3 and len(idxs_ref) > 3:
                     # Now applying Delaunay triangulation on the matched keypoints 
-                    _, _, prev_delaunay_img = delaunay_with_kps(prev_frame, idxs_ref)
-                    _, _, curr_delaunay_img = delaunay_with_kps(cur_frame, idxs_cur)
+                    _, _, prev_delaunay_img = delaunay_with_kps(prev_frame, idxs_ref, all_kps=True)
+                    _, _, curr_delaunay_img = delaunay_with_kps(cur_frame, idxs_cur, all_kps=True)
+
+                    # _, _, c_prev_delaunay_img = delaunay_with_kps(prev_frame, c_idxs_ref)
+                    # _, _, c_curr_delaunay_img = delaunay_with_kps(cur_frame, c_idxs_cur)
                     if Parameters.kShowDebugImages:
                         delaunay_visualization(prev_delaunay_img, curr_delaunay_img)
+                        # delaunay_visualization(c_prev_delaunay_img, c_curr_delaunay_img)
 
                 prev_frame_dict = convert_frame_to_delaunay_dict(prev_frame, idxs_ref)
                 cur_frame_dict = convert_frame_to_delaunay_dict(cur_frame, idxs_cur)
