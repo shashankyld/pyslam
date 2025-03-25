@@ -56,8 +56,8 @@ DATASET:
   # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
   #type: KITTI_DATASET
-  # type: TUM_DATASET
-  type: BONN_DATASET
+  type: TUM_DATASET
+  # type: BONN_DATASET
   #type: REPLICA_DATASET
   # type: VIDEO_DATASET
   #type: FOLDER_DATASET
@@ -88,11 +88,11 @@ TUM_DATASET:
   #name: rgbd_dataset_freiburg3_long_office_household
   #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
-  #name: rgbd_dataset_freiburg1_xyz 
-  #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
+  name: rgbd_dataset_freiburg1_desk
+  settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
-  name: rgbd_dataset_freiburg3_walking_xyz  # do not use this for mono, there are some in-place rotations during exploratory phases
-  settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
+  # name: rgbd_dataset_freiburg3_walking_xyz  # do not use this for mono, there are some in-place rotations during exploratory phases
+  # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt
   groundtruth_file: auto
