@@ -22,7 +22,7 @@ import cv2
 import time 
 import os
 import sys
-
+import open3d as o3d
 import platform 
 
 from config import Config
@@ -175,7 +175,15 @@ if __name__ == "__main__":
                         cv2.imshow("depth prediction", depth_img)
                                   
                     slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
-                                    
+                    map_o3d = slam.map.get_points_as_o3d_pcd()
+                    local_map_o3d = slam.map.get_points_as_o3d_pcd()
+                    if map_o3d is not None:
+                        # Print length of the map 
+                        print(f'length of the map: {len(map_o3d.points)}')
+                    if local_map_o3d is not None:
+                        # Print length of the local map 
+                        print(f'length of the local map: {len(local_map_o3d.points)}')
+                  
                     # 3D display (map display)
                     if viewer3D is not None:
                         viewer3D.draw_map(slam)

@@ -1,3 +1,9 @@
+Understand the structure of the masklet from SAM2 
+segment, mask are the predictions for a single frame
+masklet is the spatio-temporal masks across the entire sequence of frames
+Think of an additional trigger to instantiate a keyframe, even if the camera doesnt move, the person in the frame moves, so there will be new regions to map, this is neglected by traditional keyframe constraints that only track camera movement and scene discovery. 
+Extracting 3D models at scale using ego vision. Dynamic SLAM. each object mask 
+
 # pySLAM v2.3.0
 
 Author: **[Luigi Freda](https://www.luigifreda.com)**

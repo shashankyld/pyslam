@@ -43,6 +43,13 @@ import traceback
 import g2o
 import optimizer_g2o 
 
+# Add import for Open3D
+try:
+    import open3d as o3d
+    OPEN3D_AVAILABLE = True
+except ImportError:
+    OPEN3D_AVAILABLE = False
+    Printer.orange("Open3D not available. Install it with 'pip install open3d' to use point cloud features.")
 
 kVerbose = True 
 kMaxLenFrameDeque = 20
@@ -700,6 +707,37 @@ class Map(object):
             self.deserialize(f.read())
         Printer.green('\t ...map loaded from: ', filename)
 
+    def get_points_as_o3d_pcd(self):
+        """
+        Get map points as an Open3D point cloud object.
+        
+        Returns:
+            o3d.geometry.PointCloud: Point cloud object containing map points
+            None: If Open3D is not available
+        """
+        if not OPEN3D_AVAILABLE:
+            Printer.orange("Open3D not available. Install it with 'pip install open3d'")
+            return None
+            
+        with self._lock:
+            # Create a new point cloud object
+            pcd = o3d.geometry.PointCloud()
+            
+            # Check if there are any points
+            if len(self.points) == 0:
+                return pcd
+                
+            # Get points and colors as numpy arrays
+            points_np, colors_np = self.get_points_as_np()
+            
+            # Set points and colors in the point cloud object
+            pcd.points = o3d.utility.Vector3dVector(points_np)
+            pcd.colors = o3d.utility.Vector3dVector(colors_np)
+            
+            return pcd
+    
+    
+
 
 # Local map base class 
 class LocalMapBase(object):
@@ -880,5 +918,5 @@ class LocalCovisibilityMap(LocalMapBase):
     # update the local keyframes, the viewed points and the reference keyframes (that see the viewed points but are not in the local keyframes)
     def update(self, kf_ref):
         self.update_keyframes(kf_ref)
-        return self.update_from_keyframes(self.keyframes)         
-  
+        return self.update_from_keyframes(self.keyframes)
+

@@ -354,6 +354,19 @@ class Frame(FrameBase):
         self.depth_img = None    # depth (copy of depth if available)
 
         self.dynamic_mask = None # mask for dynamic objects detection (if available)
+        self.kps_detected = None # left keypoints - after detection, never modified
+        self.kps_detected_r = None # right keypoints - after detection, never modified
+        self.kpsu_detected = None # undistorted left keypoints - after detection, never modified
+        self.kpsu_detected_r = None # undistorted right keypoints - after detection, never modified
+        self.kpsn_detected = None # normalized left keypoints - after detection, never modified
+        self.octaves_detected = None # octaves - after detection, never modified
+        self.octaves_r_detected = None # octaves - after detection, never modified
+        self.sizes_detected = None # sizes - after detection, never modified
+        self.angles_detected = None # angles - after detection, never modified
+        self.des_detected = None # descriptors - after detection, never modified
+        self.des_r_detected = None # right descriptors - after detection, never modified
+        self.depths_detected = None # depths - after detection, never modified
+        self.kps_ur_detected = None # right u-coordinates for left keypoints - after detection, never modified
                                                         
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
@@ -380,6 +393,8 @@ class Frame(FrameBase):
                     #print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
             else: 
                 self.kps, self.des = FrameShared.feature_tracker.detectAndCompute(img)  
+                self.kps_detected = self.kps.copy()
+                self.des_detected = self.des.copy()
                                                                                 
             # convert from a list of keypoints to arrays of points, octaves, sizes  
             if self.kps is not None:    
@@ -393,6 +408,17 @@ class Frame(FrameBase):
                     self.kpsn = self.camera.unproject_points(self.kpsu)
                 self.points = np.array( [None]*len(self.kpsu) )  # init map points
                 self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)
+
+                # DETECTED
+                kps_detected_data = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_detected ], dtype=np.float32)
+                self.kps_detected     = kps_detected_data[:,:2] if kps_detected_data is not None else None
+                self.octaves_detected = np.uint32(kps_detected_data[:,2]) #print('octaves: ', self.octaves)
+                self.sizes_detected   = kps_detected_data[:,3]
+                self.angles_detected  = kps_detected_data[:,4]
+                if self.camera is not None:
+                    self.kpsu_detected = self.camera.undistort_points(self.kps_detected)
+                    self.kpsn_detected = self.camera.unproject_points(self.kpsu_detected)
+                
                                 
             if self.kps_r is not None: 
                 kps_data_r = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_r ], dtype=np.float32)
@@ -406,6 +432,8 @@ class Frame(FrameBase):
                     self.depths = np.full(len(self.kps), -1, dtype=float)     
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
+
+            
            
             
     def __getstate__(self):
