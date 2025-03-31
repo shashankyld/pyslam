@@ -390,6 +390,11 @@ class Frame(FrameBase):
                     future_r = executor.submit(detect_and_compute, img_right)
                     self.kps, self.des = future_l.result()
                     self.kps_r, self.des_r = future_r.result()
+                    # Store the detected keypoints and descriptors for both left and right cameras
+                    self.kps_detected = self.kps.copy()
+                    self.des_detected = self.des.copy()
+                    self.kps_detected_r = self.kps_r.copy()
+                    self.des_r_detected = self.des_r.copy()
                     #print(f'kps: {len(self.kps)}, des: {self.des.shape}, kps_r: {len(self.kps_r)}, des_r: {self.des_r.shape}')
             else: 
                 self.kps, self.des = FrameShared.feature_tracker.detectAndCompute(img)  
@@ -409,10 +414,10 @@ class Frame(FrameBase):
                 self.points = np.array( [None]*len(self.kpsu) )  # init map points
                 self.outliers = np.full(self.kpsu.shape[0], False, dtype=bool)
 
-                # DETECTED
+                # DETECTED - store the original values
                 kps_detected_data = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_detected ], dtype=np.float32)
                 self.kps_detected     = kps_detected_data[:,:2] if kps_detected_data is not None else None
-                self.octaves_detected = np.uint32(kps_detected_data[:,2]) #print('octaves: ', self.octaves)
+                self.octaves_detected = np.uint32(kps_detected_data[:,2])
                 self.sizes_detected   = kps_detected_data[:,3]
                 self.angles_detected  = kps_detected_data[:,4]
                 if self.camera is not None:
@@ -424,6 +429,14 @@ class Frame(FrameBase):
                 kps_data_r = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_r ], dtype=np.float32)
                 self.kps_r     = kps_data_r[:,:2] if kps_data_r is not None else None
                 self.octaves_r = np.uint32(kps_data_r[:,2]) #print('octaves: ', self.octaves)
+                
+                # DETECTED - also save the right camera detected values
+                if self.kps_detected_r is not None:
+                    kps_detected_data_r = np.array([ [x.pt[0], x.pt[1], x.octave, x.size, x.angle] for x in self.kps_detected_r ], dtype=np.float32)
+                    self.kps_detected_r     = kps_detected_data_r[:,:2] if kps_detected_data_r is not None else None
+                    self.octaves_r_detected = np.uint32(kps_detected_data_r[:,2])
+                    if self.camera is not None:
+                        self.kpsu_detected_r = self.camera.undistort_points(self.kps_detected_r)
             
             if self.kps is not None:
                 if depth is not None: 
@@ -485,7 +498,10 @@ class Frame(FrameBase):
                 
                 'img': json.dumps(NumpyB64Json.numpy_to_json(self.img)) if self.img is not None else None,
                 'depth_img': json.dumps(NumpyB64Json.numpy_to_json(self.depth_img)) if self.depth_img is not None else None,
-                'img_right': json.dumps(NumpyB64Json.numpy_to_json(self.img_right)) if self.img_right is not None else None
+                'img_right': json.dumps(NumpyB64Json.numpy_to_json(self.img_right)) if self.img_right is not None else None,
+                
+                'kps_detected': json.dumps(self.kps_detected.astype(float).tolist()) if self.kps_detected is not None else None,
+                'kpsu_detected': json.dumps(self.kpsu_detected.astype(float).tolist()) if self.kpsu_detected is not None else None
                 }
         return ret
         
@@ -524,6 +540,9 @@ class Frame(FrameBase):
         f.img = NumpyB64Json.json_to_numpy(json.loads(json_str['img'])) if json_str['img'] is not None else None
         f.depth_img = NumpyB64Json.json_to_numpy(json.loads(json_str['depth_img'])) if json_str['depth_img'] is not None else None
         f.img_right = NumpyB64Json.json_to_numpy(json.loads(json_str['img_right'])) if json_str['img_right'] is not None else None
+        
+        f.kps_detected = np.array(json.loads(json_str['kps_detected'])) if json_str['kps_detected'] is not None else None
+        f.kpsu_detected = np.array(json.loads(json_str['kpsu_detected'])) if json_str['kpsu_detected'] is not None else None
         
         if f.kps is not None and f.points is not None:
             #print(f'f.kps.shape = {f.kps.shape}, f.points.shape = {f.points.shape}')        
@@ -1217,4 +1236,4 @@ def prepare_input_data_for_pnpsolver(f1: Frame, f2: Frame, idxs1, idxs2, print=p
         idxs1_out.append(i1)
         idxs2_out.append(i2)
     return np.array(points_3d), np.array(points_2d), \
-           np.array(sigmas2), np.array(idxs1_out), np.array(idxs2_out) 
+           np.array(sigmas2), np.array(idxs1_out), np.array(idxs2_out)

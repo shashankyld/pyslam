@@ -21,8 +21,10 @@ from utils_delaunay import filter_delaunay_edges_by_3d_distance_last_frame , get
 from utils_delaunay import draw_simplicies_on_image, convert_frame_to_kdtree, convert_frame_to_reference_dict, convert_frame_to_kdtree_masked
 from utils_geom import hamming_distance, hamming_distances, l2_distance, l2_distances
 from utils_draw import visualize_matched_kps , visualize_matched_edges, visualize_common_simplicies
+from utils_draw import *
 from utils_misc import remove_duplicates_from_index_arrays, convert_frame_to_delaunay_dict, delaunay_with_kps, delaunay_visualization, get_common_edges, draw_common_edges, draw_dynamic_edges, get_dynamic_edges, draw_static_edges, get_static_edges, get_connected_components_from_edges, draw_connected_components
 from rerun_interface import Rerun
+from utilities.utils_rerun import log_all
 import time
 import math
 import cv2
@@ -82,10 +84,15 @@ if __name__ == "__main__":
         gt_traj3d, gt_timestamps = groundtruth.getFull3dTrajectory()
     print("gt_traj3d: ", gt_traj3d.shape)
 
+    # Initialize rerun for visualization
+    rerun_record_name = f"pyslam_{dataset.name}"
+    rr.init(rerun_record_name, spawn=True)
+    rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, timeless=True)
 
     # Processing the dataset 
     starting_img_id = 215# 215 is close to human entrance
     img_id = starting_img_id
+    camera_path = []  # To collect camera positions for trajectory visualization
     while True: 
 
 
@@ -105,6 +112,10 @@ if __name__ == "__main__":
             frame_duration = next_timestamp - timestamp if (timestamp is not None and next_timestamp is not None) else -1.0 
             logging.debug("image with id %d has timestamp %f and next_timestamp %f, frame_duration: %f", img_id, timestamp, next_timestamp, frame_duration)
             logging.debug("logging data associated to id %d to rerun", img_id)
+
+            # Set rerun time to current timestamp if available
+            if timestamp is not None:
+                rr.set_time_seconds("frame_timestamp", timestamp)
 
             point_cloud = depth2pointcloud(depth_img, img, 
                                        config.cam_settings["Camera.fx"], config.cam_settings["Camera.fy"], 
@@ -132,20 +143,87 @@ if __name__ == "__main__":
             cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
             curr_img = cur_frame.img
 
+            visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
 
+            # Add current camera position to camera path for trajectory visualization
+            if cur_frame is not None and cur_frame.pose is not None:
+                camera_position = cur_frame.Ow
+                camera_path.append(camera_position)
+
+            # Collect data for rerun visualization
+            global_map_points, global_map_colors = slam.map.get_points_as_np()
+            local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
+
+            # Log to rerun
+            log_all(
+                frame_id=img_id,
+                entity_path="world",
+                local_map_points=local_map_points,
+                global_map_points=global_map_points,
+                current_frame_image=img,
+                current_frame=cur_frame,
+                camera_path=np.array(camera_path),
+                accumulate_frame_points=False,  # New parameter to control point accumulation
+            )
+
+            # If depth data is available, visualize it as a point cloud
+            if depth_img is not None and cur_frame is not None:
+                # Get point cloud from depth image
+                point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
+                    transform_in_world=True, 
+                    mask=dynamic_mask if dynamic_mask is not None else None
+                )
+                
+                if point_cloud_3d is not None and len(point_cloud_3d) > 0:
+                    # Downsample the point cloud to avoid overwhelming visualization
+                    downsample_factor = 10  # Adjust as needed
+                    downsampled_points = point_cloud_3d[::downsample_factor]
+                    downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
+                    
+                    # Log depth point cloud
+                    rr.log(
+                        f"world/frame_{img_id}/depth_cloud",
+                        rr.Points3D(
+                            downsampled_points,
+                            colors=downsampled_colors,
+                            radii=0.01
+                        )
+                    )
 
             # Comparing [0-N, 1-N+1, 2-2+N, 3-3+N, .....]
             if img_id > starting_img_id + Parameters.kNumFramesAway - 1: 
-                print("Iffff")
-                print("Frame id: ", img_id)
+                print("Processing frame id:", img_id)
 
-                # # We will have access to prev_dict. 
-                prev_frame = slam.map.get_frame(-(Parameters.kNumFramesAway + 1 ))
-                prev_img = prev_frame.img.copy()
+                prev_frame = slam.map.get_frame(-(Parameters.kNumFramesAway + 1))
+                if prev_frame is None:
+                    print("Warning: Could not retrieve previous frame")
+                    continue
+
+                # Initialize detected keypoints if missing
+                if prev_frame.kps is not None and prev_frame.kps_detected is None:
+                    prev_frame.kps_detected = prev_frame.kps.copy()
+                    prev_frame.kpsu_detected = prev_frame.kpsu.copy() if prev_frame.kpsu is not None else None
+                    print("Initialized detected keypoints from stored keypoints")
+
+                # Check if prev_frame has required attributes
+                if not hasattr(prev_frame, 'kpsu') or prev_frame.kpsu is None:
+                    print("Warning: Previous frame does not have keypoints properly initialized")
+                    continue
 
                 # Matching across two frames is needed.
                 print("Number of detected keypoints in the current frame: ", len(cur_frame.kpsu))
                 print("Number of detected keypoints in the previous frame: ", len(prev_frame.kpsu))
+
+                print("Number of keypoints in the current frame: ", len(cur_frame.kps_detected))
+                print("Number of keypoints in the previous frame: ", len(prev_frame.kps_detected))
+
+                visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
+                visualize_frame_kps(prev_frame, "Previous Frame", scale_factor=1)
+
+                ## FRAME POINTS
+                print("##############ALL ABOUT FRAME POINTS#################")
+                print("Number of points in the current frame: ", len(cur_frame.points)) # SAME AS KPS except some are NONE and others are MapPoints
+                print("Type of points in the current frame: ", type(cur_frame.points[0]))
 
                 # Matching across two frames 
                 # idxs_ref, idxs_cur = slam.tracking.idxs_ref, slam.tracking.idxs_cur # This works only for the last frame.
@@ -180,6 +258,7 @@ if __name__ == "__main__":
 
 
                 print("Number of kps for the current frame: ", len(cur_frame.kpsu))
+                print("Number of kps for the current frame unchanged : ", len(cur_frame.kpsu_detected))
                 # Number of kps in the map (cur_frame.points), where it is not None
                 mathes_cur_kps_map = 0
                 for i in range(len(cur_frame.points)):

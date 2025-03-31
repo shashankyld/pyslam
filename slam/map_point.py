@@ -222,15 +222,34 @@ class MapPointBase(object):
             if idx is not None:
                 if __debug__: 
                     assert(self == frame.get_point_match(idx))                     
+                
+                    # Check if this point appears multiple times in frame before removing
+                    # Use list comprehension to count occurrences in numpy array
+                    points_list = frame.get_points()
+                    occurrences = sum(1 for p in points_list if p is self)
+                    is_multiple = occurrences > 1
+                
+                # Remove the specific match
                 frame.remove_point_match(idx)   
+                
+                # After removal, if it was present multiple times, we expect it to still be there but with one fewer occurrence
+                # If it was present only once, we expect it to be gone
                 if __debug__:
-                    assert(not self in frame.get_points())   # checking there are no multiple instances 
+                    if is_multiple:
+                        # It was present multiple times, so it should still be there but with one fewer occurrence
+                        points_list = frame.get_points()
+                        new_occurrences = sum(1 for p in points_list if p is self)
+                        assert(new_occurrences == occurrences - 1)
+                    else:
+                        # It was present only once, so it should be gone
+                        points_list = frame.get_points()
+                        assert(not any(p is self for p in points_list))
             else: 
                 frame.remove_point(self)  # remove all match instances                                    
             try:
                 del self._frame_views[frame]
             except KeyError:
-                pass    
+                pass
             
     @property
     def is_bad(self):

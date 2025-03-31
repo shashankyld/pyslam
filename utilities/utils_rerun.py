@@ -1,6 +1,7 @@
 # Functions to log different components of the SLAM system to rerun:
 
 import rerun as rr
+import numpy as np
 
 def log_camera(entity_path, world_T_cam_44, K_44):
     """Logs camera intrinsics and extrinsics to rerun."""
@@ -80,7 +81,7 @@ def log_dynamic_features(
 def log_camera_path(frame_id, entity_path, camera_path):  # Added 'camera_path' parameter
     """Logs the camera path up to the current frame_id."""
     # camera_path = get_camera_path(frame_id)  # Removed the call to get_camera_path
-    rr.log(f"{entity_path}/camera_path", rr.LineStrip3D(camera_path))
+    rr.log(f"{entity_path}/camera_path", rr.LineStrips3D([camera_path]))
 
 
 def log_sam_masks(frame_id, entity_path, masks):  # Added 'masks' parameter
@@ -98,6 +99,57 @@ def log_sam_prompts(frame_id, entity_path, prompts):  # Added 'prompts' paramete
     )  # Visualize in blue
 
 
+def log_frame_points(frame_id, entity_path, frame, colors=None, accumulate=False):
+    """
+    Logs the map points visible in the current frame as 3d point cloud.
+    
+    Parameters:
+    -----------
+    frame_id : int
+        The ID of the current frame
+    entity_path : str
+        Base path for the entity in the visualization
+    frame : Frame
+        The frame object containing the points
+    colors : np.ndarray, optional
+        Custom colors for the points
+    accumulate : bool, default=False
+        If True, accumulate points from all frames. If False, only show current frame.
+    """
+    if frame is None:
+        return
+    
+    # Get all points from the frame that are not None (matched map points)
+    with frame._lock_features:
+        matched_points = [p for p in frame.points if p is not None]
+    
+    if not matched_points:
+        # No points to log
+        return
+    
+    # Extract 3D positions and colors
+    points_3d = np.array([p.pt for p in matched_points])
+    
+    if colors is None:
+        # Use the colors stored in the map points
+        point_colors = np.array([p.color for p in matched_points]) / 255.0
+    else:
+        point_colors = colors
+    
+    # Determine the entity path based on accumulation mode
+    if accumulate:
+        # Use frame-specific path to accumulate all frames
+        point_path = f"{entity_path}/frame_{frame_id}/map_points"
+    else:
+        # Use a consistent path so new frames replace old ones
+        point_path = f"{entity_path}/current_map_points"
+    
+    # Log the points to rerun
+    rr.log(point_path, rr.Points3D(points_3d, colors=point_colors))
+    
+    return points_3d, point_colors
+
+
 def log_all(
     frame_id,
     entity_path="world",
@@ -111,6 +163,8 @@ def log_all(
     camera_path=None,
     sam_masks=None,
     sam_prompts=None,
+    current_frame=None,  # Added parameter for the current frame
+    accumulate_frame_points=False,  # New parameter to control point accumulation
 ):
     """Logs all the components of the SLAM system to rerun."""
 
@@ -135,3 +189,5 @@ def log_all(
         log_sam_masks(frame_id, entity_path, sam_masks)
     if sam_prompts is not None:
         log_sam_prompts(frame_id, entity_path, sam_prompts)
+    if current_frame is not None:
+        log_frame_points(frame_id, entity_path, current_frame, accumulate=accumulate_frame_points)

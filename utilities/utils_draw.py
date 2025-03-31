@@ -297,7 +297,41 @@ def visualize_common_simplicies(curr_img, prev_img, curr_dict, prev_dict):
     cv2.imshow("Common Simplicies", stacked_image)
     cv2.waitKey(2)
 
+def visualize_frame_kps(frame, window_name="Frame Keypoints", scale_factor=1, wait_time=2):
+    """
+    Visualizes a frame's image with its keypoints overlaid.
     
+    Args:
+        frame: Frame object containing image (frame.img) and keypoints (frame.kpsu)
+        window_name: Name of the display window (default: "Frame Keypoints")
+        scale_factor: Factor to scale the image size (default: 1)
+        wait_time: Time to wait in milliseconds for cv2.waitKey (default: 2)
+    """
+    # Create a copy of the image to draw on
+    display_img = frame.img.copy()
+    if display_img.ndim == 2:
+        display_img = cv2.cvtColor(display_img, cv2.COLOR_GRAY2BGR)
+    
+    # Draw all keypoints
+    for kp in frame.kpsu:
+        # Convert keypoint coordinates to integers
+        pt = tuple(map(int, kp))
+        # Draw keypoint as a small circle with random color
+        color = tuple(np.random.randint(0, 255, 3).tolist())
+        cv2.circle(display_img, pt, 2, color, -1)
+        # Draw a larger circle around the keypoint
+        cv2.circle(display_img, pt, 4, (0, 255, 0), 1)
+    
+    # Resize image if scale factor is not 1
+    if scale_factor != 1:
+        display_img = cv2.resize(display_img, 
+                               (int(display_img.shape[1] * scale_factor),
+                                int(display_img.shape[0] * scale_factor)))
+    
+    # Display the image
+    cv2.imshow(window_name, display_img)
+    cv2.waitKey(wait_time)
+
 
 
     
