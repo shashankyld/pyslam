@@ -40,3 +40,6 @@ class KeyFrameData:
         
         self.points   = keyframe.points
         self.outliers = keyframe.outliers
+
+        self.dynamic_mask = keyframe.dynamic_mask
+        

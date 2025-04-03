@@ -150,6 +150,23 @@ def log_frame_points(frame_id, entity_path, frame, colors=None, accumulate=False
     return points_3d, point_colors
 
 
+def log_keyframes(kfs):
+    """ 
+    Input = List of keyframedata objects
+    Outpt = log all the images and masks of the keyframes for every timestamp
+    """
+    for i, kf in enumerate(kfs):
+        # Assuming kf is a KeyFrameData object with attributes 'img' and 'mask'
+        print("type of image, mask", type(kf.img), type(kf.dynamic_mask))
+        image = kf.img
+        mask = kf.dynamic_mask  # Assuming this is the mask you want to log
+        timestamp = kf.timestamp
+        
+        # Log the image and mask
+        rr.log(f"keyframes/{timestamp}/image", rr.Image(image))
+        rr.log(f"keyframes/{timestamp}/mask", rr.Image(mask))
+
+
 def log_all(
     frame_id,
     entity_path="world",

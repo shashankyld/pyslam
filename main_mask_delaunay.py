@@ -24,14 +24,15 @@ from utils_draw import visualize_matched_kps , visualize_matched_edges, visualiz
 from utils_draw import *
 from utils_misc import remove_duplicates_from_index_arrays, convert_frame_to_delaunay_dict, delaunay_with_kps, delaunay_visualization, get_common_edges, draw_common_edges, draw_dynamic_edges, get_dynamic_edges, draw_static_edges, get_static_edges, get_connected_components_from_edges, draw_connected_components
 from rerun_interface import Rerun
-from utilities.utils_rerun import log_all
+from utilities.utils_rerun import log_all, log_keyframes
 import time
 import math
 import cv2
 from config_parameters import Parameters  
 from search_points import search_frame_by_projection
 import random
-
+from keyframe_data import KeyFrameData
+from keyframe import KeyFrame
 
 
 
@@ -125,7 +126,7 @@ if __name__ == "__main__":
             # Entry point to dynamic object segmentation
             #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
             maskrcnn = MaskRCNNUtils()
-            # logging.debug("Estimating dynamic mask")
+            logging.debug("Estimating dynamic mask")
             dynamic_mask = maskrcnn.human_mask(img)
             # Visualize the mask
             cv2.imshow("Dynamic Mask_prediction", dynamic_mask)
@@ -138,8 +139,7 @@ if __name__ == "__main__":
             cv2.imshow("Dynamic Mask", dynamic_mask)
             cv2.waitKey(1)
             # # Set full black mask by force with one channel
-            # dynamic_mask = np.zeros_like(img)[:, :, 0]
-            
+            # dynamic_mask = np.zerokeyframe.KeyFrame
 
 
             # SLAM processing
@@ -164,17 +164,17 @@ if __name__ == "__main__":
             global_map_points, global_map_colors = slam.map.get_points_as_np()
             local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
 
-            # Log to rerun
-            log_all(
-                frame_id=img_id,
-                entity_path="world",
-                local_map_points=local_map_points,
-                global_map_points=global_map_points,
-                current_frame_image=img,
-                current_frame=cur_frame,
-                camera_path=np.array(camera_path),
-                accumulate_frame_points=False,  # New parameter to control point accumulation
-            )
+            # # Log to rerun
+            # log_all(
+            #     frame_id=img_id,
+            #     entity_path="world",
+            #     local_map_points=local_map_points,
+            #     global_map_points=global_map_points,
+            #     current_frame_image=img,
+            #     current_frame=cur_frame,
+            #     camera_path=np.array(camera_path),
+            #     accumulate_frame_points=False,  # New parameter to control point accumulation
+            # )
 
             
             # If depth data is available, visualize it as a point cloud
@@ -285,6 +285,15 @@ if __name__ == "__main__":
                     _, _, curr_delaunay_img = delaunay_with_kps(cur_frame, idxs_cur)
                     if Parameters.kShowDebugImages:
                         delaunay_visualization(prev_delaunay_img, curr_delaunay_img)
+
+
+                # Print keyframes 
+                print("Keyframes: ", slam.map.get_keyframes()) # Ordered Set
+                kf_data = []
+                for kf in slam.map.get_keyframes():
+                    kf_data_i = KeyFrameData(kf)
+                    kf_data.append(kf_data_i)
+                log_keyframes(kf_data)
 
                 # prev_frame_dict = convert_frame_to_delaunay_dict(prev_frame, idxs_ref)
                 # cur_frame_dict = convert_frame_to_delaunay_dict(cur_frame, idxs_cur)
