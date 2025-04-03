@@ -254,6 +254,8 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.des     = frame.des        # keypoint descriptors                  [NxD] where D is the descriptor length 
         self.depths  = frame.depths     # keypoint depths                       [Nx1]
         self.kps_ur = frame.kps_ur      # right keypoint coordinates            [Nx1]
+
+        self.dynamic_mask = frame.dynamic_mask # dynamic mask for the keyframe image
         
         # for loop closing 
         self.g_des = None               # global (image-wise) descriptor for loop closing

@@ -150,22 +150,92 @@ def log_frame_points(frame_id, entity_path, frame, colors=None, accumulate=False
     return points_3d, point_colors
 
 
+# def log_keyframes(kfs):
+#     """ 
+#     Input = List of keyframedata objects
+#     Outpt = log all the images and masks of the keyframes for every timestamp
+#     """
+#     for i, kf in enumerate(kfs):
+#         # Assuming kf is a KeyFrameData object with attributes 'img' and 'mask'
+#         print("type of image, mask", type(kf.img), type(kf.dynamic_mask))
+#         image = kf.img
+#         mask = kf.dynamic_mask  # Assuming this is the mask you want to log
+#         timestamp = kf.timestamp
+        
+#         # Log the image and mask
+#         rr.log(f"keyframes/{timestamp}/image", rr.Image(image))
+#         rr.log(f"keyframes/{timestamp}/mask", rr.Image(mask))
+
+
 def log_keyframes(kfs):
     """ 
-    Input = List of keyframedata objects
-    Outpt = log all the images and masks of the keyframes for every timestamp
+    Input = List of KeyFrameData objects
+    Output = Logs two concatenated images: one for all images and one for all masks,
+             with numbered labels showing kf id, max 5 items per row
     """
+    if not kfs:
+        return
+    
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+    
+    # Get dimensions from first image (assuming all images have same size)
+    sample_img = kfs[0].img
+    if isinstance(sample_img, np.ndarray):
+        height, width = sample_img.shape[:2]
+    else:
+        height, width = sample_img.size
+    
+    # Calculate grid dimensions
+    n_items = len(kfs)
+    items_per_row = min(5, n_items)  # Max 5 items per row
+    n_rows = (n_items + items_per_row - 1) // items_per_row  # Ceiling division
+    
+    # Create blank canvases for composite images
+    total_width = width * items_per_row
+    total_height = height * n_rows
+    composite_img = Image.new('RGB', (total_width, total_height), (255, 255, 255))
+    composite_mask = Image.new('RGB', (total_width, total_height), (255, 255, 255))
+    
+    # Try to load a font, fall back to default if not available
+    try:
+        font = ImageFont.truetype("arial.ttf", 20)
+    except:
+        font = ImageFont.load_default()
+    
+    # Fill the composite images
     for i, kf in enumerate(kfs):
-        # Assuming kf is a KeyFrameData object with attributes 'img' and 'mask'
-        print("type of image, mask", type(kf.img), type(kf.dynamic_mask))
-        image = kf.img
-        mask = kf.dynamic_mask  # Assuming this is the mask you want to log
-        timestamp = kf.timestamp
+        # Calculate position in grid
+        row = i // items_per_row
+        col = i % items_per_row
+        x = col * width
+        y = row * height
         
-        # Log the image and mask
-        rr.log(f"keyframes/{timestamp}/image", rr.Image(image))
-        rr.log(f"keyframes/{timestamp}/mask", rr.Image(mask))
-
+        # Convert images if necessary and paste them
+        img = kf.img
+        mask = kf.dynamic_mask
+        if isinstance(img, np.ndarray):
+            img = Image.fromarray(img)
+        if isinstance(mask, np.ndarray):
+            mask = Image.fromarray(mask)
+            
+        composite_img.paste(img, (x, y))
+        composite_mask.paste(mask, (x, y))
+        
+        # Add number label
+        draw_img = ImageDraw.Draw(composite_img)
+        draw_mask = ImageDraw.Draw(composite_mask)
+        label = str(i)
+        draw_img.text((x + 5, y + 5), label, fill=(255, 0, 0), font=font)  # Red text for image
+        draw_mask.text((x + 5, y + 5), label, fill=(255, 0, 0), font=font)  # Red text for mask
+    
+    # Convert to numpy arrays for logging
+    composite_img_array = np.array(composite_img)
+    composite_mask_array = np.array(composite_mask)
+    
+    # Log the composite images
+    rr.log("keyframes/composite/image", rr.Image(composite_img_array))
+    rr.log("keyframes/composite/mask", rr.Image(composite_mask_array))
 
 def log_all(
     frame_id,

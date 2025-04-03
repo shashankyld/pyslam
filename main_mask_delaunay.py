@@ -86,7 +86,7 @@ if __name__ == "__main__":
     print("gt_traj3d: ", gt_traj3d.shape)
 
     # Initialize rerun for visualization
-    rerun_record_name = f"pyslam_{dataset.name}"
+    rerun_record_name = f"pyslam_{dataset.name}_{int(time.time())}"  # Add timestamp for uniqueness
     rr.init(rerun_record_name, spawn=True)
     rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, timeless=True)
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
             cv2.imshow("Dynamic Mask", dynamic_mask)
             cv2.waitKey(1)
             # # Set full black mask by force with one channel
-            # dynamic_mask = np.zerokeyframe.KeyFrame
+            # dynamic_mask = np.zeros_like(img)[:, :, 0]
 
 
             # SLAM processing

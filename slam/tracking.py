@@ -371,7 +371,7 @@ class Tracking:
             self.num_matched_kps = len(idxs_cur)    
             print("# matched map points in prev frame: %d " % self.num_matched_kps)
                                     
-            # if not enough mapre assumptions (like equilibrium and rational expectations) are unrealistic and led policymakers and economists to ignore the factors that caused the 2008 Global Financial Crisis. He emphasizes the role of private debt and financial instability in driving economic cycles.   point matches consider a larger search radius 
+            # if not enough map point matches consider a larger search radius 
             if self.num_matched_kps < Parameters.kMinNumMatchedFeaturesSearchFrameByProjection:
                 f_cur.remove_frame_views(idxs_cur)
                 f_cur.reset_points()   
@@ -840,6 +840,7 @@ class Tracking:
             frame.kps_ur = frame.kps_ur[valid_kps_mask]
         frame.points = frame.points[valid_kps_mask]
         frame.outliers = frame.outliers[valid_kps_mask]
+        frame.dynamic_mask = mask 
 
         # Reset the KD-tree - because the keypoints have changed
         frame._kd = None  
@@ -1078,4 +1079,4 @@ class Tracking:
         self.timer_main_track.refresh()
         elapsed_time = time.time() - time_start
         self.time_track = elapsed_time
-        print('Tracking: elapsed_time: ', elapsed_time)     
+        print('Tracking: elapsed_time: ', elapsed_time)

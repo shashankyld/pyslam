@@ -230,13 +230,16 @@ class Initializer(object):
         f_ref.reset_points()
         f_cur.reset_points()
         
-        #map.add_frame(f_ref)        
-        #map.add_frame(f_cur)  
-        
         kf_ref = KeyFrame(f_ref, f_ref.img)
         kf_cur = KeyFrame(f_cur, img_cur)        
         map.add_keyframe(kf_ref)        
         map.add_keyframe(kf_cur)      
+        
+        # Transfer dynamic masks if they exist
+        if f_ref.dynamic_mask is not None:
+            kf_ref.add_dynamic_mask(f_ref.dynamic_mask)
+        if f_cur.dynamic_mask is not None:
+            kf_cur.add_dynamic_mask(f_cur.dynamic_mask)
         
         pts3d = None 
         mask_pts3d = None
