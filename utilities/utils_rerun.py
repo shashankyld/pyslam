@@ -137,7 +137,7 @@ def log_frame_points(frame_id, entity_path, frame, colors=None, accumulate=False
         point_colors = colors
     
     # Determine the entity path based on accumulation mode
-    if accumulate:
+    if accumulate == True:
         # Use frame-specific path to accumulate all frames
         point_path = f"{entity_path}/frame_{frame_id}/map_points"
     else:

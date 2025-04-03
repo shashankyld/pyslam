@@ -124,11 +124,21 @@ if __name__ == "__main__":
 
             # Entry point to dynamic object segmentation
             #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
-            # maskrcnn = MaskRCNNUtils()
+            maskrcnn = MaskRCNNUtils()
             # logging.debug("Estimating dynamic mask")
-            # dynamic_mask = maskrcnn.human_mask(img)
+            dynamic_mask = maskrcnn.human_mask(img)
+            # Visualize the mask
+            cv2.imshow("Dynamic Mask_prediction", dynamic_mask)
+            cv2.waitKey(1)
+            # Dialte the mask to make it more robust - dialate a lot
+            kernel = np.ones((5, 5), np.uint8)
+            dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
+
+            # Visualize the mask
+            cv2.imshow("Dynamic Mask", dynamic_mask)
+            cv2.waitKey(1)
             # # Set full black mask by force with one channel
-            dynamic_mask = np.zeros_like(img)[:, :, 0]
+            # dynamic_mask = np.zeros_like(img)[:, :, 0]
             
 
 
@@ -166,6 +176,7 @@ if __name__ == "__main__":
                 accumulate_frame_points=False,  # New parameter to control point accumulation
             )
 
+            
             # If depth data is available, visualize it as a point cloud
             if depth_img is not None and cur_frame is not None:
                 # Get point cloud from depth image
@@ -189,6 +200,7 @@ if __name__ == "__main__":
                             radii=0.01
                         )
                     )
+        
 
             # Comparing [0-N, 1-N+1, 2-2+N, 3-3+N, .....]
             if img_id > starting_img_id + Parameters.kNumFramesAway - 1: 
@@ -267,12 +279,12 @@ if __name__ == "__main__":
                 print("Number of kps in the map: ", mathes_cur_kps_map) 
             
 
-                # if len(idxs_cur) > 3 and len(idxs_ref) > 3:
-                #     # Now applying Delaunay triangulation on the matched keypoints 
-                #     _, _, prev_delaunay_img = delaunay_with_kps(prev_frame, idxs_ref)
-                #     _, _, curr_delaunay_img = delaunay_with_kps(cur_frame, idxs_cur)
-                #     if Parameters.kShowDebugImages:
-                #         delaunay_visualization(prev_delaunay_img, curr_delaunay_img)
+                if len(idxs_cur) > 3 and len(idxs_ref) > 3:
+                    # Now applying Delaunay triangulation on the matched keypoints 
+                    _, _, prev_delaunay_img = delaunay_with_kps(prev_frame, idxs_ref)
+                    _, _, curr_delaunay_img = delaunay_with_kps(cur_frame, idxs_cur)
+                    if Parameters.kShowDebugImages:
+                        delaunay_visualization(prev_delaunay_img, curr_delaunay_img)
 
                 # prev_frame_dict = convert_frame_to_delaunay_dict(prev_frame, idxs_ref)
                 # cur_frame_dict = convert_frame_to_delaunay_dict(cur_frame, idxs_cur)
@@ -295,8 +307,8 @@ if __name__ == "__main__":
                 # if Parameters.kShowDebugImages:
                 #     draw_static_edges(prev_frame, cur_frame, static_edges)
 
-                if Parameters.kShowDebugImages:
-                    visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur)
+                # if Parameters.kShowDebugImages:
+                #     visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur)
              
 
      
