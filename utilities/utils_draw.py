@@ -331,6 +331,7 @@ def visualize_frame_kps(frame, window_name="Frame Keypoints", scale_factor=1, wa
     # Display the image
     cv2.imshow(window_name, display_img)
     cv2.waitKey(wait_time)
+    return display_img
 
 
 

@@ -25,9 +25,9 @@ def log_camera(entity_path, world_T_cam_44, K_44):
     rr.log(entity_path, rr.Transform3D(translation=trans, mat3x3=Rot))
 
 
-def log_image(image):
+def log_image(entity, image):
     """Logs an image to rerun."""
-    rr.log(f"image", rr.Image(image))
+    rr.log(f"{entity}", rr.Image(image))
 
 
 def log_local_map(frame_id, entity_path, points, colors=None):  # Added 'points' parameter

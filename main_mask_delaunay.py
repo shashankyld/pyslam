@@ -251,9 +251,7 @@ if __name__ == "__main__":
                 snapshot_points, snapshot_colors = map_snapshot["map_points"]["points"], map_snapshot["map_points"]["colors"]
                 log_local_map_snapshot(frame_id=img_id, entity_path="world", points=snapshot_points)
 
-
                 
-
 
 
                 # Initialize detected keypoints if missing
@@ -274,8 +272,12 @@ if __name__ == "__main__":
                 print("Number of keypoints in the current frame: ", len(cur_frame.kps_detected))
                 print("Number of keypoints in the previous frame: ", len(prev_frame.kps_detected))
 
-                visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
-                visualize_frame_kps(prev_frame, "Previous Frame", scale_factor=1)
+                cur_image_with_kps = visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
+                prev_image_with_kps = visualize_frame_kps(prev_frame, "Previous Frame", scale_factor=1)
+
+                # Log images with keypoints
+                log_image("current_frame_with_kps", cur_image_with_kps)
+                log_image("previous_frame_with_kps", prev_image_with_kps)
 
                 ## FRAME POINTS
                 print("##############ALL ABOUT FRAME POINTS#################")
