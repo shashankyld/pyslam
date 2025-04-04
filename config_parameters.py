@@ -33,6 +33,8 @@ class Parameters:
     
     # Number of desired keypoints per frame 
     kNumFeatures=5000
+    kMaxMapSnapshots = 7  # Maximum number of map snapshots to maintain
+
     
 
     # Point triangulation 

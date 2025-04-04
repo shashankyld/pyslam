@@ -56,6 +56,8 @@ from tracking import Tracking
 
 from volumetric_integrator import VolumetricIntegrator, VolumetricIntegratorOutput
 
+from map_snapshot import MapSnapshot
+
 kVerbose = True     
 
 kLocalMappingOnSeparateThread = Parameters.kLocalMappingOnSeparateThread 
@@ -88,6 +90,7 @@ class Slam(object):
         self.GBA = None
         self.volumetric_integrator = None
         self.reset_requested = False
+        self.map_snapshots = MapSnapshot(max_snapshots=Parameters.kMaxMapSnapshots)
   
         self.init_volumetric_integrator() 
         self.init_loop_closing(loop_detector_config)     
@@ -109,6 +112,7 @@ class Slam(object):
             self.volumetric_integrator.request_reset()        
         self.tracking.reset()
         self.map.reset()
+        self.map_snapshots.clear()
         
     def reset_session(self):
         self.local_mapping.request_reset()
@@ -118,6 +122,7 @@ class Slam(object):
             self.volumetric_integrator.request_reset()  
         self.tracking.reset()
         self.map.reset_session()        
+        self.map_snapshots.clear()
         
     def quit(self):
         print('SLAM: quitting ...')
@@ -156,8 +161,33 @@ class Slam(object):
         
     # @ main track method @
     def track(self, img, img_right, depth, img_id, timestamp=None, mask=None):
-        return self.tracking.track(img, img_right, depth, img_id, timestamp, mask = mask)
+        result = self.tracking.track(img, img_right, depth, img_id, timestamp, mask=mask)
+        self.create_map_snapshot(timestamp)
+        return result
 
+    def create_map_snapshot(self, timestamp=None):
+        """
+        Create a snapshot of the current map state.
+        """
+        return self.map_snapshots.add_snapshot(self.map, timestamp)
+
+    def get_map_snapshot(self, timestamp=None):
+        """
+        Get a snapshot of the map at the specified timestamp.
+        """
+        return self.map_snapshots.get_snapshot(timestamp)
+
+    def get_map_snapshot_at_index(self, index=-1):
+        """
+        Get a snapshot at the specified index (-1 for newest, 0 for oldest).
+        """
+        return self.map_snapshots.get_snapshot_at_index(index)
+
+    def get_map_snapshot_timestamps(self):
+        """
+        Get all timestamps where snapshots are available.
+        """
+        return self.map_snapshots.get_timestamps()
     
     def set_tracking_state(self, state: SlamState):
         self.tracking.state = state

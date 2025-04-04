@@ -183,10 +183,11 @@ if __name__ == "__main__":
             global_map_points, global_map_colors = slam.map.get_points_as_np()
             local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
 
-            log_local_map(frame_id=img_id, entity_path="world", points=local_map_points, colors=local_map_colors)
+            log_local_map(frame_id=img_id, entity_path="world", points=local_map_points)
             log_global_map(frame_id=img_id, entity_path="world", points=global_map_points, colors=global_map_colors)
             log_current_frame_map_points(frame_id=img_id, entity_path="world", points=cur_frame_points, colors=cur_frame_colors)
             log_current_frame_pc(frame_id=img_id, entity_path="world", points=(point_cloud.points/5000), colors=point_cloud.colors)
+
 
             # Check if cu_frame_points is a subset of global_map_points and also local_map_points
             if cur_frame_points is not None and global_map_points is not None:
@@ -226,19 +227,34 @@ if __name__ == "__main__":
             #     accumulate_frame_points=False,  # New parameter to control point accumulation
             # )
 
+            print("#################ABOUT MAP SNAPSHOTS#################")
+            print("Map snapshots: " ,slam.map_snapshots.snapshots.keys())
             
-
 
             # Comparing [0-N, 1-N+1, 2-2+N, 3-3+N, .....]
             if img_id > starting_img_id + Parameters.kNumFramesAway - 1: 
 
                 
+
                 print("Processing frame id:", img_id)
 
                 prev_frame = slam.map.get_frame(-(Parameters.kNumFramesAway + 1))
+                print("Previous frame id: ", prev_frame.timestamp)
                 if prev_frame is None:
                     print("Warning: Could not retrieve previous frame")
                     continue
+
+                # Get mapsnapshot at the current timestamp - kNumFramesAway
+                map_snapshot = slam.map_snapshots.get_snapshot(timestamp=prev_frame.timestamp)
+                print("Map snapshot: ", map_snapshot)
+                print("Map snapshot keys: ", map_snapshot.keys())
+                snapshot_points, snapshot_colors = map_snapshot["map_points"]["points"], map_snapshot["map_points"]["colors"]
+                log_local_map_snapshot(frame_id=img_id, entity_path="world", points=snapshot_points)
+
+
+                
+
+
 
                 # Initialize detected keypoints if missing
                 if prev_frame.kps is not None and prev_frame.kps_detected is None:

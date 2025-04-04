@@ -736,7 +736,10 @@ class Map(object):
             
             return pcd
     
-    
+    def num_map_points(self):
+        """Get the total number of map points."""
+        with self._lock:
+            return len(self.points)
 
 
 # Local map base class 
