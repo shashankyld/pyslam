@@ -82,6 +82,7 @@ class Slam(object):
         self.environment_type = environment_type   
         self.init_feature_tracker(feature_tracker_config)
         self.map = Map()
+        self.map_n_frames_away = None
         self.local_mapping = LocalMapping(self)        
         self.loop_closing = None
         self.GBA = None

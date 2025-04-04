@@ -231,6 +231,8 @@ if __name__ == "__main__":
 
             # Comparing [0-N, 1-N+1, 2-2+N, 3-3+N, .....]
             if img_id > starting_img_id + Parameters.kNumFramesAway - 1: 
+
+                
                 print("Processing frame id:", img_id)
 
                 prev_frame = slam.map.get_frame(-(Parameters.kNumFramesAway + 1))
@@ -267,11 +269,12 @@ if __name__ == "__main__":
                 # Matching across two frames 
                 # idxs_ref, idxs_cur = slam.tracking.idxs_ref, slam.tracking.idxs_cur # This works only for the last frame.
                 # PARAMS SHOULD BE A FUNC OF PARAMS.KNUMFRAMESAWAY
-                idxs_ref, idxs_cur, _ = search_frame_by_projection(prev_frame, cur_frame, max_reproj_distance=2*Parameters.kMaxReprojectionDistanceFrame,
+                idxs_ref, idxs_cur, found_points_count = search_frame_by_projection(prev_frame, cur_frame, max_reproj_distance=2*Parameters.kMaxReprojectionDistanceFrame,
                                                                                  max_descriptor_distance=0.5*slam.tracking.descriptor_distance_sigma,
                                                                                  is_monocular=(slam.tracking.sensor_type == SensorType.STEREO))
                 print("Idxs ref: ", len(idxs_ref))
                 print("Idxs cur: ", len(idxs_cur))
+                print("Found points count: ", found_points_count)
 
                 # show current frame image
                 cv2.imshow("Current frame", curr_img) # Wait of 1ms
