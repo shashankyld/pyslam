@@ -467,7 +467,9 @@ if __name__ == "__main__":
 17.Use color histograms to help track objects between frames.
 18.For tracking, add the current frame to a set of keyframe images with prompts to achieve robust object segmentation.
 19.After segmenting the current frame, remove it from the keyframe image set and reset the SAM2 memory, or simply use SAM2ImagePredictor for the current image.
+19.1. I should also remove points from the local map, and also from the map snapshots whenever we find a mask from SAM2, all the points that lie inside the mask when projected on to the image.
 20.For mapping, use the existing framework of a set of images with prompts to refine the segmentation of dynamic objects.
 21.Ensure SAM2 video segmentation shares information with previous frames, as detecting objects at the scene’s edge is difficult with local frame-based Delaunay when they first appear, often missing from the local map.
+21.1. We should also remove points from the local map, whenever we do mapping once again - double redundancy because mask propagation can give new regions for dynamic objects.
 22.Integrate Gaussian Splatting as an offline method by saving all keyframes and their final segmentation masks.
 """
