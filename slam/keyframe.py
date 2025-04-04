@@ -256,7 +256,9 @@ class KeyFrame(Frame,KeyFrameGraph):
         self.kps_ur = frame.kps_ur      # right keypoint coordinates            [Nx1]
 
         self.dynamic_mask = frame.dynamic_mask # dynamic mask for the keyframe image
-        
+        self.sam2_prompts = {}  # Dict: {obj_id: {'points': np.array, 'labels': np.array, 'box': np.array}}
+        self.sam2_predictions = {}  # Dict: {obj_id: dynamic_mask (reusing existing attribute)}
+
         # for loop closing 
         self.g_des = None               # global (image-wise) descriptor for loop closing
         self.loop_query_id = None
@@ -293,6 +295,20 @@ class KeyFrame(Frame,KeyFrameGraph):
         frame_json['to_be_erased'] = self.to_be_erased
         frame_json['_pose_Tcp'] = json.dumps(self._pose_Tcp.Tcw.astype(float).tolist())
         
+        with self._lock_connections:
+            # Serialize SAM2 data
+            frame_json['sam2_prompts'] = {
+                str(obj_id): {
+                    'points': prompts['points'].tolist() if prompts['points'] is not None else None,
+                    'labels': prompts['labels'].tolist() if prompts['labels'] is not None else None,
+                    'box': prompts['box'].tolist() if prompts['box'] is not None else None
+                } for obj_id, prompts in self.sam2_prompts.items()
+            }
+            frame_json['sam2_predictions'] = {
+                str(obj_id): mask.tolist() if mask is not None else None 
+                for obj_id, mask in self.sam2_predictions.items()
+            }
+        
         keyframe_graph_json = KeyFrameGraph.to_json(self)
         return {**frame_json, **keyframe_graph_json}
     
@@ -306,6 +322,25 @@ class KeyFrame(Frame,KeyFrameGraph):
         kf._is_bad = bool(json_str['_is_bad'])        
         kf.to_be_erased = bool(json_str['to_be_erased'])
         kf._pose_Tcp = CameraPose(json.loads(json_str['_pose_Tcp']))
+        
+        # Deserialize SAM2 data
+        kf.sam2_prompts = {}
+        if 'sam2_prompts' in json_str:
+            for obj_id, data in json_str['sam2_prompts'].items():
+                kf.sam2_prompts[int(obj_id)] = {
+                    'points': np.array(data['points'], dtype=np.float32) if data['points'] is not None else None,
+                    'labels': np.array(data['labels'], dtype=np.int32) if data['labels'] is not None else None,
+                    'box': np.array(data['box'], dtype=np.float32) if data['box'] is not None else None
+                }
+        
+        kf.sam2_predictions = {}
+        if 'sam2_predictions' in json_str:
+            for obj_id, mask in json_str['sam2_predictions'].items():
+                if mask is not None:
+                    kf.sam2_predictions[int(obj_id)] = np.array(mask)
+        
+        # Sync with dynamic_mask
+        kf.dynamic_mask = kf.sam2_predictions
         
         kf.init_from_json(json_str)
         return kf
@@ -458,3 +493,27 @@ class KeyFrame(Frame,KeyFrameGraph):
             
         if self.map is not None:
             self.map.remove_keyframe(self)
+
+    def add_sam2_prompt(self, obj_id, points=None, labels=None, box=None):
+        """Add SAM 2 prompts for a specific object ID."""
+        with self._lock_connections:
+            if obj_id not in self.sam2_prompts:
+                self.sam2_prompts[obj_id] = {'points': None, 'labels': None, 'box': None}
+            if points is not None and labels is not None:
+                self.sam2_prompts[obj_id]['points'] = np.array(points, dtype=np.float32)
+                self.sam2_prompts[obj_id]['labels'] = np.array(labels, dtype=np.int32)
+            if box is not None:
+                self.sam2_prompts[obj_id]['box'] = np.array(box, dtype=np.float32)
+
+    def get_sam2_prompts(self, obj_id):
+        """Retrieve SAM 2 prompts for a specific object ID."""
+        with self._lock_connections:
+            return self.sam2_prompts.get(obj_id, {'points': None, 'labels': None, 'box': None})
+
+    def set_sam2_prediction(self, obj_id, mask):
+        """Store SAM 2 prediction in dynamic_mask for an object ID."""
+        with self._lock_connections:
+            if self.dynamic_mask is None:
+                self.dynamic_mask = {}
+            self.dynamic_mask[obj_id] = mask  # Reuse dynamic_mask as a dict
+            self.sam2_predictions[obj_id] = mask

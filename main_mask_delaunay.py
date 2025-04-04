@@ -33,8 +33,14 @@ from search_points import search_frame_by_projection
 import random
 from keyframe_data import KeyFrameData
 from keyframe import KeyFrame
+import sys
+import torch
 
-
+# --- Add thirdparty/sam2 to sys.path ---
+# Get the absolute path to the SLAM project root
+SLAM_ROOT = os.path.dirname(os.path.abspath(__file__))
+# Add the thirdparty/sam2 directory to the Python path
+sys.path.append(os.path.join(SLAM_ROOT, "thirdparty", "sam2"))
 
 
 if __name__ == "__main__":
@@ -71,6 +77,11 @@ if __name__ == "__main__":
     slam = Slam(camera, feature_tracker_config, loop_detection_config, dataset.sensorType(), groundtruth=None, environment_type=dataset.environmentType())
     slam.set_viewer_scale(dataset.scale_viewer_3d) #TODO: Check if this is necessary, looks like it is used, but check if it is necessary by check different values of scale_viewer_3d
     logging.debug("slam: %s", slam)
+
+
+    # Initialize SAM2 segmentation model
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
     # Hot restart the slam system state  # TODO: Understand this part better 
     # load system state if requested         
