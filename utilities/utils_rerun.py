@@ -30,17 +30,51 @@ def log_image(image):
     rr.log(f"image", rr.Image(image))
 
 
-def log_local_map(frame_id, entity_path, points):  # Added 'points' parameter
+def log_local_map(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
     """Logs the local map to rerun."""
     # points = get_local_map(frame_id)  # Removed the call to get_local_map
-    rr.log(f"{entity_path}/local_map", rr.Points3D(points))
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/local_map",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        rr.log(f"{entity_path}/local_map", rr.Points3D(points))
 
 
-def log_global_map(frame_id, entity_path, points):  # Added 'points' parameter
+def log_global_map(frame_id, entity_path, points,colors=None):  # Added 'points' parameter
     """Logs the global map to rerun."""
     # points = get_global_map(frame_id)  # Removed the call to get_global_map
-    rr.log(f"{entity_path}/global_map", rr.Points3D(points))
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/global_map",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        rr.log(f"{entity_path}/global_map", rr.Points3D(points))
 
+def log_current_frame_map_points(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
+    """Logs the current frame to rerun."""
+    # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/current_frame_3d",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        rr.log(f"{entity_path}/current_frame_3d", rr.Points3D(points))
+
+def log_current_frame_pc(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
+    """Logs the current frame to rerun."""
+    # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/current_frame_pc",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        rr.log(f"{entity_path}/current_frame_pc", rr.Points3D(points))
+        
 
 def log_key_frames(frame_id, entity_path, key_frames):  # Added 'key_frames' parameter
     """Logs the set of key frames to rerun."""

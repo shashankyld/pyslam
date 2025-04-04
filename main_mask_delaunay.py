@@ -25,6 +25,7 @@ from utils_draw import *
 from utils_misc import remove_duplicates_from_index_arrays, convert_frame_to_delaunay_dict, delaunay_with_kps, delaunay_visualization, get_common_edges, draw_common_edges, draw_dynamic_edges, get_dynamic_edges, draw_static_edges, get_static_edges, get_connected_components_from_edges, draw_connected_components
 from rerun_interface import Rerun
 from utilities.utils_rerun import log_all, log_keyframes, log_keyframes_poses
+from utilities.utils_rerun import *
 import time
 import math
 import cv2
@@ -105,7 +106,7 @@ if __name__ == "__main__":
     # Initialize rerun for visualization
     rerun_record_name = f"pyslam_{dataset.name}_{int(time.time())}"  # Add timestamp for uniqueness
     rr.init(rerun_record_name, spawn=True)
-    rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, timeless=True)
+    rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP)
 
     # Processing the dataset 
     starting_img_id = 215# 215 is close to human entrance
@@ -142,19 +143,19 @@ if __name__ == "__main__":
 
             # Entry point to dynamic object segmentation
             #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
-            maskrcnn = MaskRCNNUtils()
-            logging.debug("Estimating dynamic mask")
-            dynamic_mask = maskrcnn.human_mask(img)
-            # Visualize the mask
-            cv2.imshow("Dynamic Mask_prediction", dynamic_mask)
-            cv2.waitKey(1)
-            # Dialte the mask to make it more robust - dialate a lot
-            kernel = np.ones((5, 5), np.uint8)
-            dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
+            # maskrcnn = MaskRCNNUtils()
+            # logging.debug("Estimating dynamic mask")
+            # dynamic_mask = maskrcnn.human_mask(img)
+            # # Visualize the mask
+            # cv2.imshow("Dynamic Mask_prediction", dynamic_mask)
+            # cv2.waitKey(1)
+            # # Dialte the mask to make it more robust - dialate a lot
+            # kernel = np.ones((5, 5), np.uint8)
+            # dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
 
-            # Visualize the mask
-            cv2.imshow("Dynamic Mask", dynamic_mask)
-            cv2.waitKey(1)
+            # # Visualize the mask
+            # cv2.imshow("Dynamic Mask", dynamic_mask)
+            # cv2.waitKey(1)
             # # Set full black mask by force with one channel
             dynamic_mask = np.zeros_like(img)[:, :, 0]
             print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
@@ -181,6 +182,37 @@ if __name__ == "__main__":
             # Collect data for rerun visualization
             global_map_points, global_map_colors = slam.map.get_points_as_np()
             local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
+
+            log_local_map(frame_id=img_id, entity_path="world", points=local_map_points, colors=local_map_colors)
+            log_global_map(frame_id=img_id, entity_path="world", points=global_map_points, colors=global_map_colors)
+            log_current_frame_map_points(frame_id=img_id, entity_path="world", points=cur_frame_points, colors=cur_frame_colors)
+            log_current_frame_pc(frame_id=img_id, entity_path="world", points=(point_cloud.points/5000), colors=point_cloud.colors)
+
+            # Check if cu_frame_points is a subset of global_map_points and also local_map_points
+            if cur_frame_points is not None and global_map_points is not None:
+                if len(cur_frame_points) > 0 and len(global_map_points) > 0:
+                    # Check if cur_frame_points is a subset of global_map_points
+                    is_subset = np.all(np.isin(cur_frame_points, global_map_points))
+                    print("Is cur_frame_points a subset of global_map_points: ", is_subset)
+
+                if len(cur_frame_points) > 0 and len(local_map_points) > 0:
+                    # Check if cur_frame_points is a subset of local_map_points
+                    is_subset = np.all(np.isin(cur_frame_points, local_map_points))
+                    print("Is cur_frame_points a subset of local_map_points: ", is_subset)
+
+                # Check inverse
+                if len(global_map_points) > 0 and len(cur_frame_points) > 0:
+                    # Check if global_map_points is a subset of cur_frame_points
+                    is_subset = np.all(np.isin(global_map_points, cur_frame_points))
+                    print("Is global_map_points a subset of cur_frame_points: ", is_subset)
+
+                if len(local_map_points) > 0 and len(cur_frame_points) > 0:
+                    # Check if local_map_points is a subset of cur_frame_points
+                    is_subset = np.all(np.isin(local_map_points, cur_frame_points))
+                    print("Is local_map_points a subset of cur_frame_points: ", is_subset)
+            
+
+
 
             # # Log to rerun
             # log_all(
@@ -282,25 +314,19 @@ if __name__ == "__main__":
                         delaunay_visualization(prev_delaunay_img, curr_delaunay_img)
 
 
-                # Print keyframes 
-                print("Keyframes: ", slam.map.get_keyframes()) # Ordered Set
-                kf_data = []
-                for kf in slam.map.get_keyframes():
-                    kf_data_i = KeyFrameData(kf)
-                    kf_data.append(kf_data_i)
-                log_keyframes(kf_data)
-                # log_keyframes_poses(kf_data)
+                ## TODO: PART OF THE CODE LOGS Keyframe images and masks (COMPLETE  )
+                # # Print keyframes 
+                # print("Keyframes: ", slam.map.get_keyframes()) # Ordered Set
+                # kf_data = []
+                # for kf in slam.map.get_keyframes():
+                #     kf_data_i = KeyFrameData(kf)
+                #     kf_data.append(kf_data_i)
+                # log_keyframes(kf_data)
+                # # log_keyframes_poses(kf_data)
 
-                """ 
-                # TODO:
-                1. Everytime, we have a new_keyframe, we save the image at a tmp folder so it can be processed by the SAM2VideoSegmentation
-                2. Everytime, we have a new_keyframe, we also add prompts to the newly saved image given by delaunay triangulation(For now, it will be from the maskrcnn - random 10 white pixels)
-                3. Everytime, we calculate prompts we shall update the prompts to the keyframe object
-                4. We will reset the SAM2 everytime we have a new keyframe and run on all the images in the tmp folder along with the prompts of every keyframe. for now, assume all the objects are 1 object
-                5. Once we complete SAM2Segmentation, we shall save the segmentation masks to the keyframe object (dynamic_mask)
+
                 
-                """
-
+                ## TODO: PART OF THE CODE THAT IMPLIMENTS SAM2 BASED SEGMENTATION (COMPLETE)
                 # # Now add the code to process keyframes when new ones are created
                 # if slam.map.num_keyframes() > 0:
                 #     # Get all keyframes for processing
@@ -309,34 +335,35 @@ if __name__ == "__main__":
                 #     # Process keyframes with SAM2
                 #     print(f"Processing {len(keyframes)} keyframes with SAM2...")
                 #     updated_keyframes = sam2_processor.process_keyframes(keyframes)
+                
 
-
-                # If depth data is available, visualize it as a point cloud
-                if depth_img is not None and cur_frame is not None:
-                    # If the cur_frame is a keyframe, we can visualize the depth point clou
-                    if cur_frame.is_keyframe_candidate:
+                ## TODO: VISUALIZATION OF KEYFRAME ONLY POINT CLOUDS (COMPLETE)
+                # # If depth data is available, visualize it as a point cloud
+                # if depth_img is not None and cur_frame is not None:
+                #     # If the cur_frame is a keyframe, we can visualize the depth point clou
+                #     if cur_frame.is_keyframe_candidate:
                         
-                        # Get point cloud from depth image
-                        point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
-                            transform_in_world=True, 
-                            mask=dynamic_mask if dynamic_mask is not None else None
-                        )
+                #         # Get point cloud from depth image
+                #         point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
+                #             transform_in_world=True, 
+                #             mask=dynamic_mask if dynamic_mask is not None else None
+                #         )
                         
-                        if point_cloud_3d is not None and len(point_cloud_3d) > 0:
-                            # Downsample the point cloud to avoid overwhelming visualization
-                            downsample_factor = 10  # Adjust as needed
-                            downsampled_points = point_cloud_3d[::downsample_factor]
-                            downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
+                #         if point_cloud_3d is not None and len(point_cloud_3d) > 0:
+                #             # Downsample the point cloud to avoid overwhelming visualization
+                #             downsample_factor = 10  # Adjust as needed
+                #             downsampled_points = point_cloud_3d[::downsample_factor]
+                #             downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
                             
-                            # Log depth point cloud
-                            rr.log(
-                                f"world/frame_{img_id}/depth_cloud",
-                                rr.Points3D(
-                                    downsampled_points,
-                                    colors=downsampled_colors,
-                                    radii=0.01
-                                )
-                            )
+                #             # Log depth point cloud
+                #             rr.log(
+                #                 f"world/frame_{img_id}/depth_cloud",
+                #                 rr.Points3D(
+                #                     downsampled_points,
+                #                     colors=downsampled_colors,
+                #                     radii=0.01
+                #                 )
+                #             )
 
                         # Log prompt points on the image 
                         
