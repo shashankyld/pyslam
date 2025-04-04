@@ -447,27 +447,27 @@ if __name__ == "__main__":
 
 
 ## TODO:
-1. Get common map points between two local maps at different timestamps.
-2. Project those local map points to the two timestamps - images. 
-3. Match the common map points to kps of the two frames.
-4. Then you will have 3D landmarks common in two local maps which are also present in the two frames - kps.
-5. Then you can do delaunay on the cur_frame with only kps that are in the common map points of both the local maps and also common to both the images.i
-6. Then compare the lengths of the edges of the delaunay triangulation in both the local maps joining the same kps in both the images and also in the local maps.
-7. Then you can use the length of the edges to classify the edges as static or dynamic.
-8. Then you can visualize the edges in the images and also in the 3D space.
-9. Then you can also visualize the edges in the 3D space of the cur_frame_pc RGBD point cloud.
-10.Then you can also visualize the edges in the 3D space of the local map point cloud.
-11.Then use DFS to divide the edges into connected components.
-12.Then visualize the connected components in the images and also in the 3D space.
-13.Also for the connected components, check the avg motion of all the points in the connected components from one prev_local_map to the current local map.
-14.Then combine the connected components which are almost stationary into static objects
-15.Rest - instantiate for each object a parallel SAM2 object 
-16.I should also track the objects from frame to frame, because of object crossing and occlusions - for example - two humans crossing each other.
-17.Some kind of color histograms can be used to track the objects between frames.
-18.For Tracking, simply join the curframe into the set of keyframe images with prompts to get robust segmentation of the objects.
-19.Once the segmentation of the current frame is done, remove it from the set of images from keyframes and reset the SAM2 memory. - Or simply just use SAM2ImagePredictor for the current image. 
-20.For Mapping, use the already existing framework of using set of images with their prompts to get the refined segmentation of the dynamic objects. 
-21.Key thing is to make sure the SAM2Video segmentation propagates information to previous frames as well. Because it is hard to get from local frames based Delaunay to detect objects at the edge when they first enter the scene,
-because they are often not even present in the local map.
-22. Integrate Gaussian Splatting as an offline method by storing all the keyframes and their final segmentation masks.
-
+"""
+1.Identify common map points between two local maps at different timestamps.
+2.Project these common map points onto the images from the two timestamps.
+3.Match the common map points to keypoints in the two frames.
+4.This will give you 3D landmarks shared between the two local maps and present as keypoints in both frames.
+5.Perform Delaunay triangulation on the current frame using only keypoints that are in the common map points of both local maps and also present in both images.
+6.Compare the edge lengths of the Delaunay triangulation in both local maps, connecting the same keypoints in both images and local maps.
+7.Use the edge lengths to classify the edges as static or dynamic.
+8.Visualize the edges in the images and in 3D space.
+9.Visualize the edges in the 3D space of the current frame’s RGBD point cloud.
+10.Visualize the edges in the 3D space of the local map point cloud.
+11.Use Depth-First Search (DFS) to group the edges into connected components.
+12.Visualize the connected components in the images and in 3D space.
+13.For the connected components, calculate the average motion of all points from the previous local map to the current local map.
+14.Combine the connected components that are nearly stationary into static objects.
+15.For the remaining components, create a separate SAM2 object for each dynamic object.
+16.Track the objects from frame to frame to handle cases like object crossings and occlusions, such as two humans passing each other.
+17.Use color histograms to help track objects between frames.
+18.For tracking, add the current frame to a set of keyframe images with prompts to achieve robust object segmentation.
+19.After segmenting the current frame, remove it from the keyframe image set and reset the SAM2 memory, or simply use SAM2ImagePredictor for the current image.
+20.For mapping, use the existing framework of a set of images with prompts to refine the segmentation of dynamic objects.
+21.Ensure SAM2 video segmentation shares information with previous frames, as detecting objects at the scene’s edge is difficult with local frame-based Delaunay when they first appear, often missing from the local map.
+22.Integrate Gaussian Splatting as an offline method by saving all keyframes and their final segmentation masks.
+"""
