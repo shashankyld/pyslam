@@ -24,7 +24,7 @@ from utils_draw import visualize_matched_kps , visualize_matched_edges, visualiz
 from utils_draw import *
 from utils_misc import remove_duplicates_from_index_arrays, convert_frame_to_delaunay_dict, delaunay_with_kps, delaunay_visualization, get_common_edges, draw_common_edges, draw_dynamic_edges, get_dynamic_edges, draw_static_edges, get_static_edges, get_connected_components_from_edges, draw_connected_components
 from rerun_interface import Rerun
-from utilities.utils_rerun import log_all, log_keyframes
+from utilities.utils_rerun import log_all, log_keyframes, log_keyframes_poses
 import time
 import math
 import cv2
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, timeless=True)
 
     # Processing the dataset 
-    starting_img_id = 215# 215 is close to human entrance
+    starting_img_id = 0# 215 is close to human entrance
     img_id = starting_img_id
     camera_path = []  # To collect camera positions for trajectory visualization
     while True: 
@@ -190,28 +190,31 @@ if __name__ == "__main__":
             
             # If depth data is available, visualize it as a point cloud
             if depth_img is not None and cur_frame is not None:
-                # Get point cloud from depth image
-                point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
-                    transform_in_world=True, 
-                    mask=dynamic_mask if dynamic_mask is not None else None
-                )
-                
-                if point_cloud_3d is not None and len(point_cloud_3d) > 0:
-                    # Downsample the point cloud to avoid overwhelming visualization
-                    downsample_factor = 10  # Adjust as needed
-                    downsampled_points = point_cloud_3d[::downsample_factor]
-                    downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
+                # If the cur_frame is a keyframe, we can visualize the depth point clou
+                if cur_frame.is_keyframe_candidate:
                     
-                    # Log depth point cloud
-                    rr.log(
-                        f"world/frame_{img_id}/depth_cloud",
-                        rr.Points3D(
-                            downsampled_points,
-                            colors=downsampled_colors,
-                            radii=0.01
-                        )
+                    # Get point cloud from depth image
+                    point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
+                        transform_in_world=True, 
+                        mask=dynamic_mask if dynamic_mask is not None else None
                     )
-        
+                    
+                    if point_cloud_3d is not None and len(point_cloud_3d) > 0:
+                        # Downsample the point cloud to avoid overwhelming visualization
+                        downsample_factor = 10  # Adjust as needed
+                        downsampled_points = point_cloud_3d[::downsample_factor]
+                        downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
+                        
+                        # Log depth point cloud
+                        rr.log(
+                            f"world/frame_{img_id}/depth_cloud",
+                            rr.Points3D(
+                                downsampled_points,
+                                colors=downsampled_colors,
+                                radii=0.01
+                            )
+                        )
+            
 
             # Comparing [0-N, 1-N+1, 2-2+N, 3-3+N, .....]
             if img_id > starting_img_id + Parameters.kNumFramesAway - 1: 
@@ -305,6 +308,16 @@ if __name__ == "__main__":
                     kf_data_i = KeyFrameData(kf)
                     kf_data.append(kf_data_i)
                 log_keyframes(kf_data)
+                # log_keyframes_poses(kf_data)
+
+                """ 
+                1. Everytime, we have a new_keyframe, we save the image at a tmp folder so it can be processed by the SAM2VideoSegmentation
+                2. Everytime, we have a new_keyframe, we also add prompts to the newly saved image given by delaunay triangulation(For now, it will be from the maskrcnn - random 10 white pixels)
+                3. Everytime, we calculate prompts we shall update the prompts to the keyframe object
+                4. We will reset the SAM2 everytime we have a new keyframe and run on all the images in the tmp folder along with the prompts of every keyframe. for now, assume all the objects are 1 object
+                5. Once we complete SAM2Segmentation, we shall save the segmentation masks to the keyframe object (dynamic_mask)
+                
+                """
 
                 # prev_frame_dict = convert_frame_to_delaunay_dict(prev_frame, idxs_ref)
                 # cur_frame_dict = convert_frame_to_delaunay_dict(cur_frame, idxs_cur)

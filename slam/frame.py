@@ -324,7 +324,8 @@ class Frame(FrameBase):
         super().__init__(camera, pose=pose, id=id, timestamp=timestamp, img_id=img_id)    
         
         self._lock_features = RLock()  
-        self.is_keyframe = False  
+        self.is_keyframe = False 
+        self.is_keyframe_candidate = False 
         
         self._kd = None # kdtree for fast-search of keypoints
 

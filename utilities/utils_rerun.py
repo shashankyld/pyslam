@@ -167,6 +167,112 @@ def log_frame_points(frame_id, entity_path, frame, colors=None, accumulate=False
 #         rr.log(f"keyframes/{timestamp}/mask", rr.Image(mask))
 
 
+def log_keyframes_poses(kfs):
+    """ 
+    Input = List of KeyFrameData objects
+    Output = Logs the poses of keyframes, also add image to the view. it should be a camera view with image - typical rerun viz
+    """
+    if not kfs:
+        return
+    
+    import numpy as np
+    import rerun as rr
+    
+    # Log each keyframe as a camera with its image
+    for i, kf in enumerate(kfs):
+        # Extract pose information (Tcw is camera-to-world transform)
+        Rcw = kf.Rcw  # Rotation matrix
+        tcw = kf.tcw  # Translation vector
+
+        Hcw = np.eye(4)
+        Hcw[:3, :3] = Rcw
+        Hcw[:3, 3] = tcw
+        # Convert to world-to-camera transform
+        Hwc = np.linalg.inv(Hcw)
+        # Convert to 3x3 rotation matrix and 3D translation vector
+        Rwc = Hwc[:3, :3]
+        twc = Hwc[:3, 3]
+        # Temporarily calling Rcw as Rwc and tcw as twc for testing viz
+        Rcw = Rwc
+        tcw = twc
+        
+        # Create entity path
+        entity_path = f"keyframes/poses/{kf.id}"
+        
+        # Create camera intrinsic matrix (assuming a pinhole camera model)
+        if hasattr(kf.camera, 'K'):
+            K = kf.camera.K
+            
+            # Get image dimensions
+            width = kf.img.shape[1] if isinstance(kf.img, np.ndarray) else kf.img.width
+            height = kf.img.shape[0] if isinstance(kf.img, np.ndarray) else kf.img.height
+            
+            # Extract focal length and principal point from K matrix
+            fx = K[0, 0]
+            fy = K[1, 1]
+            cx = K[0, 2]
+            cy = K[1, 2]
+            
+            # Log camera intrinsics
+            rr.log(
+                f"{entity_path}/image",
+                rr.Pinhole(
+                    resolution=[width, height],
+                    focal_length=[fx, fy],
+                    principal_point=[cx, cy]
+                )
+            )
+        else:
+            # Fallback if no calibration matrix is available
+            width = kf.img.shape[1] if isinstance(kf.img, np.ndarray) else kf.img.width
+            height = kf.img.shape[0] if isinstance(kf.img, np.ndarray) else kf.img.height
+            
+            rr.log(
+                f"{entity_path}/image",
+                rr.Pinhole(
+                    resolution=[width, height],
+                )
+            )
+        
+        # Log the image
+        if kf.img is not None:
+            rr.log(f"{entity_path}/image/rgb", rr.Image(kf.img))
+        
+        # Log the camera pose
+        rr.log(
+            entity_path,
+            rr.Transform3D(
+                translation=tcw,
+                mat3x3=Rcw,
+            ),
+        )
+        
+        # # Log frame ID as text
+        # rr.log(
+        #     f"{entity_path}/label",
+        #     rr.TextAnnotation(
+        #         text=f"KF {kf.id}",
+        #         size=16,
+        #         background_color=(0, 0, 0, 128),  # Semi-transparent black background
+        #         text_color=(255, 255, 255, 255),  # White text
+        #     ),
+        # )
+        
+        # For visualization purposes, also log a point at the camera position
+        rr.log(
+            f"{entity_path}/position",
+            rr.Points3D(
+                positions=[-tcw],  # Negative of tcw is the camera position in world frame
+                colors=[(0, 255, 0)],  # Green point
+                radii=[0.005],  # Small point
+            ),
+        )
+        
+        # If there's a dynamic mask, log it too
+        if hasattr(kf, 'dynamic_mask') and kf.dynamic_mask is not None:
+            rr.log(f"{entity_path}/image/mask", rr.Image(kf.dynamic_mask))
+
+
 def log_keyframes(kfs):
     """ 
     Input = List of KeyFrameData objects

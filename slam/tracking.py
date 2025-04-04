@@ -888,6 +888,7 @@ class Tracking:
         if self.state == SlamState.NO_IMAGES_YET: 
             # push first frame in the inizializer 
             self.intializer.init(f_cur, img) 
+            self.f_cur.is_keyframe_candidate = True # set the first frame as keyframe candidate
             self.state = SlamState.NOT_INITIALIZED
             return # EXIT (jump to second frame)
         
@@ -895,6 +896,7 @@ class Tracking:
             # try to inizialize 
             initializer_output, intializer_is_ok = self.intializer.initialize(f_cur, img)
             if intializer_is_ok:
+                self.f_cur.is_keyframe_candidate = True # set the second frame as keyframe candidate
                 kf_ref = initializer_output.kf_ref
                 kf_cur = initializer_output.kf_cur
                         
@@ -1038,6 +1040,7 @@ class Tracking:
                 need_new_kf = self.need_new_keyframe(f_cur)
                                     
                 if need_new_kf:
+                    f_cur.is_keyframe_candidate = True
                     self.create_new_keyframe(f_cur, img, img_right, depth)
                                         
                     if not kLocalMappingOnSeparateThread:
@@ -1051,8 +1054,9 @@ class Tracking:
                 # we allow points with high innovation (considered outliers by the Huber Function)
                 # pass to the new keyframe, so that bundle adjustment will finally decide
                 # if they are outliers or not. We don't want next frame to estimate its position
-                # with those points so we discard them in the frame.                
-                f_cur.clean_outlier_map_points()     
+                # with those points so we discard them in the frame.   
+                if not f_cur.is_keyframe:
+                    f_cur.clean_outlier_map_points()     
                 
                                   
         # end block {with self.map.update_lock:}  
