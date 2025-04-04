@@ -512,8 +512,7 @@ class KeyFrame(Frame,KeyFrameGraph):
 
     def set_sam2_prediction(self, obj_id, mask):
         """Store SAM 2 prediction in dynamic_mask for an object ID."""
+        print("Shape of MASK:", mask.shape) # (1, 480, 640) --- expected shape is = (480, 640)
         with self._lock_connections:
-            if self.dynamic_mask is None:
-                self.dynamic_mask = {}
-            self.dynamic_mask[obj_id] = mask  # Reuse dynamic_mask as a dict
+            self.dynamic_mask = mask[0]
             self.sam2_predictions[obj_id] = mask

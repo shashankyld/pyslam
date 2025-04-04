@@ -320,6 +320,7 @@ def log_keyframes(kfs):
         # Convert images if necessary and paste them
         img = kf.img
         mask = kf.dynamic_mask
+        print("Shape of mask to be logged", mask.shape)
         if isinstance(img, np.ndarray):
             img = Image.fromarray(img)
         if isinstance(mask, np.ndarray):

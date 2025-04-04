@@ -35,6 +35,12 @@ from keyframe_data import KeyFrameData
 from keyframe import KeyFrame
 import sys
 import torch
+from sam2_kf_processor import SAM2KeyframeProcessor
+
+# Initialize the SAM2 processor
+sam2_processor = SAM2KeyframeProcessor()
+
+
 
 # --- Add thirdparty/sam2 to sys.path ---
 # Get the absolute path to the SLAM project root
@@ -102,7 +108,7 @@ if __name__ == "__main__":
     rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, timeless=True)
 
     # Processing the dataset 
-    starting_img_id = 0# 215 is close to human entrance
+    starting_img_id = 215# 215 is close to human entrance
     img_id = starting_img_id
     camera_path = []  # To collect camera positions for trajectory visualization
     while True: 
@@ -150,7 +156,8 @@ if __name__ == "__main__":
             cv2.imshow("Dynamic Mask", dynamic_mask)
             cv2.waitKey(1)
             # # Set full black mask by force with one channel
-            # dynamic_mask = np.zeros_like(img)[:, :, 0]
+            dynamic_mask = np.zeros_like(img)[:, :, 0]
+            print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
 
 
             # SLAM processing
@@ -188,33 +195,7 @@ if __name__ == "__main__":
             # )
 
             
-            # If depth data is available, visualize it as a point cloud
-            if depth_img is not None and cur_frame is not None:
-                # If the cur_frame is a keyframe, we can visualize the depth point clou
-                if cur_frame.is_keyframe_candidate:
-                    
-                    # Get point cloud from depth image
-                    point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
-                        transform_in_world=True, 
-                        mask=dynamic_mask if dynamic_mask is not None else None
-                    )
-                    
-                    if point_cloud_3d is not None and len(point_cloud_3d) > 0:
-                        # Downsample the point cloud to avoid overwhelming visualization
-                        downsample_factor = 10  # Adjust as needed
-                        downsampled_points = point_cloud_3d[::downsample_factor]
-                        downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
-                        
-                        # Log depth point cloud
-                        rr.log(
-                            f"world/frame_{img_id}/depth_cloud",
-                            rr.Points3D(
-                                downsampled_points,
-                                colors=downsampled_colors,
-                                radii=0.01
-                            )
-                        )
-            
+
 
             # Comparing [0-N, 1-N+1, 2-2+N, 3-3+N, .....]
             if img_id > starting_img_id + Parameters.kNumFramesAway - 1: 
@@ -311,6 +292,7 @@ if __name__ == "__main__":
                 # log_keyframes_poses(kf_data)
 
                 """ 
+                # TODO:
                 1. Everytime, we have a new_keyframe, we save the image at a tmp folder so it can be processed by the SAM2VideoSegmentation
                 2. Everytime, we have a new_keyframe, we also add prompts to the newly saved image given by delaunay triangulation(For now, it will be from the maskrcnn - random 10 white pixels)
                 3. Everytime, we calculate prompts we shall update the prompts to the keyframe object
@@ -318,6 +300,47 @@ if __name__ == "__main__":
                 5. Once we complete SAM2Segmentation, we shall save the segmentation masks to the keyframe object (dynamic_mask)
                 
                 """
+
+                # # Now add the code to process keyframes when new ones are created
+                # if slam.map.num_keyframes() > 0:
+                #     # Get all keyframes for processing
+                #     keyframes = slam.map.get_keyframes()
+                    
+                #     # Process keyframes with SAM2
+                #     print(f"Processing {len(keyframes)} keyframes with SAM2...")
+                #     updated_keyframes = sam2_processor.process_keyframes(keyframes)
+
+
+                # If depth data is available, visualize it as a point cloud
+                if depth_img is not None and cur_frame is not None:
+                    # If the cur_frame is a keyframe, we can visualize the depth point clou
+                    if cur_frame.is_keyframe_candidate:
+                        
+                        # Get point cloud from depth image
+                        point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
+                            transform_in_world=True, 
+                            mask=dynamic_mask if dynamic_mask is not None else None
+                        )
+                        
+                        if point_cloud_3d is not None and len(point_cloud_3d) > 0:
+                            # Downsample the point cloud to avoid overwhelming visualization
+                            downsample_factor = 10  # Adjust as needed
+                            downsampled_points = point_cloud_3d[::downsample_factor]
+                            downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
+                            
+                            # Log depth point cloud
+                            rr.log(
+                                f"world/frame_{img_id}/depth_cloud",
+                                rr.Points3D(
+                                    downsampled_points,
+                                    colors=downsampled_colors,
+                                    radii=0.01
+                                )
+                            )
+
+                        # Log prompt points on the image 
+                        
+                
 
                 # prev_frame_dict = convert_frame_to_delaunay_dict(prev_frame, idxs_ref)
                 # cur_frame_dict = convert_frame_to_delaunay_dict(cur_frame, idxs_cur)
