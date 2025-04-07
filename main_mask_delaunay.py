@@ -252,14 +252,14 @@ if __name__ == "__main__":
                 snapshot_points, snapshot_colors = map_snapshot["map_points"]["points"], map_snapshot["map_points"]["colors"]
                 log_local_map_snapshot(frame_id=img_id, entity_path="world", points=snapshot_points)
 
-                
+                """             
                 cur_map_snapshot = slam.map_snapshots.get_snapshot(timestamp=cur_frame.timestamp)
                 # print("Current map snapshot: ", cur_map_snapshot)
                 print("Current map snapshot keys: ", cur_map_snapshot.keys())
                 cur_snapshot_points, cur_snapshot_colors = cur_map_snapshot["map_points"]["points"], cur_map_snapshot["map_points"]["colors"]
                 log_local_map_snapshot(frame_id=img_id, entity_path="world", points=cur_snapshot_points, current=True)
 
-                """
+                
                 # MATCHES BETWEEN TWO MAPSNAPSHOTS - NOT ROBUST, TRACK MAPSNAPSHOT AND FRAME POINTS INSTEAD
                 print("##############ALL ABOUT MAP SNAPSHOTS#################")
                 matched_indices_prev, matched_indices_cur, matched_points_prev_arr, matched_points_cur_arr = search_common_points_between_snapshots(map_snapshot, cur_map_snapshot)
@@ -308,10 +308,9 @@ if __name__ == "__main__":
                     log_image("previous_frame_with_kps", prev_image_with_kps)
                     tri_indices,tri_vertices,curr_delaunay_img = delaunay_with_kps(cur_frame, matched_indices_frame)
                     log_image("current_frame_delaunay", curr_delaunay_img)
-                    curr_delaunay_pts_3d = cur_frame.unproject_points_3d(matched_indices_frame)
+                    curr_delaunay_pts_3d,_ = cur_frame.unproject_points_3d(matched_indices_frame)
                     # Log 3D Delaunay points in Rerun
-                    # log_delaunay_points_frame("current_frame_delaunay_points", frame, tri_indices, tri_vertices)
-
+                    log_delaunay_points_3d(curr_delaunay_pts_3d=curr_delaunay_pts_3d)
                 
 
 
