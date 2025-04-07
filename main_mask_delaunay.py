@@ -448,7 +448,14 @@ if __name__ == "__main__":
 
 ## TODO:
 """
+
 1.Identify common map points between two local maps at different timestamps.
+1.0. Figure out why sometimes, the cur_frame_points are not a subset of the global map points. It should be. Figure out how frame points are created.
+# Is cur_frame_points a subset of global_map_points:  True
+# Is cur_frame_points a subset of local_map_points:  False
+# Is global_map_points a subset of cur_frame_points:  False
+# Is local_map_points a subset of cur_frame_points:  False
+
 2.Project these common map points onto the images from the two timestamps.
 3.Match the common map points to keypoints in the two frames.
 4.This will give you 3D landmarks shared between the two local maps and present as keypoints in both frames.
