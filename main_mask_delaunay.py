@@ -246,12 +246,27 @@ if __name__ == "__main__":
 
                 # Get mapsnapshot at the current timestamp - kNumFramesAway
                 map_snapshot = slam.map_snapshots.get_snapshot(timestamp=prev_frame.timestamp)
-                print("Map snapshot: ", map_snapshot)
+                # print("Map snapshot: ", map_snapshot)
                 print("Map snapshot keys: ", map_snapshot.keys())
                 snapshot_points, snapshot_colors = map_snapshot["map_points"]["points"], map_snapshot["map_points"]["colors"]
                 log_local_map_snapshot(frame_id=img_id, entity_path="world", points=snapshot_points)
 
                 
+                cur_map_snapshot = slam.map_snapshots.get_snapshot(timestamp=cur_frame.timestamp)
+                # print("Current map snapshot: ", cur_map_snapshot)
+                print("Current map snapshot keys: ", cur_map_snapshot.keys())
+                cur_snapshot_points, cur_snapshot_colors = cur_map_snapshot["map_points"]["points"], cur_map_snapshot["map_points"]["colors"]
+                log_local_map_snapshot(frame_id=img_id, entity_path="world", points=cur_snapshot_points, current=True)
+
+                ## COMMON MAP POINTS IN THE TWO MAP SNAPSHOTS
+                print("##############ALL ABOUT COMMON MAP POINTS#################")
+                matched_points1, matched_colors1, matched_points2, matched_colors2, good_matches = slam.map_snapshots.get_common_points_by_descriptor(prev_frame.timestamp, cur_frame.timestamp, local = False)
+                print("Number of matched points in the first map snapshot: ", len(matched_points1))
+                print("Number of matched points in the second map snapshot: ", len(matched_points2))
+                print("Number of good matches: ", len(good_matches))
+
+
+
 
 
                 # Initialize detected keypoints if missing
