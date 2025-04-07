@@ -956,3 +956,484 @@ def search_by_sim3(kf1: KeyFrame, kf2: KeyFrame,
     #     print_fun(f'search_by_sim3: new matches after check: 1->2: {np.sum(new_matches12!=-1)}, 2->1: {np.sum(new_matches21!=-1)}')
         
     return num_matches_found, new_matches12, new_matches21
+
+
+
+import numpy as np
+import cv2
+import time
+from scipy.spatial import KDTree
+from typing import Dict, Tuple, List, Optional, Any
+
+# --- IMPORT YOUR FRAME CLASS ---
+# Make sure this class definition is available in the scope
+# from your_module import Frame, FrameBase # Or however you import it
+
+# Assume MapSnapshot is a dictionary structure like:
+# snapshot = {
+#     'timestamp': float,
+#     'map_points': {'points': np.array, 'colors': np.array, 'descriptors': np.array},
+#     'local_map_points': {'points': np.array, 'colors': np.array, 'descriptors': np.array},
+#     # ... other data
+# }
+
+# Optional Open3D import for visualization
+try:
+    import open3d as o3d
+    OPEN3D_AVAILABLE = True
+except ImportError:
+    OPEN3D_AVAILABLE = False
+    print("Warning: Open3D not available. 3D visualization will be skipped.")
+    print("Install with 'pip install open3d'")
+
+# --- Helper Functions ---
+
+def hamming_distance(des1: np.ndarray, des2: np.ndarray) -> int:
+    """Calculates Hamming distance between two ORB descriptors."""
+    # Ensure descriptors are uint8
+    if des1.dtype != np.uint8:
+        des1 = np.uint8(des1)
+    if des2.dtype != np.uint8:
+        des2 = np.uint8(des2)
+    # Handle potential size mismatch if descriptors are somehow invalid
+    if des1.shape != des2.shape:
+        # print(f"Warning: Descriptor shape mismatch: {des1.shape} vs {des2.shape}")
+        return 9999 # Return a large distance
+    try:
+        return int(cv2.norm(des1, des2, cv2.NORM_HAMMING))
+    except cv2.error as e:
+        # print(f"Warning: cv2.norm error calculating Hamming distance: {e}")
+        return 9999 # Return a large distance
+
+
+def find_best_descriptor_match(
+    target_des: np.ndarray,
+    candidate_indices: List[int],
+    candidate_descriptors: np.ndarray,
+    max_distance: int,
+    ratio_test: float
+) -> Tuple[Optional[int], Optional[int]]:
+    """
+    Finds the best descriptor match among candidates using Hamming distance
+    and Lowe's ratio test.
+
+    Returns:
+        Tuple[Optional[int], Optional[int]]: (best_match_idx, best_distance) or (None, None)
+    """
+    best_match_idx = None
+    best_dist = float('inf')
+    second_best_dist = float('inf')
+
+    if not candidate_indices:
+        return None, None
+
+    # Pre-check target descriptor
+    if target_des is None:
+        # print("Warning: Target descriptor is None.")
+        return None, None
+
+    for idx in candidate_indices:
+        # Check index bounds and if candidate descriptor exists
+        if idx >= len(candidate_descriptors) or candidate_descriptors[idx] is None:
+            # print(f"Warning: Invalid candidate index {idx} or descriptor is None.")
+            continue
+
+        dist = hamming_distance(target_des, candidate_descriptors[idx])
+
+        if dist < best_dist:
+            second_best_dist = best_dist
+            best_dist = dist
+            best_match_idx = idx
+        elif dist < second_best_dist:
+            second_best_dist = dist
+
+    if best_match_idx is not None and best_dist <= max_distance:
+        # Apply ratio test
+        if second_best_dist == float('inf') or best_dist < ratio_test * second_best_dist:
+            return best_match_idx, int(best_dist) # Return int distance
+
+    return None, None
+
+
+# --- Function 1: Search Common Points Between Snapshots ---
+
+def search_common_points_between_snapshots(
+    snapshot_prev: Dict[str, Any],
+    snapshot_cur: Dict[str, Any],
+    use_local_map: bool = False,
+    max_3d_distance: float = 0.2, # Max distance in 3D space (meters)
+    max_descriptor_distance: int = 50, # Max Hamming distance for ORB
+    ratio_test: float = 0.8, # Lowe's ratio test threshold
+    visualize: bool = False
+) -> Tuple[List[int], List[int], List[np.ndarray], List[np.ndarray]]:
+    """
+    Finds common points between two map snapshots based on 3D proximity
+    and ORB descriptor similarity.
+
+    Args:
+        snapshot_prev: Dictionary representing the previous map snapshot.
+        snapshot_cur: Dictionary representing the current map snapshot.
+        use_local_map: If True, uses 'local_map_points', otherwise 'map_points'.
+        max_3d_distance: Maximum Euclidean distance in 3D for points to be considered neighbors.
+        max_descriptor_distance: Maximum Hamming distance for descriptors to match.
+        ratio_test: Threshold for Lowe's ratio test on descriptor distances.
+        visualize: If True, attempts to visualize the matches in 3D using Open3D.
+
+    Returns:
+        Tuple containing:
+        - List[int]: Indices of matched points in snapshot_prev.
+        - List[int]: Indices of matched points in snapshot_cur.
+        - List[np.ndarray]: 3D coordinates of matched points from snapshot_prev.
+        - List[np.ndarray]: 3D coordinates of matched points from snapshot_cur.
+    """
+    print(f"Searching common points between snapshots at {snapshot_prev.get('timestamp', 'N/A')} "
+          f"and {snapshot_cur.get('timestamp', 'N/A')}")
+    start_time = time.time()
+
+    map_key = 'local_map_points' if use_local_map else 'map_points'
+
+    # Safely get data, handling potential missing keys or None values
+    data_prev = snapshot_prev.get(map_key, {})
+    points_prev = data_prev.get('points')
+    des_prev = data_prev.get('descriptors')
+    colors_prev = data_prev.get('colors') # For visualization
+
+    data_cur = snapshot_cur.get(map_key, {})
+    points_cur = data_cur.get('points')
+    des_cur = data_cur.get('descriptors')
+    colors_cur = data_cur.get('colors') # For visualization
+
+    # --- Input Validation ---
+    if points_prev is None or des_prev is None or \
+       points_cur is None or des_cur is None or \
+       len(points_prev) == 0 or len(points_cur) == 0:
+        print("Warning: Missing points or descriptors in one or both snapshots, or snapshots empty.")
+        return [], [], [], []
+
+    if len(points_prev) != len(des_prev):
+         print(f"Warning: Mismatch between point count ({len(points_prev)}) and "
+               f"descriptor count ({len(des_prev)}) in snapshot_prev. Skipping.")
+         return [], [], [], []
+    if len(points_cur) != len(des_cur):
+         print(f"Warning: Mismatch between point count ({len(points_cur)}) and "
+               f"descriptor count ({len(des_cur)}) in snapshot_cur. Skipping.")
+         return [], [], [], []
+
+    print(f"  Prev snapshot: {len(points_prev)} points.")
+    print(f"  Cur snapshot: {len(points_cur)} points.")
+
+    # --- KD-Tree ---
+    try:
+        print("  Building KD-Tree for current snapshot points...")
+        kdtree_cur = KDTree(points_cur)
+        print("  KD-Tree built.")
+    except Exception as e:
+        print(f"Error building KD-Tree for current points: {e}")
+        return [], [], [], []
+
+    # --- Matching Loop ---
+    matched_indices_prev = []
+    matched_indices_cur = []
+    matched_points_prev_list = [] # Use list temporarily
+    matched_points_cur_list = [] # Use list temporarily
+
+    print("  Searching for matches...")
+    for i, p_prev in enumerate(points_prev):
+        # Check if previous descriptor exists
+        if des_prev[i] is None:
+            continue
+
+        # Find points in the current snapshot within the 3D distance threshold
+        try:
+            candidate_indices_cur = kdtree_cur.query_ball_point(p_prev, max_3d_distance)
+        except ValueError as e:
+            # Can happen if p_prev has incorrect dimension or NaN/inf
+            # print(f"Warning: Skipping point {i} due to KD-Tree query error: {e}")
+            continue
+        except Exception as e:
+             print(f"Error querying KD-Tree at index {i}: {e}")
+             continue # Skip this point
+
+        if not candidate_indices_cur:
+            continue
+
+        # Find the best descriptor match among the 3D neighbors
+        best_match_idx_cur, best_dist = find_best_descriptor_match(
+            des_prev[i],
+            candidate_indices_cur,
+            des_cur,
+            max_descriptor_distance,
+            ratio_test
+        )
+
+        if best_match_idx_cur is not None:
+            # Found a match
+            matched_indices_prev.append(i)
+            matched_indices_cur.append(best_match_idx_cur)
+            matched_points_prev_list.append(p_prev)
+            matched_points_cur_list.append(points_cur[best_match_idx_cur])
+
+    end_time = time.time()
+    print(f"  Found {len(matched_indices_prev)} common points in {end_time - start_time:.3f} seconds.")
+
+    # Convert lists to numpy arrays for return type consistency
+    matched_points_prev_arr = np.array(matched_points_prev_list) if matched_points_prev_list else np.empty((0, 3))
+    matched_points_cur_arr = np.array(matched_points_cur_list) if matched_points_cur_list else np.empty((0, 3))
+
+
+    # --- Visualization ---
+    if visualize and OPEN3D_AVAILABLE and len(matched_indices_prev) > 0:
+        print("  Visualizing matches...")
+        # (Visualization code remains the same as previous version)
+        try:
+            pcd_prev = o3d.geometry.PointCloud()
+            pcd_prev.points = o3d.utility.Vector3dVector(matched_points_prev_arr)
+            if colors_prev is not None and len(colors_prev) == len(points_prev):
+                 matched_colors_prev = colors_prev[matched_indices_prev]
+                 if matched_colors_prev.dtype != np.float64 and matched_colors_prev.dtype != np.float32:
+                      matched_colors_prev = matched_colors_prev.astype(np.float32) / 255.0
+                 pcd_prev.colors = o3d.utility.Vector3dVector(matched_colors_prev % 1.0) # Ensure in [0,1]
+            else:
+                 pcd_prev.paint_uniform_color([1, 0, 0]) # Red
+
+            pcd_cur = o3d.geometry.PointCloud()
+            pcd_cur.points = o3d.utility.Vector3dVector(matched_points_cur_arr)
+            if colors_cur is not None and len(colors_cur) == len(points_cur):
+                 matched_colors_cur = colors_cur[matched_indices_cur]
+                 if matched_colors_cur.dtype != np.float64 and matched_colors_cur.dtype != np.float32:
+                      matched_colors_cur = matched_colors_cur.astype(np.float32) / 255.0
+                 pcd_cur.colors = o3d.utility.Vector3dVector(matched_colors_cur % 1.0) # Ensure in [0,1]
+            else:
+                 pcd_cur.paint_uniform_color([0, 0, 1]) # Blue
+
+            lines = [[i, i + len(matched_points_prev_arr)] for i in range(len(matched_points_prev_arr))]
+            line_colors = [[0, 1, 0] for _ in range(len(lines))]
+            if pcd_prev.has_colors() and pcd_cur.has_colors():
+                 try:
+                      cols_p = np.asarray(pcd_prev.colors)
+                      cols_c = np.asarray(pcd_cur.colors)
+                      line_colors = (cols_p + cols_c) / 2.0
+                 except Exception:
+                      line_colors = [[0, 1, 0] for _ in range(len(lines))]
+
+            line_set = o3d.geometry.LineSet(
+                points=o3d.utility.Vector3dVector(np.vstack((matched_points_prev_arr, matched_points_cur_arr))),
+                lines=o3d.utility.Vector2iVector(lines)
+            )
+            line_set.colors = o3d.utility.Vector3dVector(line_colors)
+
+            print("  Displaying Open3D window...")
+            o3d.visualization.draw_geometries([pcd_prev, pcd_cur, line_set],
+                                               window_name=f"Snapshot Matches {snapshot_prev.get('timestamp', 'Prev')} <-> {snapshot_cur.get('timestamp', 'Cur')}")
+            print("  Open3D window closed.")
+        except Exception as e:
+            print(f"Error during Open3D visualization: {e}")
+
+
+    return matched_indices_prev, matched_indices_cur, matched_points_prev_arr, matched_points_cur_arr
+
+# --- Function 2: Search Common Points Between Snapshot and Frame ---
+
+def search_common_points_snapshot_frame(
+    snapshot: Dict[str, Any],
+    frame: Frame, # Use the actual Frame type hint
+    use_local_map: bool = False,
+    max_reproj_distance: float = 5.0, # Max distance in pixels for reprojection match
+    max_descriptor_distance: int = 50, # Max Hamming distance for ORB
+    ratio_test: float = 0.8, # Lowe's ratio test threshold
+    visualize: bool = False,
+    frame_img: Optional[np.ndarray] = None # Optional image for visualization
+) -> Tuple[List[int], List[int], List[np.ndarray], List[np.ndarray]]:
+    """
+    Finds common points between a map snapshot (3D points) and a frame (2D keypoints)
+    using projection and descriptor matching.
+
+    Args:
+        snapshot: Dictionary representing the map snapshot.
+        frame: The Frame object containing keypoints, descriptors, pose, camera.
+        use_local_map: If True, uses 'local_map_points', otherwise 'map_points'.
+        max_reproj_distance: Max pixel distance for a keypoint to match a projection.
+        max_descriptor_distance: Maximum Hamming distance for descriptors to match.
+        ratio_test: Threshold for Lowe's ratio test on descriptor distances.
+        visualize: If True, attempts to visualize the matches on the frame image using OpenCV.
+        frame_img: Optional image corresponding to the frame object for visualization.
+
+    Returns:
+        Tuple containing:
+        - List[int]: Indices of matched points in the snapshot.
+        - List[int]: Indices of matched keypoints in the frame.
+        - List[np.ndarray]: 3D coordinates of matched points from the snapshot.
+        - List[np.ndarray]: 2D coordinates of matched keypoints from the frame.
+    """
+    print(f"Searching common points between snapshot at {snapshot.get('timestamp', 'N/A')} "
+          f"and frame {getattr(frame, 'id', 'N/A')}")
+    start_time = time.time()
+
+    map_key = 'local_map_points' if use_local_map else 'map_points'
+
+    # --- Safely get snapshot data ---
+    data_snap = snapshot.get(map_key, {})
+    snap_points_3d = data_snap.get('points')
+    snap_des = data_snap.get('descriptors')
+
+    # --- Snapshot Input Validation ---
+    if snap_points_3d is None or snap_des is None or len(snap_points_3d) == 0:
+        print("Warning: Missing points or descriptors in snapshot, or snapshot empty.")
+        return [], [], [], []
+    if len(snap_points_3d) != len(snap_des):
+        print(f"Warning: Mismatch between point count ({len(snap_points_3d)}) and "
+              f"descriptor count ({len(snap_des)}) in snapshot. Skipping.")
+        return [], [], [], []
+
+    # --- Safely get frame data ---
+    try:
+        # Access attributes using getattr for safety in case Frame structure varies slightly
+        frame_kps_2d = getattr(frame, 'kpsu', None)
+        frame_des = getattr(frame, 'des', None)
+        # Access the KD-Tree property
+        frame_kd_tree = getattr(frame, 'kd', None)
+        # Check if pose and camera attributes exist
+        if not hasattr(frame, 'pose') or not hasattr(frame, 'camera'):
+             raise AttributeError("Frame object missing 'pose' or 'camera' attribute.")
+        if not hasattr(frame, 'project_points'):
+             raise AttributeError("Frame object missing 'project_points' method.")
+        if not hasattr(frame, 'are_in_image'):
+             raise AttributeError("Frame object missing 'are_in_image' method.")
+
+        if frame_kps_2d is None or frame_des is None or frame_kd_tree is None:
+             raise ValueError("Frame is missing keypoints (kpsu), descriptors (des), or KD-Tree (kd).")
+        if len(frame_kps_2d) != len(frame_des):
+             raise ValueError("Frame keypoint count and descriptor count mismatch.")
+        if len(frame_kps_2d) == 0:
+            print("Warning: Frame has no keypoints.")
+            return [], [], [], []
+
+    except (AttributeError, ValueError) as e:
+        print(f"Error accessing Frame attributes or invalid Frame data: {e}")
+        return [], [], [], []
+
+    print(f"  Snapshot: {len(snap_points_3d)} points.")
+    print(f"  Frame: {len(frame_kps_2d)} keypoints.")
+
+    # --- Projection ---
+    print("  Projecting snapshot points onto frame...")
+    try:
+        # project_points is expected to handle internal pose/camera details
+        projections_2d, depths = frame.project_points(snap_points_3d)
+        # Check visibility using the frame's method
+        visible_mask = frame.are_in_image(projections_2d, depths)
+        print(f"  {np.sum(visible_mask)} snapshot points are potentially visible.")
+
+    except Exception as e:
+        print(f"Error during projection or visibility check using frame methods: {e}")
+        return [], [], [], []
+
+    # --- Matching Loop ---
+    matched_indices_snap = []
+    matched_indices_frame = []
+    matched_points_snap_3d_list = []
+    matched_kps_frame_2d_list = []
+
+    print("  Searching for matches...")
+    visible_indices = np.where(visible_mask)[0]
+    for i in visible_indices:
+        p_snap_3d = snap_points_3d[i]
+        des_snap = snap_des[i]
+        proj_2d = projections_2d[i][:2] # Use only (u, v) coordinates
+
+        # Check if snapshot descriptor exists
+        if des_snap is None:
+            continue
+
+        # Find candidate keypoints in the frame within the reprojection distance
+        try:
+            candidate_indices_frame = frame_kd_tree.query_ball_point(
+                proj_2d,
+                max_reproj_distance
+            )
+        except ValueError as e:
+            # print(f"Warning: Skipping snapshot point {i} due to Frame KD-Tree query error: {e}")
+            continue
+        except Exception as e:
+            print(f"Error querying frame KD-Tree for snapshot point {i}: {e}")
+            continue # Skip this snapshot point
+
+        if not candidate_indices_frame:
+            continue
+
+        # Find the best descriptor match among the frame keypoint candidates
+        best_match_idx_frame, best_dist = find_best_descriptor_match(
+            des_snap,
+            candidate_indices_frame,
+            frame_des,
+            max_descriptor_distance,
+            ratio_test
+        )
+
+        if best_match_idx_frame is not None:
+            # Found a match
+            matched_indices_snap.append(i)
+            matched_indices_frame.append(best_match_idx_frame)
+            matched_points_snap_3d_list.append(p_snap_3d)
+            matched_kps_frame_2d_list.append(frame_kps_2d[best_match_idx_frame])
+
+    end_time = time.time()
+    print(f"  Found {len(matched_indices_snap)} snapshot-frame matches in {end_time - start_time:.3f} seconds.")
+
+    # Convert lists to numpy arrays
+    matched_points_snap_3d_arr = np.array(matched_points_snap_3d_list) if matched_points_snap_3d_list else np.empty((0, 3))
+    matched_kps_frame_2d_arr = np.array(matched_kps_frame_2d_list) if matched_kps_frame_2d_list else np.empty((0, 2))
+
+    # --- Visualization ---
+    if visualize and frame_img is not None and len(matched_indices_frame) > 0:
+        print("  Visualizing matches...")
+        # (Visualization code remains the same as previous version)
+        try:
+            vis_img = frame_img.copy()
+            if len(vis_img.shape) == 2: # Grayscale
+                vis_img = cv2.cvtColor(vis_img, cv2.COLOR_GRAY_BGR)
+
+            # Draw all keypoints in the frame
+            for kp_idx in range(len(frame_kps_2d)):
+                kp = frame_kps_2d[kp_idx]
+                # Check if kp is None before drawing
+                if kp is not None:
+                    cv2.circle(vis_img, tuple(kp.astype(int)), 2, (0, 255, 0), -1) # Green circles
+
+
+            # Draw matched keypoints and projections
+            for idx_frame, idx_snap in zip(matched_indices_frame, matched_indices_snap):
+                 kp = frame_kps_2d[idx_frame]
+                 # Ensure kp is not None before proceeding
+                 if kp is None:
+                     continue
+
+                 # Get projection location for this match
+                 proj_match = projections_2d[idx_snap][:2].astype(int)
+
+                 # Draw projection location (optional)
+                 cv2.circle(vis_img, tuple(proj_match), 4, (255, 255, 0), 1) # Cyan circle for projection
+
+                 # Draw matched keypoint
+                 cv2.circle(vis_img, tuple(kp.astype(int)), 5, (0, 0, 255), 1) # Red circle for match
+
+                 # Draw line from projection to match
+                 cv2.line(vis_img, tuple(proj_match), tuple(kp.astype(int)), (255, 0, 255), 1) # Magenta line
+
+            print("  Displaying OpenCV window...")
+            cv2.imshow(f"Snapshot-Frame Matches (Snap: {snapshot.get('timestamp', 'N/A')}, Frame: {getattr(frame, 'id', 'N/A')})", vis_img)
+            print("  Press any key in the OpenCV window to continue...")
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+            print("  OpenCV window closed.")
+        except Exception as e:
+            print(f"Error during OpenCV visualization: {e}")
+            try:
+                cv2.destroyAllWindows()
+            except Exception:
+                pass
+
+    return matched_indices_snap, matched_indices_frame, matched_points_snap_3d_arr, matched_kps_frame_2d_arr
+
+
+#

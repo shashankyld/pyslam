@@ -13,7 +13,7 @@ from loop_detector_configs import LoopDetectorConfigs
 from slam import Slam, SlamState
 import rerun as rr
 import numpy as np
-from utils_rerun import log_image
+# from utils_rerun import log_image, log_common_map_points
 from utils_depth import depth2pointcloud
 from utils_maskrcnn import MaskRCNNUtils 
 from utils_delaunay import filter_delaunay_edges_by_3d_distance
@@ -37,6 +37,7 @@ from keyframe import KeyFrame
 import sys
 import torch
 from sam2_kf_processor import SAM2KeyframeProcessor
+from search_points import *
 
 # Initialize the SAM2 processor
 sam2_processor = SAM2KeyframeProcessor()
@@ -258,13 +259,16 @@ if __name__ == "__main__":
                 cur_snapshot_points, cur_snapshot_colors = cur_map_snapshot["map_points"]["points"], cur_map_snapshot["map_points"]["colors"]
                 log_local_map_snapshot(frame_id=img_id, entity_path="world", points=cur_snapshot_points, current=True)
 
-                ## COMMON MAP POINTS IN THE TWO MAP SNAPSHOTS
-                print("##############ALL ABOUT COMMON MAP POINTS#################")
-                matched_points1, matched_colors1, matched_points2, matched_colors2, good_matches = slam.map_snapshots.get_common_points_by_descriptor(prev_frame.timestamp, cur_frame.timestamp, local = False)
-                print("Number of matched points in the first map snapshot: ", len(matched_points1))
-                print("Number of matched points in the second map snapshot: ", len(matched_points2))
-                print("Number of good matches: ", len(good_matches))
+                # MATCHES BETWEEN TWO MAPSNAPSHOTS
+                print("##############ALL ABOUT MAP SNAPSHOTS#################")
+                matched_indices_prev, matched_indices_cur, matched_points_prev_arr, matched_points_cur_arr = search_common_points_between_snapshots(map_snapshot, cur_map_snapshot)
+                print("Number of matched points between two snapshots: ", len(matched_indices_prev))
+                print("Number of matched points in the previous snapshot: ", len(matched_points_prev_arr))
+                print("Number of matched points in the current snapshot: ", len(matched_points_cur_arr))
+                
 
+
+   
 
 
 

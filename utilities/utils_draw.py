@@ -470,3 +470,5 @@ def visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_ed
     # Display the enlarged image
     cv2.imshow("Matched Edges Between Frames", stacked_image)
     cv2.waitKey(2)
+
+

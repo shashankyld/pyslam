@@ -404,6 +404,8 @@ def log_keyframes(kfs):
     rr.log("keyframes/composite/image", rr.Image(composite_img_array))
     rr.log("keyframes/composite/mask", rr.Image(composite_mask_array))
 
+
+
 def log_all(
     frame_id,
     entity_path="world",
