@@ -369,6 +369,7 @@ class Frame(FrameBase):
         self.depths_detected = None # depths - after detection, never modified
         self.kps_ur_detected = None # right u-coordinates for left keypoints - after detection, never modified
 
+        self.delaunay_idxs = None # delaunay triangulation indexes
         self.kps_delaunay = None # kps selected for delaunay triangulation
         self.kps_delaunay_r = None # right kps selected for delaunay triangulation
         self.kpsu_delaunay = None # undistorted kps selected for delaunay triangulation
@@ -1069,6 +1070,7 @@ class Frame(FrameBase):
             
         with self._lock_features:
             # Populate keypoints for Delaunay triangulation
+            self.delaunay_idxs = indices
             self.kps_delaunay = self.kps[indices] if self.kps is not None else None
             self.kps_delaunay_r = self.kps_r[indices] if self.kps_r is not None else None
             self.kpsu_delaunay = self.kpsu[indices] if self.kpsu is not None else None

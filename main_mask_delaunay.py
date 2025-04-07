@@ -306,10 +306,11 @@ if __name__ == "__main__":
                     # Log images with keypoints
                     log_image("current_frame_with_kps", cur_image_with_kps)
                     log_image("previous_frame_with_kps", prev_image_with_kps)
-                    _,_,curr_delaunay_img = delaunay_with_kps(cur_frame, matched_indices_frame)
+                    tri_indices,tri_vertices,curr_delaunay_img = delaunay_with_kps(cur_frame, matched_indices_frame)
                     log_image("current_frame_delaunay", curr_delaunay_img)
-
-                
+                    curr_delaunay_pts_3d = cur_frame.unproject_points_3d(matched_indices_frame)
+                    # Log 3D Delaunay points in Rerun
+                    # log_delaunay_points_frame("current_frame_delaunay_points", frame, tri_indices, tri_vertices)
 
                 
 
