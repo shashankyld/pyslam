@@ -56,8 +56,8 @@ DATASET:
   # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
   #type: KITTI_DATASET
-  type: TUM_DATASET
-  # type: BONN_DATASET
+  # type: TUM_DATASET
+  type: BONN_DATASET
   #type: REPLICA_DATASET
   # type: VIDEO_DATASET
   #type: FOLDER_DATASET

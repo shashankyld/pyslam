@@ -193,6 +193,7 @@ if __name__ == "__main__":
             log_current_frame_map_points(frame_id=img_id, entity_path="world", points=cur_frame_points, colors=cur_frame_colors)
             log_current_frame_pc(frame_id=img_id, entity_path="world", points=(point_cloud.points/5000), colors=point_cloud.colors)
 
+            log_frame_points(frame_id=img_id, entity_path="world", frame = cur_frame, colors=point_cloud.colors, accumulate=True)
 
             # Check if cu_frame_points is a subset of global_map_points and also local_map_points
             if cur_frame_points is not None and global_map_points is not None:
@@ -313,8 +314,16 @@ if __name__ == "__main__":
                     tri_indices,tri_vertices,curr_delaunay_img = delaunay_with_kps(cur_frame, matched_indices_frame)
                     log_image("current_frame_delaunay", curr_delaunay_img)
                     curr_delaunay_pts_3d,_ = cur_frame.unproject_points_3d(matched_indices_frame)
+                    # Using matched_indices_snap extract mapsnapshot points
+                    delaunay_points_snap_3d_arr = np.array(matched_points_snap_3d_arr)
+
+                    print("Length of delaunay_points_snap_3d_arr: ", len(delaunay_points_snap_3d_arr))
+                    print("Length of curr_delaunay_pts_3d: ", len(curr_delaunay_pts_3d))
+                    log_delaunay_map_points_3d(delaunay_map_points_3d=delaunay_points_snap_3d_arr)
                     # Log 3D Delaunay points in Rerun
                     log_delaunay_points_3d(curr_delaunay_pts_3d=curr_delaunay_pts_3d)
+
+                    
                 
 
 
@@ -397,33 +406,33 @@ if __name__ == "__main__":
                 #     updated_keyframes = sam2_processor.process_keyframes(keyframes)
                 
 
-                ## TODO: VISUALIZATION OF KEYFRAME ONLY POINT CLOUDS (COMPLETE)
-                # # If depth data is available, visualize it as a point cloud
-                # if depth_img is not None and cur_frame is not None:
-                #     # If the cur_frame is a keyframe, we can visualize the depth point clou
-                #     if cur_frame.is_keyframe_candidate:
+                # TODO: VISUALIZATION OF KEYFRAME ONLY POINT CLOUDS (COMPLETE)
+                # If depth data is available, visualize it as a point cloud
+                if depth_img is not None and cur_frame is not None:
+                    # If the cur_frame is a keyframe, we can visualize the depth point clou
+                    if cur_frame.is_keyframe_candidate:
                         
-                #         # Get point cloud from depth image
-                #         point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
-                #             transform_in_world=True, 
-                #             mask=dynamic_mask if dynamic_mask is not None else None
-                #         )
+                        # Get point cloud from depth image
+                        point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
+                            transform_in_world=True, 
+                            mask=dynamic_mask if dynamic_mask is not None else None
+                        )
                         
-                #         if point_cloud_3d is not None and len(point_cloud_3d) > 0:
-                #             # Downsample the point cloud to avoid overwhelming visualization
-                #             downsample_factor = 10  # Adjust as needed
-                #             downsampled_points = point_cloud_3d[::downsample_factor]
-                #             downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
+                        if point_cloud_3d is not None and len(point_cloud_3d) > 0:
+                            # Downsample the point cloud to avoid overwhelming visualization
+                            downsample_factor = 10  # Adjust as needed
+                            downsampled_points = point_cloud_3d[::downsample_factor]
+                            downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
                             
-                #             # Log depth point cloud
-                #             rr.log(
-                #                 f"world/frame_{img_id}/depth_cloud",
-                #                 rr.Points3D(
-                #                     downsampled_points,
-                #                     colors=downsampled_colors,
-                #                     radii=0.01
-                #                 )
-                #             )
+                            # Log depth point cloud
+                            rr.log(
+                                f"world/frame_{img_id}/depth_cloud",
+                                rr.Points3D(
+                                    downsampled_points,
+                                    colors=downsampled_colors,
+                                    radii=0.01
+                                )
+                            )
 
                         # Log prompt points on the image 
                         

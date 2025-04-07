@@ -423,7 +423,7 @@ def log_keyframes(kfs):
     rr.log("keyframes/composite/image", rr.Image(composite_img_array))
     rr.log("keyframes/composite/mask", rr.Image(composite_mask_array))
 
-def log_delaunay_points_3d(curr_delaunay_pts_3d, entity_path = "world"+"/delaunay_points_3d"):
+def log_delaunay_points_3d(curr_delaunay_pts_3d, entity_path = "world"+"/delaunay__frame_points_3d"):
     """
     Logs the Delaunay triangulation points in 3D space to rerun.
     
@@ -443,6 +443,24 @@ def log_delaunay_points_3d(curr_delaunay_pts_3d, entity_path = "world"+"/delauna
         rr.Points3D(curr_delaunay_pts_3d, colors=(255, 0, 0)),  # Red color for Delaunay points
     )
 
+def log_delaunay_map_points_3d(delaunay_map_points_3d, entity_path = "world"+"/delaunay_map_points_3d"):
+    """
+    Logs the Delaunay triangulation points in 3D space to rerun.
+    
+    Parameters:
+    -----------
+    curr_delaunay_pts_3d : np.ndarray
+        Array of Delaunay points in 3D space.
+    entity_path : str
+        Base path for the entity in the visualization.
+    """
+    if delaunay_map_points_3d is None:
+        return
+    # Log the Delaunay points in 3D
+    rr.log(
+        f"{entity_path}/delaunay_map_points",
+        rr.Points3D(delaunay_map_points_3d, colors=(0, 255, 0)),  # Green color for Delaunay points
+    )
 
 def log_all(
     frame_id,

@@ -992,8 +992,10 @@ class Frame(FrameBase):
 
             # Optionally transform points to world coordinates if required
             if transform_in_world:
-                pts3d = (self._pose.Rwc @ pts3d.T + self._pose.Ow[:, np.newaxis]).T  # Shape (height * width, 3)
-            return pts3d, rgb_values
+                # 
+                
+                pts3d = (self._pose.Rwc @ pts3d.T + self._pose.Ow[:, np.newaxis]).T  # Shape (height * width, 3) 
+                return pts3d, rgb_values
         else:
             return None, None
                                                                

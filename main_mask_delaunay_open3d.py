@@ -38,6 +38,8 @@ import sys
 import torch
 from sam2_kf_processor import SAM2KeyframeProcessor
 from search_points import *
+import open3d as o3d
+import numpy as np
 
 # Initialize the SAM2 processor
 sam2_processor = SAM2KeyframeProcessor()
@@ -104,17 +106,15 @@ if __name__ == "__main__":
         gt_traj3d, gt_timestamps = groundtruth.getFull3dTrajectory()
     print("gt_traj3d: ", gt_traj3d.shape)
 
-    # Initialize rerun for visualization
-    rerun_record_name = f"pyslam_{dataset.name}_{int(time.time())}"  # Add timestamp for uniqueness
-    rr.init(rerun_record_name, spawn=True)
-    
-    rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
 
+    origin = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0, 0, 0])
 
-
+ 
+    poses = []
+    point_clouds = []
 
     # Processing the dataset 
-    starting_img_id = 215# 215 is close to human entrance
+    starting_img_id = 215  # 215 is close to human entrance
     img_id = starting_img_id
     camera_path = []  # To collect camera positions for trajectory visualization
     while True: 
@@ -137,14 +137,14 @@ if __name__ == "__main__":
             logging.debug("image with id %d has timestamp %f and next_timestamp %f, frame_duration: %f", img_id, timestamp, next_timestamp, frame_duration)
             logging.debug("logging data associated to id %d to rerun", img_id)
 
-            # Set rerun time to current timestamp if available
-            if timestamp is not None:
-                rr.set_time_seconds("frame_timestamp", timestamp)
-
             point_cloud = depth2pointcloud(depth_img, img, 
                                        config.cam_settings["Camera.fx"], config.cam_settings["Camera.fy"], 
                                        config.cam_settings["Camera.cx"], config.cam_settings["Camera.cy"], 
                                        max_depth=100000.0, min_depth=0.0)
+
+
+
+            
 
             # Entry point to dynamic object segmentation
             #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
@@ -172,6 +172,9 @@ if __name__ == "__main__":
             logging.debug("SLAM tracking took %f seconds", time.time() - time_start)
 
 
+                
+
+
             # Getting access to the current frame properties after being populated by the SLAM system
             cur_frame = slam.tracking.f_cur  # Class Frame
             cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
@@ -188,12 +191,7 @@ if __name__ == "__main__":
             global_map_points, global_map_colors = slam.map.get_points_as_np()
             local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
 
-            log_local_map(frame_id=img_id, entity_path="world", points=local_map_points)
-            log_global_map(frame_id=img_id, entity_path="world", points=global_map_points, colors=global_map_colors)
-            log_current_frame_map_points(frame_id=img_id, entity_path="world", points=cur_frame_points, colors=cur_frame_colors)
-            log_current_frame_pc(frame_id=img_id, entity_path="world", points=(point_cloud.points/5000), colors=point_cloud.colors)
-
-
+            
             # Check if cu_frame_points is a subset of global_map_points and also local_map_points
             if cur_frame_points is not None and global_map_points is not None:
                 if len(cur_frame_points) > 0 and len(global_map_points) > 0:
@@ -217,7 +215,36 @@ if __name__ == "__main__":
                     is_subset = np.all(np.isin(local_map_points, cur_frame_points))
                     print("Is local_map_points a subset of cur_frame_points: ", is_subset)
             
+            pc_pts = point_cloud.points
+            pc_colors = point_cloud.colors
 
+            # Frame Twc 
+            Twc = cur_frame.Twc
+            # Transform the point cloud to the world frame
+            pc_pts = np.dot(Twc[:3, :3], pc_pts.T).T + Twc[:3, 3]
+        
+
+
+            # Check if the point cloud contains any points
+            if len(pc_pts) > 0:
+                   # Initialize an empty point cloud
+                pc_pcd = o3d.geometry.PointCloud()
+                # *** FIX: Update the points and colors of the EXISTING pc_pcd object ***
+                pc_pcd.points = o3d.utility.Vector3dVector(pc_pts)
+                pc_pcd.colors = o3d.utility.Vector3dVector(pc_colors)
+                point_clouds.append(pc_pcd)
+                # Visualize the point clouds and origin
+                o3d.visualization.draw_geometries([origin] + point_clouds,
+                                                  window_name="Point Cloud Visualization",
+                                                  width=800, height=600,
+                                                  left=50, top=50,
+                                                  mesh_show_back_face=True)
+            else:
+                # Optional: Handle empty point clouds, e.g., clear the visualizer's points
+                pc_pcd.points = o3d.utility.Vector3dVector(np.array([[0, 0, 0]])) # Keep dummy or clear
+                pc_pcd.colors = o3d.utility.Vector3dVector(np.array([[0, 0, 0]]))
+
+                logging.warning("Empty point cloud detected for frame %d", img_id)
 
 
             # # # Log to rerun
@@ -254,32 +281,14 @@ if __name__ == "__main__":
                 # print("Map snapshot: ", map_snapshot)
                 print("Map snapshot keys: ", map_snapshot.keys())
                 snapshot_points, snapshot_colors = map_snapshot["map_points"]["points"], map_snapshot["map_points"]["colors"]
-                log_local_map_snapshot(frame_id=img_id, entity_path="world", points=snapshot_points)
-
-                """             
-                cur_map_snapshot = slam.map_snapshots.get_snapshot(timestamp=cur_frame.timestamp)
-                # print("Current map snapshot: ", cur_map_snapshot)
-                print("Current map snapshot keys: ", cur_map_snapshot.keys())
-                cur_snapshot_points, cur_snapshot_colors = cur_map_snapshot["map_points"]["points"], cur_map_snapshot["map_points"]["colors"]
-                log_local_map_snapshot(frame_id=img_id, entity_path="world", points=cur_snapshot_points, current=True)
-
-                
-                # MATCHES BETWEEN TWO MAPSNAPSHOTS - NOT ROBUST, TRACK MAPSNAPSHOT AND FRAME POINTS INSTEAD
-                print("##############ALL ABOUT MAP SNAPSHOTS#################")
-                matched_indices_prev, matched_indices_cur, matched_points_prev_arr, matched_points_cur_arr = search_common_points_between_snapshots(map_snapshot, cur_map_snapshot)
-                print("Number of matched points between two snapshots: ", len(matched_indices_prev))
-                print("Number of matched points in the previous snapshot: ", len(matched_points_prev_arr))
-                print("Number of matched points in the current snapshot: ", len(matched_points_cur_arr))
-                """
+           
 
                 matched_indices_snap, matched_indices_frame, matched_points_snap_3d_arr, matched_kps_frame_2d_arr, snap_frame_img = search_common_points_snapshot_frame(map_snapshot,  cur_frame,max_reproj_distance=25, max_descriptor_distance=50, ratio_test = 0.8,visualize=True, frame_img = curr_img)
                 print("Number of matched points between two snapshots: ", len(matched_indices_snap))
                 print("Number of matched points in the previous snapshot: ", len(matched_points_snap_3d_arr))
                 print("Number of matched points in the current frame: ", len(matched_kps_frame_2d_arr))
 
-                # Log snap_frame_img
-                log_image("snap_frame_img", snap_frame_img)
-
+                
                 # Update the current frame's Delaunay attributes with matched indices
                 if len(matched_indices_frame) > 0:
                     cur_frame.update_delaunay_attributes(matched_indices_frame)
@@ -307,15 +316,16 @@ if __name__ == "__main__":
                 if hasattr(cur_frame, 'kpsu_delaunay') and cur_frame.kpsu_delaunay is not None and len(cur_frame.kpsu_delaunay) > 0:
                     cur_image_with_kps = visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
                     prev_image_with_kps = visualize_frame_kps(prev_frame, "Previous Frame", scale_factor=1)
-                    # Log images with keypoints
-                    log_image("current_frame_with_kps", cur_image_with_kps)
-                    log_image("previous_frame_with_kps", prev_image_with_kps)
+                  
                     tri_indices,tri_vertices,curr_delaunay_img = delaunay_with_kps(cur_frame, matched_indices_frame)
-                    log_image("current_frame_delaunay", curr_delaunay_img)
+                 
                     curr_delaunay_pts_3d,_ = cur_frame.unproject_points_3d(matched_indices_frame)
-                    # Log 3D Delaunay points in Rerun
-                    log_delaunay_points_3d(curr_delaunay_pts_3d=curr_delaunay_pts_3d)
-                
+                    # Using matched_indices_snap extract mapsnapshot points
+                    delaunay_points_snap_3d_arr = np.array(matched_points_snap_3d_arr)
+
+                    print("Length of delaunay_points_snap_3d_arr: ", len(delaunay_points_snap_3d_arr))
+                    print("Length of curr_delaunay_pts_3d: ", len(curr_delaunay_pts_3d))
+
 
 
                 ## FRAME POINTS
@@ -374,86 +384,6 @@ if __name__ == "__main__":
                         delaunay_visualization(prev_delaunay_img, curr_delaunay_img)
 
 
-                ## TODO: PART OF THE CODE LOGS Keyframe images and masks (COMPLETE  )
-                # # Print keyframes 
-                # print("Keyframes: ", slam.map.get_keyframes()) # Ordered Set
-                # kf_data = []
-                # for kf in slam.map.get_keyframes():
-                #     kf_data_i = KeyFrameData(kf)
-                #     kf_data.append(kf_data_i)
-                # log_keyframes(kf_data)
-                # # log_keyframes_poses(kf_data)
-
-
-                
-                ## TODO: PART OF THE CODE THAT IMPLIMENTS SAM2 BASED SEGMENTATION (COMPLETE)
-                # # Now add the code to process keyframes when new ones are created
-                # if slam.map.num_keyframes() > 0:
-                #     # Get all keyframes for processing
-                #     keyframes = slam.map.get_keyframes()
-                    
-                #     # Process keyframes with SAM2
-                #     print(f"Processing {len(keyframes)} keyframes with SAM2...")
-                #     updated_keyframes = sam2_processor.process_keyframes(keyframes)
-                
-
-                ## TODO: VISUALIZATION OF KEYFRAME ONLY POINT CLOUDS (COMPLETE)
-                # # If depth data is available, visualize it as a point cloud
-                # if depth_img is not None and cur_frame is not None:
-                #     # If the cur_frame is a keyframe, we can visualize the depth point clou
-                #     if cur_frame.is_keyframe_candidate:
-                        
-                #         # Get point cloud from depth image
-                #         point_cloud_3d, point_cloud_colors = cur_frame.get_dense_depth_map(
-                #             transform_in_world=True, 
-                #             mask=dynamic_mask if dynamic_mask is not None else None
-                #         )
-                        
-                #         if point_cloud_3d is not None and len(point_cloud_3d) > 0:
-                #             # Downsample the point cloud to avoid overwhelming visualization
-                #             downsample_factor = 10  # Adjust as needed
-                #             downsampled_points = point_cloud_3d[::downsample_factor]
-                #             downsampled_colors = point_cloud_colors[::downsample_factor] / 255.0
-                            
-                #             # Log depth point cloud
-                #             rr.log(
-                #                 f"world/frame_{img_id}/depth_cloud",
-                #                 rr.Points3D(
-                #                     downsampled_points,
-                #                     colors=downsampled_colors,
-                #                     radii=0.01
-                #                 )
-                #             )
-
-                        # Log prompt points on the image 
-                        
-                
-
-                # prev_frame_dict = convert_frame_to_delaunay_dict(prev_frame, idxs_ref)
-                # cur_frame_dict = convert_frame_to_delaunay_dict(cur_frame, idxs_cur)
-
-                # common_edges = get_common_edges(prev_frame_dict, cur_frame_dict)
-                
-                # if Parameters.kShowDebugImages:
-                #     draw_common_edges(prev_frame, cur_frame, common_edges)
-            
-                # dynamic_edges = get_dynamic_edges(cur_frame, prev_frame, common_edges, threshold=0.2)
-
-                # if Parameters.kShowDebugImages:
-                #     draw_dynamic_edges(prev_frame, cur_frame, dynamic_edges)
-                
-                # static_edges = get_static_edges(common_edges, dynamic_edges)
-
-                # print("Static edges: ", static_edges)
-                    
-                
-                # if Parameters.kShowDebugImages:
-                #     draw_static_edges(prev_frame, cur_frame, static_edges)
-
-                # if Parameters.kShowDebugImages:
-                #     visualize_matched_kps(prev_frame, cur_frame, idxs_ref, idxs_cur)
-             
-
      
           
             if img_id == starting_img_id:
@@ -472,10 +402,10 @@ if __name__ == "__main__":
             img_id += 1
             time.sleep(0.0001)
           
-            
             if img_id ==300:
                 # Save the map 
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/maskrcnn_500_slam_state_2/")
+                print("Map saved")
                 break
         # When dataset is not ok or image is None
         else:
@@ -483,39 +413,3 @@ if __name__ == "__main__":
             break
 
 
-
-
-## TODO:
-"""
-
-1.Identify common map points between two local maps at different timestamps.
-1.0. Figure out why sometimes, the cur_frame_points are not a subset of the global map points. It should be. Figure out how frame points are created.
-# Is cur_frame_points a subset of global_map_points:  True
-# Is cur_frame_points a subset of local_map_points:  False
-# Is global_map_points a subset of cur_frame_points:  False
-# Is local_map_points a subset of cur_frame_points:  False
-
-2.Project these common map points onto the images from the two timestamps.
-3.Match the common map points to keypoints in the two frames.
-4.This will give you 3D landmarks shared between the two local maps and present as keypoints in both frames.
-5.Perform Delaunay triangulation on the current frame using only keypoints that are in the common map points of both local maps and also present in both images.
-6.Compare the edge lengths of the Delaunay triangulation in both local maps, connecting the same keypoints in both images and local maps.
-7.Use the edge lengths to classify the edges as static or dynamic.
-8.Visualize the edges in the images and in 3D space.
-9.Visualize the edges in the 3D space of the current frame’s RGBD point cloud.
-10.Visualize the edges in the 3D space of the local map point cloud.
-11.Use Depth-First Search (DFS) to group the edges into connected components.
-12.Visualize the connected components in the images and in 3D space.
-13.For the connected components, calculate the average motion of all points from the previous local map to the current local map.
-14.Combine the connected components that are nearly stationary into static objects.
-15.For the remaining components, create a separate SAM2 object for each dynamic object.
-16.Track the objects from frame to frame to handle cases like object crossings and occlusions, such as two humans passing each other.
-17.Use color histograms to help track objects between frames.
-18.For tracking, add the current frame to a set of keyframe images with prompts to achieve robust object segmentation.
-19.After segmenting the current frame, remove it from the keyframe image set and reset the SAM2 memory, or simply use SAM2ImagePredictor for the current image.
-19.1. I should also remove points from the local map, and also from the map snapshots whenever we find a mask from SAM2, all the points that lie inside the mask when projected on to the image.
-20.For mapping, use the existing framework of a set of images with prompts to refine the segmentation of dynamic objects.
-21.Ensure SAM2 video segmentation shares information with previous frames, as detecting objects at the scene’s edge is difficult with local frame-based Delaunay when they first appear, often missing from the local map.
-21.1. We should also remove points from the local map, whenever we do mapping once again - double redundancy because mask propagation can give new regions for dynamic objects.
-22.Integrate Gaussian Splatting as an offline method by saving all keyframes and their final segmentation masks.
-"""
