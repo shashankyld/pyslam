@@ -259,14 +259,22 @@ if __name__ == "__main__":
                 cur_snapshot_points, cur_snapshot_colors = cur_map_snapshot["map_points"]["points"], cur_map_snapshot["map_points"]["colors"]
                 log_local_map_snapshot(frame_id=img_id, entity_path="world", points=cur_snapshot_points, current=True)
 
-                # MATCHES BETWEEN TWO MAPSNAPSHOTS
+                """
+                # MATCHES BETWEEN TWO MAPSNAPSHOTS - NOT ROBUST, TRACK MAPSNAPSHOT AND FRAME POINTS INSTEAD
                 print("##############ALL ABOUT MAP SNAPSHOTS#################")
                 matched_indices_prev, matched_indices_cur, matched_points_prev_arr, matched_points_cur_arr = search_common_points_between_snapshots(map_snapshot, cur_map_snapshot)
                 print("Number of matched points between two snapshots: ", len(matched_indices_prev))
                 print("Number of matched points in the previous snapshot: ", len(matched_points_prev_arr))
                 print("Number of matched points in the current snapshot: ", len(matched_points_cur_arr))
-                
+                """
 
+                matched_indices_snap, matched_indices_frame, matched_points_snap_3d_arr, matched_kps_frame_2d_arr = search_common_points_snapshot_frame(map_snapshot,  cur_frame,max_reproj_distance=25, max_descriptor_distance=50, ratio_test = 0.8,visualize=True, frame_img = curr_img)
+                print("Number of matched points between two snapshots: ", len(matched_indices_snap))
+                print("Number of matched points in the previous snapshot: ", len(matched_points_snap_3d_arr))
+                print("Number of matched points in the current frame: ", len(matched_kps_frame_2d_arr))
+
+            
+            
 
    
 

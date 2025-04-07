@@ -1421,11 +1421,9 @@ def search_common_points_snapshot_frame(
                  cv2.line(vis_img, tuple(proj_match), tuple(kp.astype(int)), (255, 0, 255), 1) # Magenta line
 
             print("  Displaying OpenCV window...")
-            cv2.imshow(f"Snapshot-Frame Matches (Snap: {snapshot.get('timestamp', 'N/A')}, Frame: {getattr(frame, 'id', 'N/A')})", vis_img)
-            print("  Press any key in the OpenCV window to continue...")
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-            print("  OpenCV window closed.")
+            cv2.imshow(f"Snapshot-Frame Matches", vis_img)
+            cv2.waitKey(1)
+
         except Exception as e:
             print(f"Error during OpenCV visualization: {e}")
             try:
