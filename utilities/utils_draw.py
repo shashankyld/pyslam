@@ -297,104 +297,58 @@ def visualize_common_simplicies(curr_img, prev_img, curr_dict, prev_dict):
     cv2.imshow("Common Simplicies", stacked_image)
     cv2.waitKey(2)
 
-def visualize_frame_kps(frame, window_name="Frame Keypoints", scale_factor=1, wait_time=2):
+
+
+def visualize_frame_kps(frame, window_name="Frame Keypoints", scale_factor=1):
     """
-    Visualizes a frame's image with its keypoints overlaid.
+    Visualize keypoints on a frame image.
     
     Args:
-        frame: Frame object containing image (frame.img) and keypoints (frame.kpsu)
-        window_name: Name of the display window (default: "Frame Keypoints")
-        scale_factor: Factor to scale the image size (default: 1)
-        wait_time: Time to wait in milliseconds for cv2.waitKey (default: 2)
+        frame: Frame object containing keypoints and image
+        window_name: Name of the window to display
+        scale_factor: Scale factor for the displayed image
+        
+    Returns:
+        The image with keypoints drawn on it
     """
-    # Create a copy of the image to draw on
-    display_img = frame.img.copy()
-    if display_img.ndim == 2:
-        display_img = cv2.cvtColor(display_img, cv2.COLOR_GRAY2BGR)
+    if frame is None or frame.img is None:
+        print("Warning: Frame or frame image is None")
+        return None
     
-    # Draw all keypoints
-    for kp in frame.kpsu:
-        # Convert keypoint coordinates to integers
-        pt = tuple(map(int, kp))
-        # Draw keypoint as a small circle with random color
-        color = tuple(np.random.randint(0, 255, 3).tolist())
-        cv2.circle(display_img, pt, 2, color, -1)
-        # Draw a larger circle around the keypoint
-        cv2.circle(display_img, pt, 4, (0, 255, 0), 1)
+    # Make a copy of the image to draw on
+    img_with_kps = frame.img.copy()
     
-    # Resize image if scale factor is not 1
+    # Define colors for different keypoint types
+    color_normal = (0, 255, 0)     # Green for normal keypoints
+    color_matched = (0, 0, 255)    # Red for matched keypoints (with map points)
+    color_delaunay = (255, 0, 0)   # Blue for keypoints selected for Delaunay
+    
+    # Draw normal keypoints if available
+    if frame.kpsu is not None:
+        for i, kp in enumerate(frame.kpsu):
+            # Determine if this keypoint has a map point match
+            has_point_match = frame.points is not None and i < len(frame.points) and frame.points[i] is not None
+            color = color_matched if has_point_match else color_normal
+            cv2.circle(img_with_kps, (int(kp[0]), int(kp[1])), 3, color, 1)
+    
+    # # Draw Delaunay keypoints if available
+    # if hasattr(frame, 'kpsu_delaunay') and frame.kpsu_delaunay is not None:
+    #     for kp in frame.kpsu_delaunay:
+    #         cv2.circle(img_with_kps, (int(kp[0]), int(kp[1])), 5, color_delaunay, 2)
+    
+    # Resize the image if requested
     if scale_factor != 1:
-        display_img = cv2.resize(display_img, 
-                               (int(display_img.shape[1] * scale_factor),
-                                int(display_img.shape[0] * scale_factor)))
+        width = int(img_with_kps.shape[1] * scale_factor)
+        height = int(img_with_kps.shape[0] * scale_factor)
+        img_with_kps = cv2.resize(img_with_kps, (width, height))
     
     # Display the image
-    cv2.imshow(window_name, display_img)
-    cv2.waitKey(wait_time)
-    return display_img
+    cv2.imshow(window_name, img_with_kps)
+    cv2.waitKey(1)
+    
+    return img_with_kps
 
-
-
     
-# def visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_edges_overall, fraction=0.05):
-#     """
-#     Visualizes edges (connections between keypoints) that are common between the current and previous frames.
-    
-#     Args:
-#         prev_frame: Previous frame object containing keypoints and image.
-#         cur_frame: Current frame object containing keypoints and image.
-#         idxs_ref: Indices of keypoints in the previous frame that are matched.
-#         idxs_cur: Indices of keypoints in the current frame that are matched.
-#         common_edges_overall: List of edges (tuples) representing connections between common keypoints.
-#         fraction: Fraction of edges to visualize (default: 0.05).
-#     """
-#     # Stack the previous and current images side by side
-#     stacked_image = np.hstack((prev_frame.img, cur_frame.img))
-    
-#     if len(common_edges_overall) == 0:
-#         print("No common edges to visualize.")
-#         return
-    
-#     # Randomly select a subset of edges based on the specified fraction
-#     num_edges = len(common_edges_overall)
-#     selected_edges = random.sample(common_edges_overall, max(1, int(fraction * num_edges)))
-    
-#     prev_width = prev_frame.img.shape[1]  # Width of the previous image for offsetting current frame
-    
-#     for edge in selected_edges:
-#         i, j = edge  # Indices in the common keypoints list
-        
-#         # Retrieve keypoints from previous frame using idxs_ref
-#         prev_kp1 = tuple(map(int, prev_frame.kpsu[idxs_ref[i]]))
-#         prev_kp2 = tuple(map(int, prev_frame.kpsu[idxs_ref[j]]))
-        
-#         # Retrieve keypoints from current frame using idxs_cur and adjust x-coordinate for stacking
-#         cur_kp1 = tuple(map(int, cur_frame.kpsu[idxs_cur[i]]))
-#         cur_kp2 = tuple(map(int, cur_frame.kpsu[idxs_cur[j]]))
-#         cur_kp1_right = (cur_kp1[0] + prev_width, cur_kp1[1])
-#         cur_kp2_right = (cur_kp2[0] + prev_width, cur_kp2[1])
-        
-#         # Generate a random color for consistent visualization across frames
-#         color = tuple(np.random.randint(0, 255, 3).tolist())
-        
-#         # Draw edges in the previous frame (left side)
-#         cv2.line(stacked_image, prev_kp1, prev_kp2, color, 1)
-        
-#         # Draw edges in the current frame (right side)
-#         cv2.line(stacked_image, cur_kp1_right, cur_kp2_right, color, 1)
-        
-#         # Draw circles at keypoints and connecting lines across frames (optional)
-#         cv2.circle(stacked_image, prev_kp1, 2, color, -1)
-#         cv2.circle(stacked_image, prev_kp2, 2, color, -1)
-#         cv2.circle(stacked_image, cur_kp1_right, 2, color, -1)
-#         cv2.circle(stacked_image, cur_kp2_right, 2, color, -1)
-#         cv2.line(stacked_image, prev_kp1, cur_kp1_right, color, 1)
-#         cv2.line(stacked_image, prev_kp2, cur_kp2_right, color, 1)
-    
-#     cv2.imshow("Matched Edges Between Frames", stacked_image)
-#     cv2.waitKey(2)
-
-
 def visualize_matched_edges(prev_frame, cur_frame, idxs_ref, idxs_cur, common_edges_overall, fraction=1, scale_factor=2, line_thickness=3):
     """
     Visualizes edges (connections between keypoints) that are common between the current and previous frames,

@@ -368,6 +368,21 @@ class Frame(FrameBase):
         self.des_r_detected = None # right descriptors - after detection, never modified
         self.depths_detected = None # depths - after detection, never modified
         self.kps_ur_detected = None # right u-coordinates for left keypoints - after detection, never modified
+
+        self.kps_delaunay = None # kps selected for delaunay triangulation
+        self.kps_delaunay_r = None # right kps selected for delaunay triangulation
+        self.kpsu_delaunay = None # undistorted kps selected for delaunay triangulation
+        self.kpsn_delaunay = None # normalized kps selected for delaunay triangulation
+        self.kpsu_delaunay_r = None # undistorted right kps selected for delaunay triangulation
+        self.kpsn_delaunay_r = None # normalized right kps selected for delaunay triangulation
+        self.octaves_delaunay = None # octaves selected for delaunay triangulation
+        self.octabes_r_delaunay = None # right octaves selected for delaunay triangulation
+        self.sizes_delaunay = None # sizes selected for delaunay triangulation
+        self.angles_delaunay = None # angles selected for delaunay triangulation
+        self.des_delaunay = None # descriptors selected for delaunay triangulation
+        self.des_r_delaunay = None # right descriptors selected for delaunay triangulation
+        self.depths_delaunay = None # depths selected for delaunay triangulation
+        
                                                         
         if img is not None:
             #self.H, self.W = img.shape[0:2]                 
@@ -1041,6 +1056,38 @@ class Frame(FrameBase):
     def draw_all_feature_trails(self, img):
         kps_idxs = range(len(self.kps))
         return self.draw_feature_trails(img, kps_idxs)   
+
+    def update_delaunay_attributes(self, indices):
+        """
+        Update Delaunay-related attributes based on provided indices.
+        
+        Args:
+            indices: Array of indices for keypoints to be used in Delaunay triangulation
+        """
+        if indices is None or len(indices) == 0:
+            return
+            
+        with self._lock_features:
+            # Populate keypoints for Delaunay triangulation
+            self.kps_delaunay = self.kps[indices] if self.kps is not None else None
+            self.kps_delaunay_r = self.kps_r[indices] if self.kps_r is not None else None
+            self.kpsu_delaunay = self.kpsu[indices] if self.kpsu is not None else None
+            self.kpsn_delaunay = self.kpsn[indices] if self.kpsn is not None else None
+            self.kpsu_delaunay_r = self.kpsu_r[indices] if hasattr(self, 'kpsu_r') and self.kpsu_r is not None else None
+            self.kpsn_delaunay_r = self.kpsn_r[indices] if hasattr(self, 'kpsn_r') and self.kpsn_r is not None else None
+            
+            # Populate feature information for Delaunay triangulation
+            self.octaves_delaunay = self.octaves[indices] if self.octaves is not None else None
+            self.octaves_r_delaunay = self.octaves_r[indices] if self.octaves_r is not None else None
+            self.sizes_delaunay = self.sizes[indices] if self.sizes is not None else None
+            self.angles_delaunay = self.angles[indices] if self.angles is not None else None
+            
+            # Populate descriptors for Delaunay triangulation
+            self.des_delaunay = self.des[indices] if self.des is not None else None
+            self.des_r_delaunay = self.des_r[indices] if self.des_r is not None else None
+            
+            # Populate depths for Delaunay triangulation
+            self.depths_delaunay = self.depths[indices] if self.depths is not None else None
 
 ####################################################################################
 #  Frame utils 

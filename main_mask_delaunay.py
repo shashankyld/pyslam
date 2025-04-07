@@ -276,13 +276,10 @@ if __name__ == "__main__":
                 # Log snap_frame_img
                 log_image("snap_frame_img", snap_frame_img)
 
-            
-            
-
-   
-
-
-
+                # Update the current frame's Delaunay attributes with matched indices
+                if len(matched_indices_frame) > 0:
+                    cur_frame.update_delaunay_attributes(matched_indices_frame)
+                    
 
                 # Initialize detected keypoints if missing
                 if prev_frame.kps is not None and prev_frame.kps_detected is None:
@@ -302,12 +299,20 @@ if __name__ == "__main__":
                 print("Number of keypoints in the current frame: ", len(cur_frame.kps_detected))
                 print("Number of keypoints in the previous frame: ", len(prev_frame.kps_detected))
 
-                cur_image_with_kps = visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
-                prev_image_with_kps = visualize_frame_kps(prev_frame, "Previous Frame", scale_factor=1)
+                # Fix: Check if kpsu_delaunay exists and is not None before checking its length
+                if hasattr(cur_frame, 'kpsu_delaunay') and cur_frame.kpsu_delaunay is not None and len(cur_frame.kpsu_delaunay) > 0:
+                    cur_image_with_kps = visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
+                    prev_image_with_kps = visualize_frame_kps(prev_frame, "Previous Frame", scale_factor=1)
+                    # Log images with keypoints
+                    log_image("current_frame_with_kps", cur_image_with_kps)
+                    log_image("previous_frame_with_kps", prev_image_with_kps)
+                    _,_,curr_delaunay_img = delaunay_with_kps(cur_frame, matched_indices_frame)
+                    log_image("current_frame_delaunay", curr_delaunay_img)
 
-                # Log images with keypoints
-                log_image("current_frame_with_kps", cur_image_with_kps)
-                log_image("previous_frame_with_kps", prev_image_with_kps)
+                
+
+                
+
 
                 ## FRAME POINTS
                 print("##############ALL ABOUT FRAME POINTS#################")
