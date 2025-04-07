@@ -24,12 +24,31 @@ def log_camera(entity_path, world_T_cam_44, K_44):
 
     rr.log(entity_path, rr.Transform3D(translation=trans, mat3x3=Rot))
 
-
+import cv2
 def log_image(entity, image):
     """Logs an image to rerun."""
-    rr.log(f"{entity}", rr.Image(image))
-
-
+    if image is None:
+        print(f"Warning: Attempted to log None image to {entity}")
+        return
+    
+    # Check for empty or invalid image
+    if not isinstance(image, np.ndarray) or image.size == 0 or len(image.shape) < 2:
+        print(f"Warning: Invalid image shape {getattr(image, 'shape', 'unknown')} for {entity}")
+        # Create a small placeholder image instead
+        placeholder = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.putText(placeholder, "No Image", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        rr.log(f"{entity}", rr.Image(placeholder))
+        return
+    
+    try:
+        rr.log(f"{entity}", rr.Image(image))
+    except Exception as e:
+        print(f"Error logging image to {entity}: {e}")
+        # Create a small error image instead
+        error_img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.putText(error_img, "Error", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        rr.log(f"{entity}", rr.Image(error_img))
+        
 def log_local_map(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
     """Logs the local map to rerun."""
     # points = get_local_map(frame_id)  # Removed the call to get_local_map

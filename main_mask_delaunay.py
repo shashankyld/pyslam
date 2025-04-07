@@ -268,10 +268,13 @@ if __name__ == "__main__":
                 print("Number of matched points in the current snapshot: ", len(matched_points_cur_arr))
                 """
 
-                matched_indices_snap, matched_indices_frame, matched_points_snap_3d_arr, matched_kps_frame_2d_arr = search_common_points_snapshot_frame(map_snapshot,  cur_frame,max_reproj_distance=25, max_descriptor_distance=50, ratio_test = 0.8,visualize=True, frame_img = curr_img)
+                matched_indices_snap, matched_indices_frame, matched_points_snap_3d_arr, matched_kps_frame_2d_arr, snap_frame_img = search_common_points_snapshot_frame(map_snapshot,  cur_frame,max_reproj_distance=25, max_descriptor_distance=50, ratio_test = 0.8,visualize=True, frame_img = curr_img)
                 print("Number of matched points between two snapshots: ", len(matched_indices_snap))
                 print("Number of matched points in the previous snapshot: ", len(matched_points_snap_3d_arr))
                 print("Number of matched points in the current frame: ", len(matched_kps_frame_2d_arr))
+
+                # Log snap_frame_img
+                log_image("snap_frame_img", snap_frame_img)
 
             
             

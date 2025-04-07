@@ -1279,11 +1279,11 @@ def search_common_points_snapshot_frame(
     # --- Snapshot Input Validation ---
     if snap_points_3d is None or snap_des is None or len(snap_points_3d) == 0:
         print("Warning: Missing points or descriptors in snapshot, or snapshot empty.")
-        return [], [], [], []
+        return [], [], [], [], []
     if len(snap_points_3d) != len(snap_des):
         print(f"Warning: Mismatch between point count ({len(snap_points_3d)}) and "
               f"descriptor count ({len(snap_des)}) in snapshot. Skipping.")
-        return [], [], [], []
+        return [], [], [], [], []
 
     # --- Safely get frame data ---
     try:
@@ -1306,11 +1306,11 @@ def search_common_points_snapshot_frame(
              raise ValueError("Frame keypoint count and descriptor count mismatch.")
         if len(frame_kps_2d) == 0:
             print("Warning: Frame has no keypoints.")
-            return [], [], [], []
+            return [], [], [], [], []
 
     except (AttributeError, ValueError) as e:
         print(f"Error accessing Frame attributes or invalid Frame data: {e}")
-        return [], [], [], []
+        return [], [], [], [], []
 
     print(f"  Snapshot: {len(snap_points_3d)} points.")
     print(f"  Frame: {len(frame_kps_2d)} keypoints.")
@@ -1326,7 +1326,7 @@ def search_common_points_snapshot_frame(
 
     except Exception as e:
         print(f"Error during projection or visibility check using frame methods: {e}")
-        return [], [], [], []
+        return [], [], [], [], []
 
     # --- Matching Loop ---
     matched_indices_snap = []
@@ -1431,7 +1431,7 @@ def search_common_points_snapshot_frame(
             except Exception:
                 pass
 
-    return matched_indices_snap, matched_indices_frame, matched_points_snap_3d_arr, matched_kps_frame_2d_arr
+    return matched_indices_snap, matched_indices_frame, matched_points_snap_3d_arr, matched_kps_frame_2d_arr, vis_img
 
 
 #
