@@ -484,7 +484,8 @@ if __name__ == "__main__":
             
             if img_id ==300:
                 # Save the map 
-                slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/maskrcnn_500_slam_state_2/")
+                date_time = time.strftime("%Y%m%d-%H%M%S")
+                slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/metrics/final_mask_delaunay/" + date_time)
                 break
         # When dataset is not ok or image is None
         else:
