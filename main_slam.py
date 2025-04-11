@@ -135,6 +135,7 @@ if __name__ == "__main__":
     key_cv = None
             
     img_id = 0  #180, 340, 400   # you can start from a desired frame id if needed 
+    # end_id = 200
     while True:
         
         img, img_right, depth = None, None, None    
@@ -145,6 +146,10 @@ if __name__ == "__main__":
         if do_reset: 
             Printer.yellow('do reset: ', do_reset)
             slam.reset()
+            
+        # if img_id >= end_id:
+        #     Printer.green('Reached end_id: ', end_id)
+        #     break
                
         if not is_paused or do_step:
         
@@ -212,9 +217,9 @@ if __name__ == "__main__":
             else: 
                 time.sleep(0.1) 
                 
-            # 3D display (map display)
-            if viewer3D is not None:
-                viewer3D.draw_dense_map(slam)  
+            # # 3D display (map display)
+            # if viewer3D is not None:
+            #     viewer3D.draw_dense_map(slam)  
                               
         else:
             time.sleep(0.1)                                 

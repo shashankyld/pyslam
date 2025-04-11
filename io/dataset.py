@@ -238,6 +238,9 @@ class Dataset(object):
         with open(filename, 'w') as f:
             json.dump(self.to_json(), f, indent=4)
 
+    def get_total_frames(self):
+        return self.num_frames
+
 
 class VideoDataset(Dataset): 
     def __init__(self, path, name, sensor_type=SensorType.MONOCULAR, associations=None, timestamps=None, start_frame_id=0, type=DatasetType.VIDEO): 

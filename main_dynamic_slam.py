@@ -38,6 +38,8 @@ if __name__ == "__main__":
     
     config = Config()
     dataset = dataset_factory(config) 
+    total_frames = dataset.getNumFrames()
+    print("Total frames: ", total_frames)
 
     groundtruth = groundtruth_factory(config.dataset_settings)
     
@@ -84,7 +86,7 @@ if __name__ == "__main__":
 
 
     # Processing the dataset 
-    starting_img_id = 150 # 215 is close to human entrance
+    starting_img_id = 0 # 215 is close to human entrance
     img_id = starting_img_id
     while True: 
 
@@ -224,7 +226,8 @@ if __name__ == "__main__":
             time.sleep(0.0001)
           
             
-            if img_id ==300:
+            if img_id == total_frames-2:
+                print("Saving map after the frame id: ", img_id)
                 # Save the map 
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/maskrcnn_dynamic_slam/maskrcnn_500_slam_state_2/")
                 break

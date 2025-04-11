@@ -39,6 +39,9 @@ import torch
 from sam2_kf_processor import SAM2KeyframeProcessor
 from search_points import *
 
+# Start stopwatch
+stopwatch_start = time.time()
+
 # Initialize the SAM2 processor
 sam2_processor = SAM2KeyframeProcessor()
 
@@ -55,6 +58,8 @@ if __name__ == "__main__":
     
     config = Config()
     dataset = dataset_factory(config) 
+    total_images = dataset.get_total_frames()
+    print("Total images: ", total_images)
 
     groundtruth = groundtruth_factory(config.dataset_settings)
     
@@ -114,7 +119,7 @@ if __name__ == "__main__":
 
 
     # Processing the dataset 
-    starting_img_id = 215# 215 is close to human entrance
+    starting_img_id = 0# 215 is close to human entrance
     img_id = starting_img_id
     camera_path = []  # To collect camera positions for trajectory visualization
     while True: 
@@ -482,10 +487,21 @@ if __name__ == "__main__":
             time.sleep(0.0001)
           
             
-            if img_id ==300:
+            if img_id ==150:
+                print("Reached the end of the dataset")
                 # Save the map 
                 date_time = time.strftime("%Y%m%d-%H%M%S")
+                # create path if doesnt exist
+                os.makedirs("/home/shashank/Documents/UniBonn/thesis/pyslam/results/metrics/final_mask_delaunay/" + date_time, exist_ok=True)
+                # Save the map
                 slam.save_system_state("/home/shashank/Documents/UniBonn/thesis/pyslam/results/metrics/final_mask_delaunay/" + date_time)
+                # STOPWATCH 
+                stopwatch_end = time.time()
+                elapsed_time = stopwatch_end - stopwatch_start
+                print(f"Elapsed time: {elapsed_time:.2f} seconds")
+                # Per frame time
+                per_frame_time = elapsed_time / (img_id - starting_img_id)
+                print(f"Per frame time: {per_frame_time:.2f} seconds")
                 break
         # When dataset is not ok or image is None
         else:
