@@ -548,75 +548,60 @@ class Tracking:
             p.set_bad() 
             p.delete()
         self.vo_points.clear()
-      
-    def need_new_keyframe(self, f_cur: Frame):
         
+    def need_new_keyframe(self, f_cur: Frame):
         # If Local Mapping is freezed by a Loop Closure do not insert keyframes
         if self.local_mapping.is_stopped() or self.local_mapping.is_stop_requested():
             return False
-                
+                    
         num_keyframes = self.map.num_keyframes()
-        
+            
         # Do not insert keyframes if not enough frames have passed from last relocalisation
         if f_cur.id < self.last_reloc_frame_id + self.max_frames_between_kfs and num_keyframes > self.max_frames_between_kfs:
             return False
-        
+            
         nMinObs = kNumMinObsForKeyFrameDefault
         if num_keyframes <= 2:
-            nMinObs = 2  # if just two keyframes then we can have just two observations 
-        num_kf_ref_tracked_points = self.kf_ref.num_tracked_points(nMinObs)  # number of tracked points in k_ref
-        #num_f_cur_tracked_points = f_cur.num_matched_inlier_map_points()     # number of inliers in f_cur
-        num_f_cur_tracked_points = self.num_matched_map_points if self.num_matched_map_points is not None else 0 # updated in the last self.track_local_map()
+            nMinObs = 2
+        num_kf_ref_tracked_points = self.kf_ref.num_tracked_points(nMinObs)
+        num_f_cur_tracked_points = self.num_matched_map_points if self.num_matched_map_points is not None else 0
         tracking_info_message = f'F({f_cur.id}) #matched points: {num_f_cur_tracked_points}, KF({self.kf_ref.id}) #matched points: {num_kf_ref_tracked_points}'
         Printer.green(tracking_info_message)
-        
+            
         if kLogKFinfoToFile:
             self.kf_info_logger.info(tracking_info_message)
-        
+            
         self.num_kf_ref_tracked_points = num_kf_ref_tracked_points
 
         is_local_mapping_idle = self.local_mapping.is_idle()  
         local_mapping_queue_size = self.local_mapping.queue_size()        
         print('is_local_mapping_idle: ', is_local_mapping_idle,', local_mapping_queue_size: ', local_mapping_queue_size)                                    
-                
-        # Check how many "close" points are being tracked and how many could be potentially created.
+                    
+        # Check close points for non-monocular sensors
         num_non_tracked_close = 0 
         num_tracked_close = 0 
-        # Create a mask for tracked points (not None and not an outlier)
         tracked_mask = (f_cur.points != None) & (~f_cur.outliers)        
-        if self.sensor_type!=SensorType.MONOCULAR:
-            # Create a mask to identify valid depth values within the threshold
+        if self.sensor_type != SensorType.MONOCULAR:
             depth_mask = (f_cur.depths > 0) & (f_cur.depths < f_cur.camera.depth_threshold)
-            # Create a mask for tracked points (not None and not an outlier)
-            #tracked_mask = (f_cur.points != None) & (~f_cur.outliers)
-            # Count points that are close and tracked
             num_tracked_close = np.sum(depth_mask & tracked_mask)
-            # Count points that are close but not tracked
             num_non_tracked_close = np.sum(depth_mask & ~tracked_mask)
-            
+                
         is_need_to_insert_close = (num_tracked_close < Parameters.kNumMinTrackedClosePointsForNewKfNonMonocular) and \
-                                  (num_non_tracked_close > Parameters.kNumMaxNonTrackedClosePointsForNewKfNonMonocular)
-                         
-        #  Thresholds
+                                (num_non_tracked_close > Parameters.kNumMaxNonTrackedClosePointsForNewKfNonMonocular)
+                            
+        # Thresholds
         thRefRatio = Parameters.kThNewKfRefRatioStereo
         if num_keyframes < 2:
             thRefRatio = 0.4
 
         if self.sensor_type == SensorType.MONOCULAR:
             thRefRatio = Parameters.kThNewKfRefRatio
-                                                                    
-        # condition 1a: more than "max_frames_between_kfs" have passed from last keyframe insertion                                        
+                                                                        
+        # Existing conditions
         cond1a = f_cur.id >= (self.kf_last.id + self.max_frames_between_kfs) 
-        
-        # condition 1b: more than "min_frames_between_kfs" have passed and local mapping is idle
         cond1b = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) & is_local_mapping_idle          
-        #cond1b = (f_cur.id >= (self.kf_last.id + self.min_frames_between_kfs)) 
-                  
-        # condition 1c: tracking is weak 1
-        cond1c = (self.sensor_type!=SensorType.MONOCULAR) and (num_f_cur_tracked_points<num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocualar or is_need_to_insert_close) 
-        
-        # condition 1d: tracking image coverage is weak 
-        # we divide the image in 3x2 cells and check that each cell is filled by at least one point (the partition is assumed to be gross in order not to generate too many KFs)
+        cond1c = (self.sensor_type != SensorType.MONOCULAR) and \
+                (num_f_cur_tracked_points < num_kf_ref_tracked_points * Parameters.kThNewKfRefRatioNonMonocualar or is_need_to_insert_close) 
         cond1d = False 
         if Parameters.kUseFeatureCoverageControlForNewKf:
             image_grid = ImageGrid(self.camera.width, self.camera.height, num_div_x=3, num_div_y=2)
@@ -628,31 +613,59 @@ class Tracking:
                 cv2.imshow('grid_img', image_grid.get_grid_img())
                 cv2.waitKey(1)
 
-        # condition 2: few tracked features compared to reference keyframe 
+        # New condition: Significant motion between current frame and last keyframe
+        # NEW CODE START
+        cond1e = False
+        if Parameters.kUseMotionCheckForNewKf:  # Add to Parameters class
+            # Compute relative pose between f_cur and kf_last
+            T_cur = f_cur.pose  # Assume this returns 4x4 SE(3) matrix
+            T_last_kf = self.kf_last.pose
+            T_rel = np.linalg.inv(T_last_kf) @ T_cur  # Relative transformation
+
+            # Extract translation magnitude
+            translation = T_rel[:3, 3]
+            translation_magnitude = np.linalg.norm(translation)
+
+            # Extract rotation magnitude (angle in radians)
+            rotation_matrix = T_rel[:3, :3]
+            rotation_angle = np.arccos((np.trace(rotation_matrix) - 1) / 2)
+            rotation_angle = min(rotation_angle, np.pi)  # Clamp to [0, pi]
+
+            # Thresholds for significant motion (add to Parameters class)
+            translation_threshold = Parameters.kTranslationThresholdForNewKf  # e.g., 0.5 meters
+            rotation_threshold = Parameters.kRotationThresholdForNewKf  # e.g., 0.3 radians (~17 degrees)
+
+            cond1e = (translation_magnitude > translation_threshold) or (rotation_angle > rotation_threshold)
+        # NEW CODE END
+
         cond2 = (num_f_cur_tracked_points < num_kf_ref_tracked_points * thRefRatio or is_need_to_insert_close) \
-                 and (num_f_cur_tracked_points > Parameters.kNumMinPointsForNewKf)
-        
-        # Create detailed debug info about keyframe creation conditions
+                and (num_f_cur_tracked_points > Parameters.kNumMinPointsForNewKf)
+            
+        # Update debug info
         debug_info = {
             "frame_id": f_cur.id,
             "cond1a": f"{cond1a} (max_frames={self.max_frames_between_kfs}, cur_id={f_cur.id}, last_kf_id={self.kf_last.id})",
             "cond1b": f"{cond1b} (min_frames={self.min_frames_between_kfs}, cur_id={f_cur.id}, last_kf_id={self.kf_last.id}, mapping_idle={is_local_mapping_idle})",
             "cond1c": f"{cond1c} (non-mono={self.sensor_type!=SensorType.MONOCULAR}, ratio={num_f_cur_tracked_points/(num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocualar) if num_kf_ref_tracked_points>0 else 'inf'}, need_close={is_need_to_insert_close})",
             "cond1d": f"{cond1d} (uncovered_cells={num_uncovered_cells if Parameters.kUseFeatureCoverageControlForNewKf else 'N/A'})",
+            # NEW CODE START
+            "cond1e": f"{cond1e} (translation={translation_magnitude:.2f}/{translation_threshold:.2f}m, rotation={rotation_angle:.2f}/{rotation_threshold:.2f}rad)" if Parameters.kUseMotionCheckForNewKf else "N/A",
+            # NEW CODE END
             "cond2": f"{cond2} (tracked_pts={num_f_cur_tracked_points}, ref_pts={num_kf_ref_tracked_points}, threshold={thRefRatio}, min_points={Parameters.kNumMinPointsForNewKf})",
             "close_points": f"tracked_close={num_tracked_close}, non_tracked_close={num_non_tracked_close}, insert_close={is_need_to_insert_close}"
         }
-        
-        condition_checks = (cond1a or cond1b or cond1c or cond1d) and cond2
-        
-        # Log detailed decision information
+            
+        # Update condition checks
+        condition_checks = (cond1a or cond1b or cond1c or cond1d or cond1e) and cond2
+            
+        # Update logging
         kf_decision_msg = f"\n{'='*80}\nKEYFRAME DECISION for Frame {f_cur.id}:\n"
         kf_decision_msg += f"  Time conditions: 1a:{debug_info['cond1a']}, 1b:{debug_info['cond1b']}\n"
-        kf_decision_msg += f"  Tracking conditions: 1c:{debug_info['cond1c']}, 1d:{debug_info['cond1d']}\n"
+        kf_decision_msg += f"  Tracking conditions: 1c:{debug_info['cond1c']}, 1d:{debug_info['cond1d']}, 1e:{debug_info['cond1e']}\n"
         kf_decision_msg += f"  Feature count condition: {debug_info['cond2']}\n"
         kf_decision_msg += f"  Close points stats: {debug_info['close_points']}\n"
-        
-        # Determine which specific condition triggered the keyframe
+            
+        # Update reasons
         reason = []
         if condition_checks:
             if cond1a and cond2:
@@ -660,29 +673,28 @@ class Tracking:
             if cond1b and cond2:
                 reason.append("Minimum frames passed and local mapping is idle")
             if cond1c and cond2:
-                if num_f_cur_tracked_points < num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocualar:
+                if num_f_cur_tracked_points < num_kf_ref_tracked_points * Parameters.kThNewKfRefRatioNonMonocualar:
                     reason.append("Low ratio of tracked points in current frame compared to reference keyframe")
                 if is_need_to_insert_close:
                     reason.append("Not enough close points being tracked, but many potential new close points available")
             if cond1d and cond2:
                 reason.append(f"Poor feature coverage - {num_uncovered_cells} uncovered grid cells")
-            
+            # NEW CODE START
+            if cond1e and cond2:
+                reason.append(f"Significant motion detected (translation={translation_magnitude:.2f}m, rotation={rotation_angle:.2f}rad)")
+            # NEW CODE END
+                
             kf_decision_msg += f"  KEYFRAME NEEDED - Reasons: {', '.join(reason)}\n"
         else:
             kf_decision_msg += "  NO KEYFRAME NEEDED\n"
-            
-            if not (cond1a or cond1b or cond1c or cond1d):
-                kf_decision_msg += "  Reason: No timing or tracking condition met\n"
+            if not (cond1a or cond1b or cond1c or cond1d or cond1e):
+                kf_decision_msg += "  Reason: No timing, tracking, or motion condition met\n"
             elif not cond2:
                 kf_decision_msg += f"  Reason: Feature count condition not met (tracked={num_f_cur_tracked_points}, ref*ratio={num_kf_ref_tracked_points*thRefRatio:.1f})\n"
-                
+
         kf_decision_msg += f"{'='*80}\n"
-        
-        # Print to console
         print(kf_decision_msg)
-        
-       
-                                                        
+                                                            
         if condition_checks:
             if is_local_mapping_idle:
                 return True 
@@ -697,7 +709,7 @@ class Tracking:
                     return False 
         else: 
             return False 
-
+        
     def create_new_keyframe(self, f_cur: Frame, img,  img_right=None, depth=None):
         if not self.local_mapping.set_not_stop(True):
             return

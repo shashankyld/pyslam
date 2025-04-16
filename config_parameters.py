@@ -82,7 +82,10 @@ class Parameters:
     kUseVisualOdometryPoints = True
     
     # Keyframe generation 
-    kMin_FramesBetweenKfs = 8                            # minimum number of frames between two consecutive keyframes
+    kMin_FramesBetweenKfs = 5                         # minimum number of frames between two consecutive keyframes
+    kUseMotionCheckForNewKf = True  # Enable motion-based keyframe condition
+    kTranslationThresholdForNewKf = 0.5  # meters
+    kRotationThresholdForNewKf = 0.3  # radians (~17 degrees)
     kNumMinPointsForNewKf = 15                               # minimum number of matched map points for spawning a new KeyFrame 
     kNumMinTrackedClosePointsForNewKfNonMonocular = 100      # minimum number of tracked close map points that for not spawning a new KeyFrame in case of a non-monocular system
     kNumMaxNonTrackedClosePointsForNewKfNonMonocular = 70    # maximum number of non-tracked close map points for not spawning a new KeyFrame in case of a non-monocular system    
