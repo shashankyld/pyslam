@@ -306,7 +306,8 @@ class LocalMapping:
                         self.last_processed_kf_img_id = self.kf_cur.img_id
                                                                                     
                         self.set_idle(False) 
-                        self.do_local_mapping()    
+                        self.do_local_mapping()   
+                        print('LocalMapping: done with local mapping') 
                         self.set_idle(True)
             elif self.stop_if_requested():
                 self.set_idle(True)

@@ -152,7 +152,7 @@ class Tracking:
             self.reproj_err_frame_map_sigma = Parameters.kMaxReprojectionDistanceMapRgbd   
         
         self.max_frames_between_kfs = int(slam.camera.fps) 
-        self.min_frames_between_kfs = 0         
+        self.min_frames_between_kfs = Parameters.kMin_FramesBetweenKfs     
 
         self.state = SlamState.NO_IMAGES_YET
         
@@ -632,8 +632,56 @@ class Tracking:
         cond2 = (num_f_cur_tracked_points < num_kf_ref_tracked_points * thRefRatio or is_need_to_insert_close) \
                  and (num_f_cur_tracked_points > Parameters.kNumMinPointsForNewKf)
         
-        #print(f'KF conditions: cond1a: {cond1a}, cond1b: {cond1b}, cond1c: {cond1c}, cond1d: {cond1d}, cond2: {cond2}')
-        condition_checks = (cond1a or cond1b or cond1c or cond1d) and cond2    
+        # Create detailed debug info about keyframe creation conditions
+        debug_info = {
+            "frame_id": f_cur.id,
+            "cond1a": f"{cond1a} (max_frames={self.max_frames_between_kfs}, cur_id={f_cur.id}, last_kf_id={self.kf_last.id})",
+            "cond1b": f"{cond1b} (min_frames={self.min_frames_between_kfs}, cur_id={f_cur.id}, last_kf_id={self.kf_last.id}, mapping_idle={is_local_mapping_idle})",
+            "cond1c": f"{cond1c} (non-mono={self.sensor_type!=SensorType.MONOCULAR}, ratio={num_f_cur_tracked_points/(num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocualar) if num_kf_ref_tracked_points>0 else 'inf'}, need_close={is_need_to_insert_close})",
+            "cond1d": f"{cond1d} (uncovered_cells={num_uncovered_cells if Parameters.kUseFeatureCoverageControlForNewKf else 'N/A'})",
+            "cond2": f"{cond2} (tracked_pts={num_f_cur_tracked_points}, ref_pts={num_kf_ref_tracked_points}, threshold={thRefRatio}, min_points={Parameters.kNumMinPointsForNewKf})",
+            "close_points": f"tracked_close={num_tracked_close}, non_tracked_close={num_non_tracked_close}, insert_close={is_need_to_insert_close}"
+        }
+        
+        condition_checks = (cond1a or cond1b or cond1c or cond1d) and cond2
+        
+        # Log detailed decision information
+        kf_decision_msg = f"\n{'='*80}\nKEYFRAME DECISION for Frame {f_cur.id}:\n"
+        kf_decision_msg += f"  Time conditions: 1a:{debug_info['cond1a']}, 1b:{debug_info['cond1b']}\n"
+        kf_decision_msg += f"  Tracking conditions: 1c:{debug_info['cond1c']}, 1d:{debug_info['cond1d']}\n"
+        kf_decision_msg += f"  Feature count condition: {debug_info['cond2']}\n"
+        kf_decision_msg += f"  Close points stats: {debug_info['close_points']}\n"
+        
+        # Determine which specific condition triggered the keyframe
+        reason = []
+        if condition_checks:
+            if cond1a and cond2:
+                reason.append("Maximum frames between keyframes exceeded")
+            if cond1b and cond2:
+                reason.append("Minimum frames passed and local mapping is idle")
+            if cond1c and cond2:
+                if num_f_cur_tracked_points < num_kf_ref_tracked_points*Parameters.kThNewKfRefRatioNonMonocualar:
+                    reason.append("Low ratio of tracked points in current frame compared to reference keyframe")
+                if is_need_to_insert_close:
+                    reason.append("Not enough close points being tracked, but many potential new close points available")
+            if cond1d and cond2:
+                reason.append(f"Poor feature coverage - {num_uncovered_cells} uncovered grid cells")
+            
+            kf_decision_msg += f"  KEYFRAME NEEDED - Reasons: {', '.join(reason)}\n"
+        else:
+            kf_decision_msg += "  NO KEYFRAME NEEDED\n"
+            
+            if not (cond1a or cond1b or cond1c or cond1d):
+                kf_decision_msg += "  Reason: No timing or tracking condition met\n"
+            elif not cond2:
+                kf_decision_msg += f"  Reason: Feature count condition not met (tracked={num_f_cur_tracked_points}, ref*ratio={num_kf_ref_tracked_points*thRefRatio:.1f})\n"
+                
+        kf_decision_msg += f"{'='*80}\n"
+        
+        # Print to console
+        print(kf_decision_msg)
+        
+       
                                                         
         if condition_checks:
             if is_local_mapping_idle:
