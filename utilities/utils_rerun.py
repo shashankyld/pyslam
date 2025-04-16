@@ -2,6 +2,41 @@
 
 import rerun as rr
 import numpy as np
+from config_parameters import Parameters  
+
+point_size = Parameters.kPointVisualizationRadius_Rerun
+
+def log_coordinate_axes(entity_path, pose=None, scale=1.0):
+    """
+    Log 3D coordinate axes using a pose matrix.
+    
+    Args:
+        entity_path: Rerun entity path for the axes
+        pose: 4x4 transformation matrix (rotation + translation) (default: identity matrix)
+        scale: Size of the axes (default: 1.0)
+    """
+    # Default to identity matrix if pose is None
+    if pose is None:
+        pose = np.eye(4)
+    
+    # Extract rotation matrix and translation vector from pose
+    rotation = pose[:3, :3]
+    translation = pose[:3, 3]
+    
+    # Define unit vectors for each axis and transform them
+    x_axis = rotation @ np.array([scale, 0, 0])
+    y_axis = rotation @ np.array([0, scale, 0])
+    z_axis = rotation @ np.array([0, 0, scale])
+    
+    # Create line segments from origin to each axis end point
+    x_line = np.stack([translation, translation + x_axis])
+    y_line = np.stack([translation, translation + y_axis])
+    z_line = np.stack([translation, translation + z_axis])
+    
+    # Log each axis with appropriate color
+    rr.log(f"{entity_path}/x_axis", rr.LineStrips3D(x_line, colors=[255, 0, 0, 255]))  # Red for X
+    rr.log(f"{entity_path}/y_axis", rr.LineStrips3D(y_line, colors=[0, 255, 0, 255]))  # Green for Y
+    rr.log(f"{entity_path}/z_axis", rr.LineStrips3D(z_line, colors=[0, 0, 255, 255]))  # Blue for Z
 
 def log_camera(entity_path, world_T_cam_44, K_44):
     """Logs camera intrinsics and extrinsics to rerun."""
@@ -109,16 +144,20 @@ def log_current_frame_map_points(frame_id, entity_path, points, colors=None):  #
     else:
         rr.log(f"{entity_path}/current_frame_3d", rr.Points3D(points))
 
-def log_current_frame_pc(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
+def log_current_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4)):  # Added 'points' parameter
     """Logs the current frame to rerun."""
+    # Transform the points to the world frame from camera frame
+    points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
+    
+    radii = np.ones(points.shape[0]) * point_size  # Set a default radius for points
     # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
     if colors is not None:
         rr.log(
             f"{entity_path}/current_frame_pc",
-            rr.Points3D(points, colors=colors),
+            rr.Points3D(points, colors=colors, radii=radii),  # Added radii
         )
     else:
-        rr.log(f"{entity_path}/current_frame_pc", rr.Points3D(points))
+        rr.log(f"{entity_path}/current_frame_pc", rr.Points3D(points, colors=(0, 255, 0), radii=radii))  # Default color green with radii
 
 
 def log_key_frames(frame_id, entity_path, key_frames):  # Added 'key_frames' parameter
@@ -222,9 +261,11 @@ def log_frame_points(frame_id, entity_path, frame, colors=None, accumulate=False
     else:
         # Use a consistent path so new frames replace old ones
         point_path = f"{entity_path}/current_map_points"
+
+    radii = np.ones(points_3d.shape[0]) * point_size  # Set a default radius for points
     
     # Log the points to rerun
-    rr.log(point_path, rr.Points3D(points_3d, colors=point_colors))
+    rr.log(point_path, rr.Points3D(points_3d, colors=point_colors, radii=radii))
     
     return points_3d, point_colors
 
@@ -343,7 +384,7 @@ def log_keyframes_poses(kfs):
             rr.Points3D(
                 positions=[-tcw],  # Negative of tcw is the camera position in world frame
                 colors=[(0, 255, 0)],  # Green point
-                radii=[0.005],  # Small point
+                radii=[point_size],  # Small point
             ),
         )
         

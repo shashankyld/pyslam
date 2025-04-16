@@ -182,6 +182,11 @@ if __name__ == "__main__":
             cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
             curr_img = cur_frame.img
 
+            cur_Tcw = slam.tracking.f_cur.pose
+            # Invert this 
+            cur_Twc = np.linalg.inv(cur_Tcw)
+            log_coordinate_axes("world/frame_/coordinate_axes", pose=cur_Twc, scale=0.5)
+
             visualize_frame_kps(cur_frame, "Current Frame", scale_factor=1)
 
             # Add current camera position to camera path for trajectory visualization
@@ -193,10 +198,10 @@ if __name__ == "__main__":
             global_map_points, global_map_colors = slam.map.get_points_as_np()
             local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
 
-            log_local_map(frame_id=img_id, entity_path="world", points=local_map_points)
-            log_global_map(frame_id=img_id, entity_path="world", points=global_map_points, colors=global_map_colors)
-            log_current_frame_map_points(frame_id=img_id, entity_path="world", points=cur_frame_points, colors=cur_frame_colors)
-            log_current_frame_pc(frame_id=img_id, entity_path="world", points=(point_cloud.points/5000), colors=point_cloud.colors)
+            # log_local_map(frame_id=img_id, entity_path="world", points=local_map_points)
+            # log_global_map(frame_id=img_id, entity_path="world", points=global_map_points, colors=global_map_colors)
+            # log_current_frame_map_points(frame_id=img_id, entity_path="world", points=cur_frame_points, colors=cur_frame_colors)
+            log_current_frame_pc(frame_id=img_id, entity_path="world", points=(point_cloud.points/5000), colors=point_cloud.colors, pose = cur_Twc)
 
             log_frame_points(frame_id=img_id, entity_path="world", frame = cur_frame, colors=point_cloud.colors, accumulate=True)
 
@@ -431,11 +436,11 @@ if __name__ == "__main__":
                             
                             # Log depth point cloud
                             rr.log(
-                                f"world/frame_{img_id}/depth_cloud",
+                                f"world/kf/frame_{img_id}/depth_cloud",
                                 rr.Points3D(
                                     downsampled_points,
                                     colors=downsampled_colors,
-                                    radii=0.01
+                                    radii=Parameters.kPointVisualizationRadius_Rerun
                                 )
                             )
 

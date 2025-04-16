@@ -200,6 +200,7 @@ class Parameters:
 
     # Visualization 
     kShowDebugImages = True
+    kPointVisualizationRadius_Rerun = 0.002  # Default radius for 3D points visualization in rerun
 
     # Dynamic SLAM
     kNumFramesAway = 5
