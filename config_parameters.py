@@ -82,7 +82,7 @@ class Parameters:
     kUseVisualOdometryPoints = True
     
     # Keyframe generation 
-    kMin_FramesBetweenKfs = 5                         # minimum number of frames between two consecutive keyframes
+    kMin_FramesBetweenKfs = 2                         # minimum number of frames between two consecutive keyframes
     kUseMotionCheckForNewKf = True  # Enable motion-based keyframe condition
     kTranslationThresholdForNewKf = 0.5  # meters
     kRotationThresholdForNewKf = 0.3  # radians (~17 degrees)
@@ -204,7 +204,7 @@ class Parameters:
 
     # Visualization 
     kShowDebugImages = True
-    kPointVisualizationRadius_Rerun = 0.002  # Default radius for 3D points visualization in rerun
+    kPointVisualizationRadius_Rerun = 0.001  # Default radius for 3D points visualization in rerun
 
     # Dynamic SLAM
     kNumFramesAway = 5

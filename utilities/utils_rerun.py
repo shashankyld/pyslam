@@ -159,6 +159,21 @@ def log_current_frame_pc(frame_id, entity_path, points, colors=None, pose = np.e
     else:
         rr.log(f"{entity_path}/current_frame_pc", rr.Points3D(points, colors=(0, 255, 0), radii=radii))  # Default color green with radii
 
+def log_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4)):  # Added 'points' parameter
+    """Logs the current frame to rerun with frame id."""
+    # Transform the points to the world frame from camera frame
+    points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
+    
+    radii = np.ones(points.shape[0]) * point_size  # Set a default radius for points
+    # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/frame_{frame_id}",
+            rr.Points3D(points, colors=colors, radii=radii),  # Added radii
+        )
+    else:
+        rr.log(f"{entity_path}/frame_{frame_id}", rr.Points3D(points, colors=(0, 255, 0), radii=radii))  # Default color green with radii
+
 
 def log_key_frames(frame_id, entity_path, key_frames):  # Added 'key_frames' parameter
     """Logs the set of key frames to rerun."""
