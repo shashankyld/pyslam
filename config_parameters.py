@@ -24,7 +24,7 @@ class Parameters:
     
     # SLAM threads 
     kLocalMappingOnSeparateThread=True               # True: move local mapping on a separate thread, False: tracking and then local mapping in a single thread 
-    kTrackingWaitForLocalMappingToGetIdle=False      # True: wait for local mapping to be idle before starting tracking, False: tracking and then local mapping in a single thread  
+    kTrackingWaitForLocalMappingToGetIdle=True      # True: wait for local mapping to be idle before starting tracking, False: tracking and then local mapping in a single thread  
     kTrackingWaitForLocalMappingSleepTime=0.1        # DEPRECATED: -1 for no sleep # [s]    (NOTE: a bit of sleep time increases the call rate of LBA and therefore VO accuracy)
     kLocalMappingParallelKpsMatching=True
     kLocalMappingParallelKpsMatchingNumWorkers=6
