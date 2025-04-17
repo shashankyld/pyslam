@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
 
     # Processing the dataset 
-    starting_img_id = 0# 215 is close to human entrance
+    starting_img_id = 100# 215 is close to human entrance
     img_id = starting_img_id
     camera_path = []  # To collect camera positions for trajectory visualization
     while True: 
