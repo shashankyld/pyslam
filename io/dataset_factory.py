@@ -35,7 +35,7 @@ from utils_string import levenshtein_distance
 import ujson as json
 
 from dataset_types import DatasetType, SensorType, DatasetEnvironmentType, MinimalDatasetConfig
-from dataset import Dataset, FolderDataset, FolderDatasetParallel, KittiDataset, TumDataset, EurocDataset, ReplicaDataset, TartanairDataset, VideoDataset, LiveDataset
+from dataset import Dataset, FolderDataset, FolderDatasetParallel, KittiDataset, TumDataset, BONNDataset,EurocDataset, ReplicaDataset, TartanairDataset, VideoDataset, LiveDataset
 
 
 from typing import TYPE_CHECKING
@@ -101,6 +101,8 @@ def dataset_factory(config:'Config'):
         dataset.set_is_color(is_color)   
     if type == 'tum':
         dataset = TumDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.TUM)
+    if type == 'bonn':
+        dataset = BONNDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.BONN)
     if type == 'euroc':
         dataset = EurocDataset(path, name, sensor_type, associations, start_frame_id, DatasetType.EUROC, config) 
     if type == 'replica':

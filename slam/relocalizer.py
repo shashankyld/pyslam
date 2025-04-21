@@ -24,7 +24,7 @@ import numpy as np
 
 from frame import Frame, FeatureTrackerShared, compute_frame_matches, prepare_input_data_for_pnpsolver
 from rotation_histogram import filter_matches_with_histogram_orientation
-import optimizer_gtsam
+# import optimizer_gtsam
 import optimizer_g2o
 from utils_sys import Printer, Logging
 from loop_detector_base import LoopDetectorOutput
@@ -48,7 +48,7 @@ kScriptFolder = os.path.dirname(kScriptPath)
 kRootFolder = kScriptFolder + '/..'
 
     
-pose_optimization = optimizer_gtsam.pose_optimization if Parameters.kOptimizationFrontEndUseGtsam else optimizer_g2o.pose_optimization
+pose_optimization = optimizer_g2o.pose_optimization if Parameters.kOptimizationFrontEndUseGtsam else optimizer_g2o.pose_optimization
 
 
 # Relocalizer working on loop detection output 

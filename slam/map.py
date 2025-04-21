@@ -42,7 +42,7 @@ import traceback
 
 import g2o
 import optimizer_g2o 
-import optimizer_gtsam
+# import optimizer_gtsam
 
 kVerbose = True 
 kMaxLenFrameDeque = 20
@@ -591,6 +591,8 @@ class Map(object):
     # - all points are adjusted  
     def optimize(self, local_window=Parameters.kLargeBAWindow, verbose=False, rounds=10, use_robust_kernel=False, do_cull_points = False, abort_flag=g2o.Flag()):
         if Parameters.kOptimizationBundleAdjustUseGtsam:
+            # end the program with error - gtsam is not implemented yet
+            raise NotImplementedError("GTSAM is not implemented yet.")
             bundle_adjustment_fun = optimizer_gtsam.bundle_adjustment
         else: 
             bundle_adjustment_fun = optimizer_g2o.bundle_adjustment               
@@ -616,6 +618,7 @@ class Map(object):
             #       Unfortunately, the GIL does use a SINGLE CPU-core under multi-threading. 
             #       On the other hand, multi-processing allows to distribute computation over multiple CPU-cores.
             if Parameters.kOptimizationBundleAdjustUseGtsam:
+                raise NotImplementedError("GTSAM is not implemented yet.")
                 ba_function = optimizer_gtsam.local_bundle_adjustment  # [WIP] testing gtsam, override
             else:
                 ba_function = optimizer_g2o.local_bundle_adjustment_parallel if Parameters.kUseParallelProcessLBA \

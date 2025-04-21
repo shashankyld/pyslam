@@ -36,7 +36,7 @@ from map import Map
 from timer import TimerFps
 
 import g2o
-import optimizer_gtsam
+# import optimizer_gtsam
 import optimizer_g2o
 
 from keyframe_data import KeyFrameData
@@ -342,6 +342,7 @@ class GlobalBundleAdjustment:
         
         try:
             if Parameters.kOptimizationBundleAdjustUseGtsam:
+                raise NotImplementedError("GTSAM is not implemented yet.")
                 global_bundle_adjustment_fun = optimizer_gtsam.global_bundle_adjustment
             else: 
                 global_bundle_adjustment_fun = optimizer_g2o.global_bundle_adjustment

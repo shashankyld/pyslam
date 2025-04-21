@@ -37,7 +37,7 @@ from dataset_factory import dataset_factory
 from dataset_types import DatasetType, SensorType
 from trajectory_writer import TrajectoryWriter
 
-from viewer3D import Viewer3D
+# from viewer3D import Viewer3D
 from utils_sys import getchar, Printer, force_kill_all_and_exit
 from utils_img import ImgWriter
 from utils_eval import eval_ate
@@ -65,16 +65,6 @@ import argparse
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     
-def draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est):       
-    T_est_gt = np.linalg.inv(T_gt_est)
-    scale = np.mean([np.linalg.norm(T_est_gt[i, :3]) for i in range(3)])
-    R_est_gt = T_est_gt[:3, :3]/scale # we need a pure rotation to avoid camera scale changes
-    assoc_gt_poses_aligned = [np.eye(4) for i in range(len(assoc_gt_poses))]
-    for i in range(len(assoc_gt_poses)):
-        assoc_gt_poses_aligned[i][:3,3] = T_est_gt[:3, :3] @ assoc_gt_poses[i][:3, 3] + T_est_gt[:3, 3]
-        assoc_gt_poses_aligned[i][:3,:3] = R_est_gt @ assoc_gt_poses[i][:3,:3]
-    viewer3D.draw_cameras([assoc_est_poses, assoc_gt_poses_aligned], [GlColors.kCyan, GlColors.kMagenta])    
-
 
 if __name__ == "__main__":   
     parser = argparse.ArgumentParser()
@@ -159,19 +149,16 @@ if __name__ == "__main__":
         slam.set_tracking_state(SlamState.INIT_RELOCALIZE)
 
     if args.headless:
-        viewer3D = None
-        plot_drawer = None        
-    else:
-        viewer3D = Viewer3D(scale=dataset.scale_viewer_3d) 
-        plot_drawer = SlamPlotDrawer(slam, viewer3D)
-        img_writer = ImgWriter(font_scale=0.7)
-        if False:
-            cv2.namedWindow('Camera', cv2.WINDOW_NORMAL) # to make it resizable if needed        
+        # Do something in rerun   
+        print("Running in headless mode")
+
     
     if groundtruth:
         gt_traj3d, gt_poses, gt_timestamps = groundtruth.getFull6dTrajectory()
-        if viewer3D:
-            viewer3D.set_gt_trajectory(gt_traj3d, gt_timestamps, align_with_scale=is_monocular)
+        # IF they are None, error in the dataset
+        if gt_traj3d is None or gt_poses is None or gt_timestamps is None:
+            raise ValueError("Groundtruth data is None. Please check the dataset.")
+        
             
     do_step = False          # proceed step by step on GUI 
     do_reset = False         # reset on GUI 
@@ -187,165 +174,161 @@ if __name__ == "__main__":
     num_frames = 0
             
     img_id = 0  #210, 340, 400, 770   # you can start from a desired frame id if needed 
-    while not is_viewer_closed:
-        
-        img, img_right, depth = None, None, None    
-        
-        if do_step:
-            Printer.orange('do step: ', do_step)
+    
+    try:
+        while not is_viewer_closed:
             
-        if do_reset: 
-            Printer.yellow('do reset: ', do_reset)
-            slam.reset()
-               
-        if not is_paused or do_step:
-        
-            if dataset.isOk():
-                print('..................................')               
-                img = dataset.getImageColor(img_id)
-                depth = dataset.getDepth(img_id)
-                img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
+            img, img_right, depth = None, None, None    
             
-            if img is not None:
-                timestamp = dataset.getTimestamp()          # get current timestamp 
-                next_timestamp = dataset.getNextTimestamp() # get next timestamp 
-                frame_duration = next_timestamp-timestamp if (timestamp is not None and next_timestamp is not None) else -1
-
-                print(f'image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}') 
+            if do_step:
+                Printer.orange('do step: ', do_step)
                 
-                time_start = None 
+            if do_reset: 
+                Printer.yellow('do reset: ', do_reset)
+                slam.reset()
+                   
+            if not is_paused or do_step:
+            
+                if dataset.isOk():
+                    print('..................................')               
+                    img = dataset.getImageColor(img_id)
+                    depth = dataset.getDepth(img_id)
+                    img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
+                else:
+                    # Dataset has ended, break the loop
+                    print("Dataset has ended at frame:", img_id)
+                    is_viewer_closed = True
+                    break
+                
                 if img is not None:
-                    time_start = time.time()    
-                    
-                    if depth is None and depth_estimator:
-                        depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
-                        if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
-                            depth = filter_shadow_points(depth_prediction)
-                        else: 
-                            depth = depth_prediction
-                        
-                        if not args.headless:
-                            depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
-                            cv2.imshow("depth prediction", depth_img)
-                                  
-                    slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
-                                    
-                    # 3D display (map display)
-                    if viewer3D:
-                        viewer3D.draw_slam_map(slam)
+                    timestamp = dataset.getTimestamp()          # get current timestamp 
+                    next_timestamp = dataset.getNextTimestamp() # get next timestamp 
+                    frame_duration = next_timestamp-timestamp if (timestamp is not None and next_timestamp is not None) else -1
 
-                    if not args.headless:
-                        img_draw = slam.map.draw_feature_trails(img)
-                        img_writer.write(img_draw, f'id: {img_id}', (30, 30))
-                        # 2D display (image display)
-                        cv2.imshow('Camera', img_draw)
+                    print(f'image: {img_id}, timestamp: {timestamp}, duration: {frame_duration}') 
                     
-                    # draw 2d plots
-                    if plot_drawer:
-                        plot_drawer.draw(img_id)
+                    time_start = None 
+                    if img is not None:
+                        time_start = time.time()    
                         
-                if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
-                    online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
-                    
-                if time_start is not None: 
-                    duration = time.time()-time_start
-                    if(frame_duration > duration):
-                        time.sleep(frame_duration-duration) 
-                    
-                img_id += 1 
-                num_frames += 1
-            else: 
-                time.sleep(0.1)     # img is None
-                if args.headless:
-                    break # exit from the loop if headless
-                
-            # 3D display (map display)
-            if viewer3D:
-                viewer3D.draw_dense_map(slam)  
-                              
-        else:
-            time.sleep(0.1)     # pause or do step on GUI                           
-        
-        if not args.headless:
-            # get keys 
-            key = plot_drawer.get_key() if plot_drawer else None
-            key_cv = cv2.waitKey(1) & 0xFF   
-            
-            # manage SLAM states 
-            if slam.tracking.state==SlamState.LOST:
-                #key_cv = cv2.waitKey(0) & 0xFF   # wait key for debugging
-                key_cv = cv2.waitKey(500) & 0xFF   
-                
-        if slam.tracking.state==SlamState.LOST:
-            num_tracking_lost += 1                              
-                
-        # manage interface infos  
-        if is_map_save:
-            slam.save_system_state(config.system_state_folder_path)
-            dataset.save_info(config.system_state_folder_path)
-            groundtruth.save(config.system_state_folder_path)
-            Printer.blue('\nuncheck pause checkbox on GUI to continue...\n')    
-            
-        if is_bundle_adjust:
-            slam.bundle_adjust()    
-            Printer.blue('\nuncheck pause checkbox on GUI to continue...\n')
+                        if depth is None and depth_estimator:
+                            depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
+                            if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
+                                depth = filter_shadow_points(depth_prediction)
+                            else: 
+                                depth = depth_prediction
                             
-        if viewer3D:
-            
-            if not is_paused and viewer3D.is_paused():  # when a pause is triggered
-                est_poses, timestamps, ids = slam.get_final_trajectory()
-                assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(timestamps, est_poses, gt_timestamps, gt_poses)
-                ape_stats, T_gt_est = eval_ate(poses_est=assoc_est_poses, poses_gt=assoc_gt_poses, frame_ids=ids, 
-                        curr_frame_id=img_id, is_final=False, is_monocular=is_monocular, save_dir=None)
-                Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
-                #draw_associated_cameras(viewer3D, assoc_est_poses, assoc_gt_poses, T_gt_est)
+                            if not args.headless:
+                                depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
+                                cv2.imshow("depth prediction", depth_img)
+                                      
+                        slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
+                                        
+                       
+
+                        if not args.headless:
+                            img_draw = slam.map.draw_feature_trails(img)
+                            # 2D display (image display)
+                            cv2.imshow('Camera', img_draw)
                         
-            is_paused = viewer3D.is_paused()    
-            is_map_save = viewer3D.is_map_save() and is_map_save == False 
-            is_bundle_adjust = viewer3D.is_bundle_adjust() and is_bundle_adjust == False
-            do_step = viewer3D.do_step() and do_step == False  
-            do_reset = viewer3D.reset() and do_reset == False
-            is_viewer_closed = viewer3D.is_closed()
-                               
-        if key == 'q' or (key_cv == ord('q') or key_cv == 27):    # press 'q' or ESC for quitting
-            break
-            
-    # here we save the online estimated trajectory
-    online_trajectory_writer.close_file()
-    
-    # compute metrics on the estimated final trajectory 
-    try: 
-        est_poses, timestamps, ids = slam.get_final_trajectory()
-        is_final = not dataset.isOk()
-        assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(timestamps, est_poses, gt_timestamps, gt_poses)        
-        ape_stats, T_gt_est = eval_ate(poses_est=assoc_est_poses, poses_gt=assoc_gt_poses, frame_ids=ids, 
-                 curr_frame_id=img_id, is_final=is_final, is_monocular=is_monocular, save_dir=metrics_save_dir)
-        Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
-        
-        if final_trajectory_writer:
-            final_trajectory_writer.write_full_trajectory(est_poses, timestamps)
-            final_trajectory_writer.close_file()
-            
-        other_metrics_file_path = os.path.join(metrics_save_dir, 'other_metrics_info.txt')
-        with open(other_metrics_file_path, 'w') as f:
-            f.write(f'num_total_frames: {num_total_frames}\n')
-            f.write(f'num_processed_frames: {num_frames}\n')
-            f.write(f'num_lost_frames: {num_tracking_lost}\n')
-            f.write(f'percent_lost: {num_tracking_lost/num_total_frames*100:.2f}\n')
-        
-    except Exception as e:
-        print('Exception while computing metrics: ', e)
-        print(f'traceback: {traceback.format_exc()}')
 
-    # close stuff 
-    slam.quit()
-    if plot_drawer:
-        plot_drawer.quit()         
-    if viewer3D:
-        viewer3D.quit()   
-    
-    if not args.headless:
-        cv2.destroyAllWindows()
+                            
+                    if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
+                        online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
+                        
+                    if time_start is not None: 
+                        duration = time.time()-time_start
+                        if(frame_duration > duration):
+                            time.sleep(frame_duration-duration) 
+                        
+                    img_id += 1 
+                    num_frames += 1
+                else: 
+                    time.sleep(0.1)     # img is None
+                    if args.headless:
+                        break # exit from the loop if headless
+                    
 
-    if args.headless:
-        force_kill_all_and_exit(verbose=False) # just in case
+                                  
+            else:
+                time.sleep(0.1)     # pause or do step on GUI                           
+            
+            if slam.tracking.state==SlamState.LOST:
+                num_tracking_lost += 1                              
+                    
+            # manage interface infos  
+            if is_map_save:
+                slam.save_system_state(config.system_state_folder_path)
+                dataset.save_info(config.system_state_folder_path)
+                groundtruth.save(config.system_state_folder_path)
+                Printer.blue('\nuncheck pause checkbox on GUI to continue...\n')    
+                
+            if is_bundle_adjust:
+                slam.bundle_adjust()    
+                Printer.blue('\nuncheck pause checkbox on GUI to continue...\n')
+                                
+            
+                
+        print("\nProcessing final metrics and saving trajectories...")
+        
+        # Compute metrics and save trajectories
+        try: 
+            est_poses, timestamps, ids = slam.get_final_trajectory()
+            is_final = True
+            
+            if groundtruth:
+                assoc_timestamps, assoc_est_poses, assoc_gt_poses = find_poses_associations(
+                    timestamps, est_poses, gt_timestamps, gt_poses)        
+                ape_stats, T_gt_est = eval_ate(
+                    poses_est=assoc_est_poses, 
+                    poses_gt=assoc_gt_poses, 
+                    frame_ids=ids, 
+                    curr_frame_id=img_id, 
+                    is_final=is_final, 
+                    is_monocular=is_monocular, 
+                    save_dir=metrics_save_dir
+                )
+                Printer.green(f"EVO stats: {json.dumps(ape_stats, indent=4)}")
+            
+            if final_trajectory_writer:
+                final_trajectory_writer.write_full_trajectory(est_poses, timestamps)
+                final_trajectory_writer.close_file()
+                
+            # Save other metrics
+            other_metrics_file_path = os.path.join(metrics_save_dir, 'other_metrics_info.txt')
+            with open(other_metrics_file_path, 'w') as f:
+                f.write(f'num_total_frames: {num_total_frames}\n')
+                f.write(f'num_processed_frames: {num_frames}\n')
+                f.write(f'num_lost_frames: {num_tracking_lost}\n')
+                f.write(f'percent_lost: {num_tracking_lost/num_total_frames*100:.2f}\n')
+            
+            print(f"\nProcessed {num_frames} frames")
+            print(f"Lost tracking in {num_tracking_lost} frames ({num_tracking_lost/num_total_frames*100:.2f}%)")
+            
+        except Exception as e:
+            print('Exception while computing metrics: ', e)
+            print(f'traceback: {traceback.format_exc()}')
+
+    finally:
+        # Clean shutdown
+        print("\nShutting down SLAM system...")
+        try:
+            if online_trajectory_writer is not None:
+                online_trajectory_writer.close_file()
+            
+            if final_trajectory_writer is not None:
+                final_trajectory_writer.close_file()
+                
+            # Force kill all processes in case of errors
+            force_kill_all_and_exit(verbose=False)
+            
+        except Exception as e:
+            print('Exception during shutdown:', e)
+            print(f'traceback: {traceback.format_exc()}')
+            force_kill_all_and_exit(verbose=False)
+
+        if not args.headless:
+            cv2.destroyAllWindows()
+
+        if args.headless:
+            force_kill_all_and_exit(verbose=False) # just in case

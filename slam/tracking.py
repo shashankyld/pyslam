@@ -44,7 +44,7 @@ from search_points import search_map_by_projection, search_frame_by_projection
 from local_mapping import LocalMapping
 from initializer import Initializer
 import optimizer_g2o
-import optimizer_gtsam 
+# import optimizer_gtsam 
 
 from loop_closing import LoopClosing
 
@@ -346,6 +346,7 @@ class Tracking:
         # f_cur pose optimization 1  (here we use f_cur pose as first guess and exploit the matched map points of f_ref )
         self.timer_pose_opt.start()          
         if Parameters.kOptimizationFrontEndUseGtsam:
+            raise NotImplementedError("GTSAM is not implemented yet.")
             pose_optimization_fun = optimizer_gtsam.pose_optimization  # [WIP] Not stable yet!
         else:
             pose_optimization_fun = optimizer_g2o.pose_optimization

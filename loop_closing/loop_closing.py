@@ -48,7 +48,7 @@ from rotation_histogram import filter_matches_with_histogram_orientation
 
 from search_points import search_by_sim3, search_more_map_points_by_projection, search_and_fuse_for_loop_correction, search_frame_by_projection
 
-import optimizer_gtsam
+# import optimizer_gtsam
 import optimizer_g2o
 
 from loop_detecting_process import LoopDetectingProcess
@@ -283,9 +283,10 @@ class LoopGeometryChecker:
                     assert(len(map_point_matches12)==n1)
 
                     if Parameters.kOptimizationLoopClosingUseGtsam:
+                        raise NotImplementedError("GTSAM is not implemented yet.")
                         optimize_sim3_fun = optimizer_gtsam.optimize_sim3
                     else:
-                        optimize_sim3_fun = optimizer_gtsam.optimize_sim3
+                        optimize_sim3_fun = optimizer_g2o.optimize_sim3
 
                     # optimize with all the found corrispondences
                     num_inliers, R12, t12, scale12, delta_err = optimize_sim3_fun(current_keyframe, kf, \
@@ -540,6 +541,7 @@ class LoopCorrector:
             LoopClosing.print(f'LoopCorrector: optimizing pose graph')
             loop_keyframe = self.loop_geometry_checker.success_loop_kf
             if Parameters.kOptimizationLoopClosingUseGtsam:
+                raise NotImplementedError("GTSAM is not implemented yet.")
                 optimize_essential_graph_fun = optimizer_gtsam.optimize_essential_graph
             else: 
                 optimize_essential_graph_fun = optimizer_g2o.optimize_essential_graph

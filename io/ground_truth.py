@@ -48,6 +48,7 @@ class GroundTruthType(SerializableEnum):
     REPLICA    = 5
     TARTANAIR  = 6
     SIMPLE     = 7
+    BONN       = 8
 
 
 def groundtruth_factory(settings):
@@ -71,6 +72,10 @@ def groundtruth_factory(settings):
         if 'associations' in settings:
             associations = settings['associations']        
         return TumGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.TUM)
+    if type == 'bonn':
+        if 'associations' in settings:
+            associations = settings['associations']        
+        return TumGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.BONN)
     if type == 'euroc':         
         return EurocGroundTruth(path, name, associations, start_frame_id, type=GroundTruthType.EUROC)
     if type == 'replica':         

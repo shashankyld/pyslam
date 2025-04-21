@@ -547,6 +547,59 @@ class TumDataset(Dataset):
             self._timestamp = None                       
         return img 
 
+class BONNDataset(Dataset):
+    def __init__(self, path, name, sensor_type=SensorType.RGBD, associations=None, start_frame_id=0, type=DatasetType.BONN): 
+        super().__init__(path, name, sensor_type, 30, associations, start_frame_id, type)
+        self.environment_type = DatasetEnvironmentType.INDOOR
+        if sensor_type != SensorType.MONOCULAR and sensor_type != SensorType.RGBD:
+            raise ValueError('Video dataset only supports MONOCULAR and RGBD sensor types')          
+        self.fps = 30
+        self.scale_viewer_3d = 0.1
+        if sensor_type == SensorType.MONOCULAR:
+            self.scale_viewer_3d = 0.05             
+        print('Processing BONN Dynamic Sequence')        
+        self.base_path=self.path + '/' + self.name + '/'
+        associations_file=self.path + '/' + self.name + '/' + associations
+        with open(associations_file) as f:
+            self.associations = f.readlines()
+            self.max_frame_id = len(self.associations)   
+            self.num_frames = self.max_frame_id        
+        if self.associations is None:
+            sys.exit('ERROR while reading associations file!')    
+    def getImage(self, frame_id):
+        img = None
+        if frame_id < self.max_frame_id:
+            file = self.base_path + self.associations[frame_id].strip().split()[1]
+            img = cv2.imread(file)
+            self.is_ok = (img is not None)
+            self._timestamp = float(self.associations[frame_id].strip().split()[0])
+            if frame_id +1 < self.max_frame_id: 
+                self._next_timestamp = float(self.associations[frame_id+1].strip().split()[0])
+            else:
+                self._next_timestamp = self._timestamp + self.Ts              
+        else:
+            self.is_ok = False     
+            self._timestamp = None                  
+        return img 
+    def getDepth(self, frame_id):
+        if self.sensor_type == SensorType.MONOCULAR:
+            return None # force a monocular camera if required (to get a monocular tracking even if depth is available)
+        frame_id += self.start_frame_id
+        img = None
+        if frame_id < self.max_frame_id:
+            file = self.base_path + self.associations[frame_id].strip().split()[3]
+            img = cv2.imread(file, cv2.IMREAD_UNCHANGED)
+            self.is_ok = (img is not None)
+            self._timestamp = float(self.associations[frame_id].strip().split()[0])
+            if frame_id +1 < self.max_frame_id: 
+                self._next_timestamp = float(self.associations[frame_id+1].strip().split()[0])
+            else:
+                self._next_timestamp = self._timestamp + self.Ts                
+        else:
+            self.is_ok = False      
+            self._timestamp = None                       
+        return img 
+
 
 class EurocDataset(Dataset):
     def __init__(self, path, name, sensor_type=SensorType.STEREO, associations=None, start_frame_id=0, type=DatasetType.EUROC, config=None): 
