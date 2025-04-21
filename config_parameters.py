@@ -218,6 +218,8 @@ class Parameters:
     kUseDepthEstimatorInFrontEnd = False                # To enable/disable depth estimation with monocular front-end.
                                                         # You can directly set your desired depth estimator in main_slam.py.
     kDepthEstimatorRemoveShadowPointsInFrontEnd = True
+
+    kPointVisualizationRadius_Rerun = 0.005  # [m]  # Radius of the point cloud points in the rerun mode
     
 
     # Other parameters 

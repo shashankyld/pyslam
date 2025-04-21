@@ -1,0 +1,594 @@
+# Functions to log different components of the SLAM system to rerun:
+
+import rerun as rr
+import numpy as np
+from config_parameters import Parameters  
+
+point_size = Parameters.kPointVisualizationRadius_Rerun
+
+def log_coordinate_axes(entity_path, pose=None, scale=1.0):
+    """
+    Log 3D coordinate axes using a pose matrix.
+    
+    Args:
+        entity_path: Rerun entity path for the axes
+        pose: 4x4 transformation matrix (rotation + translation) (default: identity matrix)
+        scale: Size of the axes (default: 1.0)
+    """
+    # Default to identity matrix if pose is None
+    if pose is None:
+        pose = np.eye(4)
+    
+    # Extract rotation matrix and translation vector from pose
+    rotation = pose[:3, :3]
+    translation = pose[:3, 3]
+    
+    # Define unit vectors for each axis and transform them
+    x_axis = rotation @ np.array([scale, 0, 0])
+    y_axis = rotation @ np.array([0, scale, 0])
+    z_axis = rotation @ np.array([0, 0, scale])
+    
+    # Create line segments from origin to each axis end point
+    x_line = np.stack([translation, translation + x_axis])
+    y_line = np.stack([translation, translation + y_axis])
+    z_line = np.stack([translation, translation + z_axis])
+    
+    # Log each axis with appropriate color
+    rr.log(f"{entity_path}/x_axis", rr.LineStrips3D(x_line, colors=[255, 0, 0, 255]))  # Red for X
+    rr.log(f"{entity_path}/y_axis", rr.LineStrips3D(y_line, colors=[0, 255, 0, 255]))  # Green for Y
+    rr.log(f"{entity_path}/z_axis", rr.LineStrips3D(z_line, colors=[0, 0, 255, 255]))  # Blue for Z
+
+def log_camera(entity_path, world_T_cam_44, K_44):
+    """Logs camera intrinsics and extrinsics to rerun."""
+
+    assert world_T_cam_44.shape == (4, 4)
+    assert K_44.shape == (4, 4)
+
+    # Convert and log camera parameters
+    Rot, trans = world_T_cam_44[:3, :3], world_T_cam_44[:3, 3]
+    K_33 = K_44[:3, :3]
+
+    rr.log(
+        entity_path,
+        rr.Pinhole(
+            image_from_camera=K_33,
+            width=K_33[0, 2] * 2,  # Assuming principal point is in the center
+            height=K_33[1, 2] * 2,
+        ),
+    )
+
+    rr.log(entity_path, rr.Transform3D(translation=trans, mat3x3=Rot))
+
+import cv2
+def log_image(entity, image):
+    """Logs an image to rerun."""
+    if image is None:
+        print(f"Warning: Attempted to log None image to {entity}")
+        return
+    
+    # Check for empty or invalid image
+    if not isinstance(image, np.ndarray) or image.size == 0 or len(image.shape) < 2:
+        print(f"Warning: Invalid image shape {getattr(image, 'shape', 'unknown')} for {entity}")
+        # Create a small placeholder image instead
+        placeholder = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.putText(placeholder, "No Image", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        rr.log(f"{entity}", rr.Image(placeholder))
+        return
+    
+    try:
+        rr.log(f"{entity}", rr.Image(image))
+    except Exception as e:
+        print(f"Error logging image to {entity}: {e}")
+        # Create a small error image instead
+        error_img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.putText(error_img, "Error", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        rr.log(f"{entity}", rr.Image(error_img))
+        
+def log_local_map(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
+    """Logs the local map to rerun."""
+    # points = get_local_map(frame_id)  # Removed the call to get_local_map
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/local_map",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        # colors = Green
+        colors = np.array([0, 255, 0], dtype=np.uint8)
+        rr.log(f"{entity_path}/local_map", rr.Points3D(points, colors=colors))
+
+def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=None):  # Added 'points' parameter
+    """Logs the local map snapshot to rerun."""
+    # points = get_local_map_snapshot(frame_id)  # Removed the call to get_local_map_snapshot
+    if colors is not None:
+        if current:
+            rr.log(
+                f"{entity_path}/current_local_map_snapshot",
+                rr.Points3D(points, colors=colors),
+            )
+        else:
+            rr.log(
+                f"{entity_path}/local_map_snapshot",
+                rr.Points3D(points, colors=colors),
+            )
+    else:
+        colors = np.array([0, 0, 255], dtype=np.uint8)
+        if current:
+            rr.log(
+                f"{entity_path}/current_local_map_snapshot",
+                rr.Points3D(points, colors=colors),
+            )
+        else:   
+            rr.log(f"{entity_path}/local_map_snapshot", rr.Points3D(points, colors=colors))
+
+
+def log_global_map(frame_id, entity_path, points,colors=None):  # Added 'points' parameter
+    """Logs the global map to rerun."""
+    # points = get_global_map(frame_id)  # Removed the call to get_global_map
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/global_map",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        rr.log(f"{entity_path}/global_map", rr.Points3D(points))
+
+def log_current_frame_map_points(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
+    """Logs the current frame to rerun."""
+    # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/current_frame_3d",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        rr.log(f"{entity_path}/current_frame_3d", rr.Points3D(points))
+
+def log_current_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4)):  # Added 'points' parameter
+    """Logs the current frame to rerun."""
+    # Transform the points to the world frame from camera frame
+    points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
+    
+    radii = np.ones(points.shape[0]) * point_size  # Set a default radius for points
+    # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/current_frame_pc",
+            rr.Points3D(points, colors=colors, radii=radii),  # Added radii
+        )
+    else:
+        rr.log(f"{entity_path}/current_frame_pc", rr.Points3D(points, colors=(0, 255, 0), radii=radii))  # Default color green with radii
+
+def log_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4)):  # Added 'points' parameter
+    """Logs the current frame to rerun with frame id."""
+    # Transform the points to the world frame from camera frame
+    points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
+    
+    radii = np.ones(points.shape[0]) * point_size  # Set a default radius for points
+    # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/frame_{frame_id}",
+            rr.Points3D(points, colors=colors, radii=radii),  # Added radii
+        )
+    else:
+        rr.log(f"{entity_path}/frame_{frame_id}", rr.Points3D(points, colors=(0, 255, 0), radii=radii))  # Default color green with radii
+
+
+def log_key_frames(frame_id, entity_path, key_frames):  # Added 'key_frames' parameter
+    """Logs the set of key frames to rerun."""
+    # key_frames = get_key_frames(frame_id)  # Removed the call to get_key_frames
+    for i, frame in enumerate(key_frames):
+        # Assuming frame is a dictionary with "image" and "pose"
+        image = frame["image"]
+        world_T_cam_44 = frame["pose"]  # 4x4 transformation matrix
+        K_44 = frame["K"]  # 4x4 intrinsic matrix
+        frame_path = f"{entity_path}/key_frames/{i}"
+        log_camera(frame_path, world_T_cam_44, K_44)
+        log_image(frame_path, image)
+
+
+def log_current_frame(frame_id, entity_path, image):  # Added 'image' parameter
+    """Logs the current frame to rerun."""
+    # image = get_current_frame(frame_id)  # Removed the call to get_current_frame
+    rr.log(f"{entity_path}/current_frame", rr.Image(image))
+
+
+def log_features(frame_id, entity_path, features):  # Added 'features' parameter
+    """Logs features in the current frame."""
+    # features = get_features(frame_id)  # Removed the call to get_features
+    rr.log(f"{entity_path}/current_frame/features", rr.Points2D(features))
+
+
+def log_dynamic_features(
+    frame_id, entity_path, dynamic_features
+):  # Added 'dynamic_features' parameter
+    """Logs dynamic features in the current frame."""
+    # dynamic_features = get_dynamic_features(frame_id)  # Removed the call to get_dynamic_features
+    rr.log(
+        f"{entity_path}/current_frame/dynamic_features",
+        rr.Points2D(dynamic_features, color=(255, 0, 0)),
+    )  # Visualize in red
+
+
+def log_camera_path(frame_id, entity_path, camera_path):  # Added 'camera_path' parameter
+    """Logs the camera path up to the current frame_id."""
+    # camera_path = get_camera_path(frame_id)  # Removed the call to get_camera_path
+    rr.log(f"{entity_path}/camera_path", rr.LineStrips3D([camera_path]))
+
+
+def log_sam_masks(frame_id, entity_path, masks):  # Added 'masks' parameter
+    """Logs the semantic masks generated by SAM."""
+    # masks = get_sam_masks(frame_id)  # Removed the call to get_sam_masks
+    for i, mask in enumerate(masks):
+        rr.log(f"{entity_path}/sam_masks/{i}", rr.SegmentationImage(mask))
+
+
+def log_sam_prompts(frame_id, entity_path, prompts):  # Added 'prompts' parameter
+    """Logs the prompts given to SAM."""
+    # prompts = get_sam_prompts(frame_id)  # Removed the call to get_sam_prompts
+    rr.log(
+        f"{entity_path}/sam_prompts", rr.Points2D(prompts, color=(0, 0, 255))
+    )  # Visualize in blue
+
+
+def log_frame_points(frame_id, entity_path, frame, colors=None, accumulate=False):
+    """
+    Logs the map points visible in the current frame as 3d point cloud.
+    
+    Parameters:
+    -----------
+    frame_id : int
+        The ID of the current frame
+    entity_path : str
+        Base path for the entity in the visualization
+    frame : Frame
+        The frame object containing the points
+    colors : np.ndarray, optional
+        Custom colors for the points
+    accumulate : bool, default=False
+        If True, accumulate points from all frames. If False, only show current frame.
+    """
+    if frame is None:
+        return
+    
+    # Get all points from the frame that are not None (matched map points)
+    with frame._lock_features:
+        matched_points = [p for p in frame.points if p is not None]
+    
+    if not matched_points:
+        # No points to log
+        return
+    
+    # Extract 3D positions and colors
+    points_3d = np.array([p.pt for p in matched_points])
+    
+    if colors is None:
+        # Use the colors stored in the map points
+        point_colors = np.array([p.color for p in matched_points]) / 255.0
+    else:
+        point_colors = colors
+    
+    # Determine the entity path based on accumulation mode
+    if accumulate == True:
+        # Use frame-specific path to accumulate all frames
+        point_path = f"{entity_path}/frame_{frame_id}/map_points"
+    else:
+        # Use a consistent path so new frames replace old ones
+        point_path = f"{entity_path}/current_map_points"
+
+    radii = np.ones(points_3d.shape[0]) * point_size  # Set a default radius for points
+    
+    # Log the points to rerun
+    rr.log(point_path, rr.Points3D(points_3d, colors=point_colors, radii=radii))
+    
+    return points_3d, point_colors
+
+
+# def log_keyframes(kfs):
+#     """ 
+#     Input = List of keyframedata objects
+#     Outpt = log all the images and masks of the keyframes for every timestamp
+#     """
+#     for i, kf in enumerate(kfs):
+#         # Assuming kf is a KeyFrameData object with attributes 'img' and 'mask'
+#         print("type of image, mask", type(kf.img), type(kf.dynamic_mask))
+#         image = kf.img
+#         mask = kf.dynamic_mask  # Assuming this is the mask you want to log
+#         timestamp = kf.timestamp
+        
+#         # Log the image and mask
+#         rr.log(f"keyframes/{timestamp}/image", rr.Image(image))
+#         rr.log(f"keyframes/{timestamp}/mask", rr.Image(mask))
+
+
+def log_keyframes_poses(kfs):
+    """ 
+    Input = List of KeyFrameData objects
+    Output = Logs the poses of keyframes, also add image to the view. it should be a camera view with image - typical rerun viz
+    """
+    if not kfs:
+        return
+    
+    import numpy as np
+    import rerun as rr
+    
+    # Log each keyframe as a camera with its image
+    for i, kf in enumerate(kfs):
+        # Extract pose information (Tcw is camera-to-world transform)
+        Rcw = kf.Rcw  # Rotation matrix
+        tcw = kf.tcw  # Translation vector
+
+        Hcw = np.eye(4)
+        Hcw[:3, :3] = Rcw
+        Hcw[:3, 3] = tcw
+        # Convert to world-to-camera transform
+        Hwc = np.linalg.inv(Hcw)
+        # Convert to 3x3 rotation matrix and 3D translation vector
+        Rwc = Hwc[:3, :3]
+        twc = Hwc[:3, 3]
+        # Temporarily calling Rcw as Rwc and tcw as twc for testing viz
+        Rcw = Rwc
+        tcw = twc
+        
+        # Create entity path
+        entity_path = f"keyframes/poses/{kf.id}"
+        
+        # Create camera intrinsic matrix (assuming a pinhole camera model)
+        if hasattr(kf.camera, 'K'):
+            K = kf.camera.K
+            
+            # Get image dimensions
+            width = kf.img.shape[1] if isinstance(kf.img, np.ndarray) else kf.img.width
+            height = kf.img.shape[0] if isinstance(kf.img, np.ndarray) else kf.img.height
+            
+            # Extract focal length and principal point from K matrix
+            fx = K[0, 0]
+            fy = K[1, 1]
+            cx = K[0, 2]
+            cy = K[1, 2]
+            
+            # Log camera intrinsics
+            rr.log(
+                f"{entity_path}/image",
+                rr.Pinhole(
+                    resolution=[width, height],
+                    focal_length=[fx, fy],
+                    principal_point=[cx, cy]
+                )
+            )
+        else:
+            # Fallback if no calibration matrix is available
+            width = kf.img.shape[1] if isinstance(kf.img, np.ndarray) else kf.img.width
+            height = kf.img.shape[0] if isinstance(kf.img, np.ndarray) else kf.img.height
+            
+            rr.log(
+                f"{entity_path}/image",
+                rr.Pinhole(
+                    resolution=[width, height],
+                )
+            )
+        
+        # Log the image
+        if kf.img is not None:
+            rr.log(f"{entity_path}/image/rgb", rr.Image(kf.img))
+        
+        # Log the camera pose
+        rr.log(
+            entity_path,
+            rr.Transform3D(
+                translation=tcw,
+                mat3x3=Rcw,
+            ),
+        )
+        
+        # # Log frame ID as text
+        # rr.log(
+        #     f"{entity_path}/label",
+        #     rr.TextAnnotation(
+        #         text=f"KF {kf.id}",
+        #         size=16,
+        #         background_color=(0, 0, 0, 128),  # Semi-transparent black background
+        #         text_color=(255, 255, 255, 255),  # White text
+        #     ),
+        # )
+        
+        # For visualization purposes, also log a point at the camera position
+        rr.log(
+            f"{entity_path}/position",
+            rr.Points3D(
+                positions=[-tcw],  # Negative of tcw is the camera position in world frame
+                colors=[(0, 255, 0)],  # Green point
+                radii=[point_size],  # Small point
+            ),
+        )
+        
+        # If there's a dynamic mask, log it too
+        if hasattr(kf, 'dynamic_mask') and kf.dynamic_mask is not None:
+            rr.log(f"{entity_path}/image/mask", rr.Image(kf.dynamic_mask))
+
+
+def log_mask_type(type="dynamic_mask", mask=None):
+    """
+    Logs a binary mask as a black-and-white image to Rerun.
+
+    Args:
+        type (str): Path name for the log in rerun.
+        mask (np.ndarray or torch.Tensor): Mask with shape (H, W) or (1, H, W) or (B, 1, H, W).
+    """
+    if mask is None:
+        raise ValueError("Mask must not be None")
+
+    # Convert torch.Tensor to np.ndarray
+    if hasattr(mask, "detach"):
+        mask = mask.detach().cpu().numpy()
+
+    # Handle batch dimensions if present
+    if len(mask.shape) == 4:  # (B, 1, H, W)
+        mask = mask[0, 0]
+    elif len(mask.shape) == 3:  # (1, H, W)
+        mask = mask[0]
+    elif len(mask.shape) == 2:  # (H, W)
+        pass
+    else:
+        raise ValueError(f"Unsupported mask shape: {mask.shape}")
+
+    # Ensure the mask is in uint8 format (0 or 255 for visualization)
+    mask_img = (mask > 0).astype(np.uint8) * 255  # Convert boolean to 0/255
+
+    # Log the image to Rerun
+    rr.log(type, rr.Image(mask_img))
+
+    return 0
+
+def log_keyframes(kfs):
+    """ 
+    Input = List of KeyFrameData objects
+    Output = Logs two concatenated images: one for all images and one for all masks,
+             with numbered labels showing kf id, max 5 items per row
+    """
+    if not kfs:
+        return
+    
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+    
+    # Get dimensions from first image (assuming all images have same size)
+    sample_img = kfs[0].img
+    if isinstance(sample_img, np.ndarray):
+        height, width = sample_img.shape[:2]
+    else:
+        height, width = sample_img.size
+    
+    # Calculate grid dimensions
+    n_items = len(kfs)
+    items_per_row = min(5, n_items)  # Max 5 items per row
+    n_rows = (n_items + items_per_row - 1) // items_per_row  # Ceiling division
+    
+    # Create blank canvases for composite images
+    total_width = width * items_per_row
+    total_height = height * n_rows
+    composite_img = Image.new('RGB', (total_width, total_height), (255, 255, 255))
+    composite_mask = Image.new('RGB', (total_width, total_height), (255, 255, 255))
+    
+    # Try to load a font, fall back to default if not available
+    try:
+        font = ImageFont.truetype("arial.ttf", 20)
+    except:
+        font = ImageFont.load_default()
+    
+    # Fill the composite images
+    for i, kf in enumerate(kfs):
+        # Calculate position in grid
+        row = i // items_per_row
+        col = i % items_per_row
+        x = col * width
+        y = row * height
+        
+        # Convert images if necessary and paste them
+        img = kf.img
+        mask = kf.dynamic_mask
+        print("Shape of mask to be logged", mask.shape)
+        if isinstance(img, np.ndarray):
+            img = Image.fromarray(img)
+        if isinstance(mask, np.ndarray):
+            mask = Image.fromarray(mask)
+            
+        composite_img.paste(img, (x, y))
+        composite_mask.paste(mask, (x, y))
+        
+        # Add number label
+        draw_img = ImageDraw.Draw(composite_img)
+        draw_mask = ImageDraw.Draw(composite_mask)
+        label = str(i)
+        draw_img.text((x + 5, y + 5), label, fill=(255, 0, 0), font=font)  # Red text for image
+        draw_mask.text((x + 5, y + 5), label, fill=(255, 0, 0), font=font)  # Red text for mask
+    
+    # Convert to numpy arrays for logging
+    composite_img_array = np.array(composite_img)
+    composite_mask_array = np.array(composite_mask)
+    
+    # Log the composite images
+    rr.log("keyframes/composite/image", rr.Image(composite_img_array))
+    rr.log("keyframes/composite/mask", rr.Image(composite_mask_array))
+
+def log_delaunay_points_3d(curr_delaunay_pts_3d, entity_path = "world"+"/delaunay__frame_points_3d"):
+    """
+    Logs the Delaunay triangulation points in 3D space to rerun.
+    
+    Parameters:
+    -----------
+    curr_delaunay_pts_3d : np.ndarray
+        Array of Delaunay points in 3D space.
+    entity_path : str
+        Base path for the entity in the visualization.
+    """
+    if curr_delaunay_pts_3d is None:
+        return
+    
+    # Log the Delaunay points in 3D
+    rr.log(
+        f"{entity_path}/delaunay_points",
+        rr.Points3D(curr_delaunay_pts_3d, colors=(255, 0, 0)),  # Red color for Delaunay points
+    )
+
+def log_delaunay_map_points_3d(delaunay_map_points_3d, entity_path = "world"+"/delaunay_map_points_3d"):
+    """
+    Logs the Delaunay triangulation points in 3D space to rerun.
+    
+    Parameters:
+    -----------
+    curr_delaunay_pts_3d : np.ndarray
+        Array of Delaunay points in 3D space.
+    entity_path : str
+        Base path for the entity in the visualization.
+    """
+    if delaunay_map_points_3d is None:
+        return
+    # Log the Delaunay points in 3D
+    rr.log(
+        f"{entity_path}/delaunay_map_points",
+        rr.Points3D(delaunay_map_points_3d, colors=(0, 255, 0)),  # Green color for Delaunay points
+    )
+
+def log_all(
+    frame_id,
+    entity_path="world",
+    # Add parameters for all the data you want to log
+    local_map_points=None,
+    global_map_points=None,
+    key_frames=None,
+    current_frame_image=None,
+    features=None,
+    dynamic_features=None,
+    camera_path=None,
+    sam_masks=None,
+    sam_prompts=None,
+    current_frame=None,  # Added parameter for the current frame
+    accumulate_frame_points=False,  # New parameter to control point accumulation
+):
+    """Logs all the components of the SLAM system to rerun."""
+
+    rr.set_time_sequence("frame", frame_id)
+
+    # Add toggle for each logging component as needed
+    if local_map_points is not None:
+        log_local_map(frame_id, entity_path, local_map_points)
+    if global_map_points is not None:
+        log_global_map(frame_id, entity_path, global_map_points)
+    if key_frames is not None:
+        log_key_frames(frame_id, entity_path, key_frames)
+    if current_frame_image is not None:
+        log_current_frame(frame_id, entity_path, current_frame_image)
+    if features is not None:
+        log_features(frame_id, entity_path, features)
+    if dynamic_features is not None:
+        log_dynamic_features(frame_id, entity_path, dynamic_features)
+    if camera_path is not None:
+        log_camera_path(frame_id, entity_path, camera_path)
+    if sam_masks is not None:
+        log_sam_masks(frame_id, entity_path, sam_masks)
+    if sam_prompts is not None:
+        log_sam_prompts(frame_id, entity_path, sam_prompts)
+    if current_frame is not None:
+        log_frame_points(frame_id, entity_path, current_frame, accumulate=accumulate_frame_points)
