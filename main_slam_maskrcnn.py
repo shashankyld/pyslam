@@ -44,6 +44,7 @@ from utils_sys import getchar, Printer, force_kill_all_and_exit
 from utils_img import ImgWriter
 from utils_eval import eval_ate
 from utils_geom_trajectory import find_poses_associations
+from utils_geom import xyzq2Tmat
 from utils_colors import GlColors
 from utils_serialization import SerializableEnumEncoder
 from utils_maskrcnn import MaskRCNNUtils 
@@ -197,7 +198,7 @@ if __name__ == "__main__":
 
     rr.set_time_seconds("frame_timestamp", 0)
             
-    img_id = 0  #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    img_id = 150 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     log_coordinate_axes(entity_path="world", pose=np.eye(4), scale=1)
    
     
@@ -254,7 +255,11 @@ if __name__ == "__main__":
                                 log_image("depth_prediction", depth_img)
                         
                         curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50)
-                        cur_gt_Twc = gt_poses[img_id]
+                        # cur_gt_Twc = gt_poses[img_id]
+
+                        curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
+                        cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
+
                         cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
                         log_coordinate_axes(entity_path = "GT Curr Frame Pose", pose = cur_gt_Twc, scale=1)
                         log_current_frame_pc(frame_id=img_id, entity_path="world/gt_pc/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
@@ -313,6 +318,7 @@ if __name__ == "__main__":
                     time.sleep(0.1)     # img is None
                     if args.headless:
                         if not dataset.isOk():  # Only exit if we've reached the end of dataset
+                            print("Dataset has ended at frame:", img_id)
                             break # exit from the loop if headless and dataset is finished
                     
 
@@ -336,6 +342,7 @@ if __name__ == "__main__":
                 
             # Break loop if we've processed all frames in headless mode
             if args.headless and img_id >= num_total_frames:
+                print("Processed all frames in headless mode. Exiting...")
                 break
                 
         print("\nProcessing final metrics and saving trajectories...")
