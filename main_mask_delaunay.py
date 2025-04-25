@@ -183,6 +183,9 @@ if __name__ == "__main__":
             curr_img = cur_frame.img
 
             cur_Tcw = slam.tracking.f_cur.pose
+            print(" ###################################")
+            print("cur_Tcw: ", cur_Tcw)
+            print(" ####################################")
             # Invert this 
             cur_Twc = np.linalg.inv(cur_Tcw)
             log_coordinate_axes("world/frame_/coordinate_axes", pose=cur_Twc, scale=0.5)
