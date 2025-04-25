@@ -223,7 +223,15 @@ if __name__ == "__main__":
                                 cv2.imshow("depth prediction", depth_img)
                                       
                         slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
-                                        
+
+                        # Getting access to the current frame properties after being populated by the SLAM system
+                        cur_frame = slam.tracking.f_cur  # Class Frame
+                        curr_img = cur_frame.img
+
+                        cur_Tcw = slam.tracking.f_cur.pose
+                        print("#####################################")
+                        print("cur_Tcw: ", cur_Tcw)
+                        print("cur translation: ", slam.tracking.cur_t)                                      
                        
 
                         if not args.headless:
