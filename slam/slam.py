@@ -207,8 +207,8 @@ class Slam(object):
             self.volumetric_integrator = volumetric_integrator_factory(self.volumetric_integrator_type, self.camera, self.environment_type, self.sensor_type)
         
     # @ main track method @
-    def track(self, img, img_right, depth, img_id, timestamp=None):
-        return self.tracking.track(img, img_right, depth, img_id, timestamp)
+    def track(self, img, img_right, depth, img_id, timestamp=None, dynamic_mask=None):
+        return self.tracking.track(img, img_right, depth, img_id, timestamp, dynamic_mask)
     
     def set_tracking_state(self, state: SlamState):
         self.tracking.state = state

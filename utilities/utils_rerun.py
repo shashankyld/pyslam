@@ -122,6 +122,8 @@ def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=N
             rr.log(f"{entity_path}/local_map_snapshot", rr.Points3D(points, colors=colors))
 
 
+
+
 def log_global_map(frame_id, entity_path, points,colors=None):  # Added 'points' parameter
     """Logs the global map to rerun."""
     # points = get_global_map(frame_id)  # Removed the call to get_global_map
@@ -149,6 +151,10 @@ def log_current_frame_pc(frame_id, entity_path, points, colors=None, pose = np.e
     # Transform the points to the world frame from camera frame
     points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
     
+    # If points are less than 100, error
+    if points.shape[0] < 100:
+        print("Error: Points are less than 100")
+        exit(1)
     radii = np.ones(points.shape[0]) * point_size  # Set a default radius for points
     # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
     if colors is not None:
@@ -163,6 +169,11 @@ def log_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4)): 
     """Logs the current frame to rerun with frame id."""
     # Transform the points to the world frame from camera frame
     points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
+    # Downsample points to 5 percent and also colors accordingly
+    indexs = np.random.choice(points.shape[0], int(points.shape[0] * 0.05), replace=False)
+    points = points[indexs]
+    if colors is not None:
+        colors = colors[indexs]
     
     radii = np.ones(points.shape[0]) * point_size  # Set a default radius for points
     # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d

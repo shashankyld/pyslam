@@ -52,7 +52,7 @@ from feature_tracker_configs import FeatureTrackerConfigs
 from loop_detector_configs import LoopDetectorConfigs
 
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
-from utils_depth import img_from_depth, filter_shadow_points
+from utils_depth import img_from_depth, filter_shadow_points, depth2pointcloud
 
 from config_parameters import Parameters  
 
@@ -174,10 +174,12 @@ if __name__ == "__main__":
             raise ValueError("Groundtruth data is None. Please check the dataset.")
         
     # Initialize rerun for visualization
-    rerun_record_name = f"pyslam_{dataset.name}_{int(time.time())}"  # Add timestamp for uniqueness
-    rr.init(rerun_record_name, spawn=True)
-    
-    rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+    if not args.headless:
+        rerun_record_name = f"pyslam_{dataset.name}_{int(time.time())}"  # Add timestamp for uniqueness
+        rr.init(rerun_record_name, spawn=True)
+        
+        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+        
         
             
     do_step = False          # proceed step by step on GUI 
@@ -192,10 +194,15 @@ if __name__ == "__main__":
     
     num_tracking_lost = 0
     num_frames = 0
+
+    rr.set_time_seconds("frame_timestamp", 0)
             
     img_id = 0  #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    log_coordinate_axes(entity_path="world", pose=np.eye(4), scale=1)
+   
     
     try:
+        print("Entering main loop...")
         while not is_viewer_closed:
             
             img, img_right, depth = None, None, None    
@@ -212,7 +219,7 @@ if __name__ == "__main__":
                 if dataset.isOk():
                     print('..................................')               
                     img = dataset.getImageColor(img_id)
-                    depth = dataset.getDepth(img_id)
+                    depth = dataset.getDepth(img_id) * (1/5000) 
                     img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
                 else:
                     # Dataset has ended, break the loop
@@ -238,15 +245,21 @@ if __name__ == "__main__":
                         if depth is None and depth_estimator:
                             depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
                             if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
-                                depth = filter_shadow_points(depth_prediction)
+                                depth = filter_shadow_points(depth_prediction) * (1/ 5000)
                             else: 
-                                depth = depth_prediction
+                                depth = depth_prediction * (1/ 5000)
                             
                             if not args.headless:
                                 depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
                                 log_image("depth_prediction", depth_img)
-
                         
+                        curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50)
+                        cur_gt_Twc = gt_poses[img_id]
+                        cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
+                        log_coordinate_axes(entity_path = "GT Curr Frame Pose", pose = cur_gt_Twc, scale=1)
+                        log_current_frame_pc(frame_id=img_id, entity_path="world/gt_pc/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
+                        log_frame_pc(frame_id=img_id, entity_path="world/gt_pc/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
+
                         # Entry point to dynamic object segmentation
                         #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
                         maskrcnn = MaskRCNNUtils()
@@ -266,16 +279,24 @@ if __name__ == "__main__":
                         # dynamic_mask = np.zeros_like(img)[:, :, 0]
                         print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
                                       
-                        slam.track(img, img_right, depth, img_id, timestamp)  # main SLAM function 
+                        slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
+
+                    
+                        
                                         
                        
 
                         if not args.headless:
-                            img_draw = slam.map.draw_feature_trails(img)
-                            # 2D display (image display)
-                            log_image("feature_trails", img_draw)
-                           
-                        
+                            # Draw feature trails if map is available
+                            if slam.map is not None:
+                                try:
+                                    img_draw = slam.map.draw_feature_trails(img)
+                                    if img_draw is not None:
+                                        log_image("feature_trails", img_draw)
+                                except Exception as e:
+                                    print(f"Error drawing feature trails: {e}")
+
+                            
 
                             
                     if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
@@ -291,7 +312,8 @@ if __name__ == "__main__":
                 else: 
                     time.sleep(0.1)     # img is None
                     if args.headless:
-                        break # exit from the loop if headless
+                        if not dataset.isOk():  # Only exit if we've reached the end of dataset
+                            break # exit from the loop if headless and dataset is finished
                     
 
                                   
@@ -311,8 +333,10 @@ if __name__ == "__main__":
             if is_bundle_adjust:
                 slam.bundle_adjust()    
                 Printer.blue('\nuncheck pause checkbox on GUI to continue...\n')
-                                
-            
+                
+            # Break loop if we've processed all frames in headless mode
+            if args.headless and img_id >= num_total_frames:
+                break
                 
         print("\nProcessing final metrics and saving trajectories...")
         
@@ -358,21 +382,45 @@ if __name__ == "__main__":
         # Clean shutdown
         print("\nShutting down SLAM system...")
         try:
+            # First stop SLAM components to avoid broken pipe errors
+            if slam is not None:
+                # Stop loop closing thread first
+                if hasattr(slam, 'loop_closing') and slam.loop_closing is not None:
+                    try:
+                        slam.loop_closing.quit()
+                        print("Loop closing thread stopped")
+                    except Exception as e:
+                        print(f"Error stopping loop closing: {e}")
+
+                # Stop other SLAM components
+                try:
+                    slam.quit()
+                    print("SLAM system stopped")
+                except Exception as e:
+                    print(f"Error stopping SLAM: {e}")
+
+            # Close trajectory writers
             if online_trajectory_writer is not None:
-                online_trajectory_writer.close_file()
+                try:
+                    online_trajectory_writer.close_file()
+                    print("Online trajectory writer closed")
+                except Exception as e:
+                    print(f"Error closing online trajectory writer: {e}")
             
             if final_trajectory_writer is not None:
-                final_trajectory_writer.close_file()
-                
-            # Force kill all processes in case of errors
-            force_kill_all_and_exit(verbose=False)
+                try:
+                    final_trajectory_writer.close_file()
+                    print("Final trajectory writer closed")
+                except Exception as e:
+                    print(f"Error closing final trajectory writer: {e}")
+
+            # Finally force kill remaining processes
+            force_kill_all_and_exit(verbose=True)
             
         except Exception as e:
             print('Exception during shutdown:', e)
             print(f'traceback: {traceback.format_exc()}')
-            force_kill_all_and_exit(verbose=False)
-
-
+            force_kill_all_and_exit(verbose=True)
 
         if args.headless:
-            force_kill_all_and_exit(verbose=False) # just in case
+            force_kill_all_and_exit(verbose=True)

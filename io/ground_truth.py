@@ -27,7 +27,7 @@ import traceback
 from enum import Enum
 
 from utils_sys import Printer 
-from utils_geom import rotmat2qvec, xyzq2Tmat
+from utils_geom import rotmat2qvec, xyzq2Tmat, qvec2rotmat
 
 from utils_serialization import SerializableEnum, register_class, NumpyJson, NumpyB64Json, SerializationJSON
 
@@ -194,6 +194,8 @@ class GroundTruth(object):
         self.timestamps = np.array(self.timestamps, dtype=np.float64)
         self.trajectory = np.array(self.trajectory, dtype=np.float32)
         return self.trajectory, self.timestamps
+    
+  
     
     def getFull6dTrajectory(self):
         if self.trajectory is not None and self.poses is not None and self.timestamps is not None:
