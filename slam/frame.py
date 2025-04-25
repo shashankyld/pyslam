@@ -751,6 +751,10 @@ class Frame(FrameBase):
     def get_points(self):    
         with self._lock_features:                           
             return self.points.copy() if self.points is not None else None  
+    
+    def get_points_as_np(self):
+        with self._lock_features:
+            return np.array([p._pt for p in self.points.copy() if p is not None]), np.array([p.color for p in self.points.copy() if p is not None])/ 255.0
                     
     def get_matched_points(self):
         with self._lock_features:                   

@@ -198,7 +198,7 @@ if __name__ == "__main__":
 
     rr.set_time_seconds("frame_timestamp", 0)
             
-    img_id = 150 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    img_id = 0#210, 340, 400, 770   # you can start from a desired frame id if needed 
     log_coordinate_axes(entity_path="world", pose=np.eye(4), scale=1)
    
     
@@ -286,8 +286,18 @@ if __name__ == "__main__":
                                       
                         slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
 
-                    
-                        
+                        # Getting access to the current frame properties after being populated by the SLAM system
+                        cur_frame = slam.tracking.f_cur  # Class Frame
+                        cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
+                        curr_img = cur_frame.img
+
+                        cur_Tcw = slam.tracking.f_cur.pose
+                        print("cur_Tcw: ", cur_Tcw)
+                        print("cur translation: ", slam.tracking.cur_t)
+                        # Invert this 
+                        cur_Twc = np.linalg.inv(cur_Tcw)
+                        log_coordinate_axes("world/frame_estimated/coordinate_axes", pose=cur_Twc, scale=0.5)
+                        log_frame_pc(frame_id=img_id, entity_path="world/accumulated_pc/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_Twc)                                                  
                                         
                        
 
