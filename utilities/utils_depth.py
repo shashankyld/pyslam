@@ -42,6 +42,7 @@ class PointCloud:
         
 def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
     # mask for valid depth values
+    depth = depth * 1/ 5000
     valid = (depth > min_depth) & (depth < max_depth)
     # indices of valid depth values
     rows, cols = np.where(valid)

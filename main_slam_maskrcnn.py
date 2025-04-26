@@ -220,7 +220,7 @@ if __name__ == "__main__":
                 if dataset.isOk():
                     print('..................................')               
                     img = dataset.getImageColor(img_id)
-                    depth = dataset.getDepth(img_id) * (1/5000) 
+                    depth = dataset.getDepth(img_id) 
                     img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
                 else:
                     # Dataset has ended, break the loop
@@ -246,9 +246,9 @@ if __name__ == "__main__":
                         if depth is None and depth_estimator:
                             depth_prediction, pts3d_prediction = depth_estimator.infer(img, img_right)
                             if Parameters.kDepthEstimatorRemoveShadowPointsInFrontEnd:
-                                depth = filter_shadow_points(depth_prediction) * (1/ 5000)
+                                depth = filter_shadow_points(depth_prediction) 
                             else: 
-                                depth = depth_prediction * (1/ 5000)
+                                depth = depth_prediction 
                             
                             if not args.headless:
                                 depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
