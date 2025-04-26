@@ -49,7 +49,7 @@ from utils_colors import GlColors
 from utils_serialization import SerializableEnumEncoder
 from utils_maskrcnn import MaskRCNNUtils 
 from feature_tracker_configs import FeatureTrackerConfigs
-
+from utils_draw import *
 from loop_detector_configs import LoopDetectorConfigs
 
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
@@ -258,8 +258,7 @@ if __name__ == "__main__":
 
                         curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
                         cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
-                        print("################################################")
-                        print("scale: ", abs_scale)
+                        
 
                         cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
                         log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
@@ -291,7 +290,6 @@ if __name__ == "__main__":
                         cur_frame = slam.tracking.f_cur  # Class Frame
                         cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
                         curr_img = cur_frame.img
-
                         cur_Tcw = slam.tracking.f_cur.pose
                         print("cur_Tcw: ", cur_Tcw)
                         print("cur translation: ", slam.tracking.cur_t)

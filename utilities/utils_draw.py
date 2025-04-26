@@ -25,6 +25,8 @@ import random
 import string
 
 
+
+
 # draw a list of points with different random colors on a input image 
 def draw_points(img, pts, radius=5): 
     if img.ndim < 3:

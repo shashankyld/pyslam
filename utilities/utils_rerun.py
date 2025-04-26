@@ -60,6 +60,26 @@ def log_camera(entity_path, world_T_cam_44, K_44):
     rr.log(entity_path, rr.Transform3D(translation=trans, mat3x3=Rot))
 
 import cv2
+def ensure_rgb(image):
+    """
+    Convert image to RGB format if it's a BGR image.
+    
+    Args:
+        image: An image array
+    
+    Returns:
+        The image in RGB format
+    """
+    if image is None:
+        return None
+        
+    # Check if image has 3 channels (color image)
+    if isinstance(image, np.ndarray) and len(image.shape) == 3 and image.shape[2] == 3:
+        # Convert from BGR to RGB
+        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    return image
+
 def log_image(entity, image):
     """Logs an image to rerun."""
     if image is None:
@@ -72,17 +92,19 @@ def log_image(entity, image):
         # Create a small placeholder image instead
         placeholder = np.zeros((100, 100, 3), dtype=np.uint8)
         cv2.putText(placeholder, "No Image", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        rr.log(f"{entity}", rr.Image(placeholder))
+        rr.log(f"{entity}", rr.Image(ensure_rgb(placeholder)))
         return
     
     try:
-        rr.log(f"{entity}", rr.Image(image))
+        # Convert to RGB before logging
+        rgb_image = ensure_rgb(image)
+        rr.log(f"{entity}", rr.Image(rgb_image))
     except Exception as e:
         print(f"Error logging image to {entity}: {e}")
         # Create a small error image instead
         error_img = np.zeros((100, 100, 3), dtype=np.uint8)
         cv2.putText(error_img, "Error", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-        rr.log(f"{entity}", rr.Image(error_img))
+        rr.log(f"{entity}", rr.Image(ensure_rgb(error_img)))
         
 def log_local_map(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
     """Logs the local map to rerun."""
@@ -120,6 +142,9 @@ def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=N
             )
         else:   
             rr.log(f"{entity_path}/local_map_snapshot", rr.Points3D(points, colors=colors))
+
+
+
 
 
 
@@ -382,7 +407,9 @@ def log_keyframes_poses(kfs):
         
         # Log the image
         if kf.img is not None:
-            rr.log(f"{entity_path}/image/rgb", rr.Image(kf.img))
+            # Convert to RGB before logging
+            rgb_img = ensure_rgb(kf.img)
+            rr.log(f"{entity_path}/image/rgb", rr.Image(rgb_img))
         
         # Log the camera pose
         rr.log(
@@ -416,8 +443,8 @@ def log_keyframes_poses(kfs):
         
         # If there's a dynamic mask, log it too
         if hasattr(kf, 'dynamic_mask') and kf.dynamic_mask is not None:
+            # For masks, no color conversion is typically needed as they're usually single channel
             rr.log(f"{entity_path}/image/mask", rr.Image(kf.dynamic_mask))
-
 
 def log_mask_type(type="dynamic_mask", mask=None):
     """
@@ -500,7 +527,10 @@ def log_keyframes(kfs):
         img = kf.img
         mask = kf.dynamic_mask
         print("Shape of mask to be logged", mask.shape)
+        
+        # Convert img to RGB if it's a NumPy array
         if isinstance(img, np.ndarray):
+            img = ensure_rgb(img)  # Convert to RGB before creating PIL Image
             img = Image.fromarray(img)
         if isinstance(mask, np.ndarray):
             mask = Image.fromarray(mask)
@@ -516,7 +546,7 @@ def log_keyframes(kfs):
         draw_mask.text((x + 5, y + 5), label, fill=(255, 0, 0), font=font)  # Red text for mask
     
     # Convert to numpy arrays for logging
-    composite_img_array = np.array(composite_img)
+    composite_img_array = np.array(composite_img)  # PIL Images are already in RGB format
     composite_mask_array = np.array(composite_mask)
     
     # Log the composite images
@@ -590,7 +620,9 @@ def log_all(
     if key_frames is not None:
         log_key_frames(frame_id, entity_path, key_frames)
     if current_frame_image is not None:
-        log_current_frame(frame_id, entity_path, current_frame_image)
+        # Convert to RGB before logging
+        rgb_image = ensure_rgb(current_frame_image)
+        log_current_frame(frame_id, entity_path, rgb_image)
     if features is not None:
         log_features(frame_id, entity_path, features)
     if dynamic_features is not None:
