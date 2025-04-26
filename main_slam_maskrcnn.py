@@ -255,10 +255,11 @@ if __name__ == "__main__":
                                 log_image("depth_prediction", depth_img)
                         
                         curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50)
-                        cur_gt_Twc = gt_poses[img_id]
 
-                        # curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
-                        # cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
+                        curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
+                        cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
+                        print("################################################")
+                        print("scale: ", abs_scale)
 
                         cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
                         log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
