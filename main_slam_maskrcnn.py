@@ -199,7 +199,7 @@ if __name__ == "__main__":
     rr.set_time_seconds("frame_timestamp", 0)
             
     img_id = 0#210, 340, 400, 770   # you can start from a desired frame id if needed 
-    log_coordinate_axes(entity_path="world", pose=np.eye(4), scale=1)
+    log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
    
     
     try:
@@ -255,15 +255,15 @@ if __name__ == "__main__":
                                 log_image("depth_prediction", depth_img)
                         
                         curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50)
-                        # cur_gt_Twc = gt_poses[img_id]
+                        cur_gt_Twc = gt_poses[img_id]
 
-                        curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
-                        cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
+                        # curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
+                        # cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
 
                         cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
-                        log_coordinate_axes(entity_path = "GT Curr Frame Pose", pose = cur_gt_Twc, scale=1)
-                        log_current_frame_pc(frame_id=img_id, entity_path="world/gt_pc/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
-                        log_frame_pc(frame_id=img_id, entity_path="world/gt_pc/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
+                        log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
+                        log_current_frame_pc(frame_id=img_id, entity_path="world/GT/curr_scan/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
+                        log_frame_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
 
                         # Entry point to dynamic object segmentation
                         #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
@@ -296,10 +296,18 @@ if __name__ == "__main__":
                         print("cur translation: ", slam.tracking.cur_t)
                         # Invert this 
                         cur_Twc = np.linalg.inv(cur_Tcw)
-                        log_coordinate_axes("world/frame_estimated/coordinate_axes", pose=cur_Twc, scale=0.5)
-                        log_frame_pc(frame_id=img_id, entity_path="world/accumulated_pc/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_Twc)                                                  
-                                        
-                       
+                        log_coordinate_axes("world/slam/Curr Frame Pose", pose=cur_Twc, scale=0.5)
+                        log_frame_pc(frame_id=img_id, entity_path="world/slam/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_Twc)                                                  
+                                    
+
+                        # Collect data for rerun visualization
+                        global_map_points, global_map_colors = slam.map.get_points_as_np()
+                        local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
+
+                        log_local_map(frame_id=img_id, entity_path="world/slam", points=local_map_points)
+                        log_global_map(frame_id=img_id, entity_path="world/slam", points=global_map_points, colors=global_map_colors)
+                        log_current_frame_map_points(frame_id=img_id, entity_path="world/slam", points=cur_frame_points, colors=cur_frame_colors)
+                                
 
                         if not args.headless:
                             # Draw feature trails if map is available
