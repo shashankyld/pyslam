@@ -314,7 +314,7 @@ if __name__ == "__main__":
                                 try:
                                     img_draw = slam.map.draw_feature_trails(img)
                                     if img_draw is not None:
-                                        log_image("feature_trails", img_draw)
+                                        log_image("feature_trails - Green(Tracked in many frames; Blue(Tracked in less than 2 frames))", img_draw)
                                 except Exception as e:
                                     print(f"Error drawing feature trails: {e}")
 

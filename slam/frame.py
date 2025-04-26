@@ -489,9 +489,16 @@ class Frame(FrameBase):
             des_shape = self.des.shape if self.des is not None else None
             kps_r_len = len(self.kps_r) if self.kps_r is not None else 0
             des_r_shape = self.des_r.shape if self.des_r is not None else None
+            # Map points and outliers - boolean count
+            points_len = np.sum(self.points != None) if self.points is not None else 0
+            outliers_len = np.sum(self.outliers) if self.outliers is not None else 0
+            print("Frame MapPoints: ", self.points)
+            print("Frame Outliers: ", self.outliers)
+
             
         print(f'Frame {self.id} stats:')
-        print(f'  kps: {kps_len}, des: {des_shape}, kps_r: {kps_r_len}, des_r: {des_r_shape}')
+        print(f'  kps: {kps_len}, des: {des_shape}, kps_r: {kps_r_len}, des_r: {des_r_shape}',
+              f' points: {points_len}, outliers: {outliers_len}')
         
         with self._lock_features:
             kf_ref = self.kf_ref
@@ -515,14 +522,14 @@ class Frame(FrameBase):
                 exit(1) 
             if img is not None:
                 if post is not None:
-                    rr.log(f"frames_post/image", rr.Image(img))
+                    rr.log(f"frames_post_applying_mask/image", rr.Image(img))
                 rr.log(f"frames/image", rr.Image(img))
             
             if keypoints is not None:
                 # kp_color = green
                 kp_color = (0, 255, 0) 
                 if post is not None:
-                    rr.log(f"frames_post/keypoints", rr.Points2D(keypoints, colors=kp_color))
+                    rr.log(f"frames_post_applying_mask/keypoints", rr.Points2D(keypoints, colors=kp_color))
                 rr.log(f"frames/keypoints", rr.Points2D(keypoints, colors=kp_color))
 
 
