@@ -21,6 +21,8 @@ import sys
 import cv2
 import numpy as np
 
+import numpy as np
+from scipy import ndimage as ndi
 #import json
 import ujson as json
 from utils_rerun import ensure_rgb
@@ -543,17 +545,20 @@ class Frame(FrameBase):
     def set_dynamic_mask(self, dynamic_mask):
         self.dynamic_mask = dynamic_mask.copy()
 
+    
     # def apply_dynamic_mask(self, dynamic_mask):
     #     """
     #     Filters keypoints based on a dynamic mask, retaining only those in static regions.
+    #     Updates map points by removing their frame views before filtering frame features.
 
     #     Args:
     #         dynamic_mask (np.ndarray): Binary mask [H x W], where 0 indicates static areas
-    #                                 and 1 indicates dynamic areas.
+    #                                 and 255 indicates dynamic areas.
 
     #     Updates:
     #         Updates keypoint-related arrays (kps, kpsu, des, points, etc.) to include only
-    #         keypoints in static regions. Resets the KD-tree.
+    #         keypoints in static regions. Removes frame views from associated map points.
+    #         Resets the KD-tree.
     #     """
     #     with self._lock_features:
     #         self.set_dynamic_mask(dynamic_mask)
@@ -561,7 +566,9 @@ class Frame(FrameBase):
     #         # Ensure keypoints are initialized
     #         assert self.kps is not None, "Keypoints are not initialized."
 
-            
+    #         # Normalize dynamic mask to 0 or 1 (handle 0/255 case)
+    #         normalized_mask = (dynamic_mask > 0).astype(np.uint8)  # Convert 255 to 1, keep 0 as 0
+
     #         # Convert keypoint coordinates to integer pixel indices (rounding for accuracy)
     #         kps_int = np.round(self.kps).astype(int)  # shape: [N x 2], [x, y] (col, row)
 
@@ -569,14 +576,9 @@ class Frame(FrameBase):
     #         H, W = dynamic_mask.shape
     #         print("#########################apply_dynamic_mask################")
     #         print("shape of dynamic mask: ", dynamic_mask.shape)
-    #         print("range of values in dynamic mask: ", np.min(dynamic_mask), " max: ", np.max(dynamic_mask))
-    #         # Number of values between 0 and 255 in the mask
-    #         print("number of values between 0 and 255 in dynamic mask: ", np.sum((dynamic_mask > 0) & (dynamic_mask < 255)))
-    #         print("dynamic mask: ", dynamic_mask)
-    #         # Print range of values in kps_int in each dimension
+    #         print("range of values in normalized mask: ", np.min(normalized_mask), " max: ", np.max(normalized_mask))
     #         print("kps_int min: ", np.min(kps_int, axis=0), " max: ", np.max(kps_int, axis=0))
-    #         # mask has dimension [H x W], kps_int has dimension [N x 2] - [x, y]. So, dimensions are swapped
-            
+
     #         valid_mask = (
     #             (kps_int[:, 0] >= 0) & (kps_int[:, 0] < W) &
     #             (kps_int[:, 1] >= 0) & (kps_int[:, 1] < H)
@@ -585,7 +587,7 @@ class Frame(FrameBase):
     #             print(f"Warning: {np.sum(~valid_mask)} keypoints out of bounds, filtering them.")
 
     #         # Get dynamic mask values at keypoint positions
-    #         dynamic_flags = dynamic_mask[kps_int[valid_mask, 1], kps_int[valid_mask, 0]] == 1
+    #         dynamic_flags = normalized_mask[kps_int[valid_mask, 1], kps_int[valid_mask, 0]] == 1
 
     #         # Store dynamic keypoint mask aligned with original keypoints
     #         self.dynamic_kps_mask = np.zeros(len(self.kps), dtype=bool)
@@ -594,24 +596,29 @@ class Frame(FrameBase):
     #         # Combine masks: keep only valid and static keypoints
     #         final_mask = valid_mask & (~self.dynamic_kps_mask)
 
-    #         # # Notify map points of removal
-    #         # removed_idxs = np.where(~final_mask)[0]
-    #         # for idx in removed_idxs:
-    #         #     if self.points[idx] is not None:
-    #         #         self.points[idx].remove_frame_view(self, idx)
+    #         # Update map points: remove frame views for map points associated with removed keypoints
+    #         if self.points is not None:
+    #             # Identify indices of removed keypoints
+    #             removed_indices = np.where(~final_mask)[0]
+    #             num_map_points_removed = 0
+    #             for idx in removed_indices:
+    #                 point = self.points[idx]
+    #                 if point is not None:  # Only process actual MapPoint objects
+    #                     with point._lock_features:  # Acquire MapPoint._lock_features
+    #                         point.remove_frame_view(self, idx)  # Remove this frame from point._frame_views
+    #                     num_map_points_removed += 1
+    #         else:
+    #             num_map_points_removed = 0
 
     #         # Update all keypoint-related arrays
-    #         self.kps = self.kps[final_mask]
-    #         self.kpsu = self.kpsu[final_mask] if self.kpsu is not None else None
-    #         self.kpsn = self.kpsn[final_mask] if self.kpsn is not None else None
-    #         self.octaves = self.octaves[final_mask] if self.octaves is not None else None
-    #         self.sizes = self.sizes[final_mask] if self.sizes is not None else None
-    #         self.angles = self.angles[final_mask] if self.angles is not None else None
-    #         self.des = self.des[final_mask] if self.des is not None else None
-    #         self.depths = self.depths[final_mask] if self.depths is not None else None
-    #         self.points = self.points[final_mask] if self.points is not None else None # TODO: Before setting to None, I need to remove those points from the map
-    #         self.outliers = self.outliers[final_mask] if self.outliers is not None else None
-    #         self.kps_ur = self.kps_ur[final_mask] if self.kps_ur is not None else None
+    #         arrays_to_update = [
+    #             'kps', 'kpsu', 'kpsn', 'octaves', 'sizes', 'angles', 'des',
+    #             'depths', 'points', 'outliers', 'kps_ur'
+    #         ]
+    #         for attr in arrays_to_update:
+    #             value = getattr(self, attr, None)
+    #             if value is not None:
+    #                 setattr(self, attr, value[final_mask])
 
     #         # Update stereo keypoints (assuming rectification ensures bounds)
     #         if self.kps_r is not None and self.octaves_r is not None and self.des_r is not None:
@@ -626,23 +633,23 @@ class Frame(FrameBase):
     #         if len(self.kps) == 0:
     #             print("Warning: No keypoints remain after applying dynamic mask.")
 
-
-    #         # Print the number of keypoints removed
+    #         # Print statistics
+    #         print("Map points:", self.points)
     #         num_removed = np.sum(~final_mask)
     #         print(f"Removed {num_removed} keypoints due to dynamic mask.")
-    #         # Print the number of keypoints remaining
     #         num_remaining = np.sum(final_mask)
     #         print(f"Remaining {num_remaining} keypoints after applying dynamic mask.")
-    #         # Print the number of map points remaining
-    #         num_map_points_remaining = np.sum(self.points[final_mask] is not None)
+    #         num_map_points_remaining = np.sum(self.points != None) if self.points is not None else 0
     #         print(f"Remaining {num_map_points_remaining} map points after applying dynamic mask.")
-    #         # Print the number of map points removed
-    #         num_map_points_removed = np.sum(self.points[~final_mask] is not None)
     #         print(f"Removed {num_map_points_removed} map points due to dynamic mask.")
-    
+
+
+
     def apply_dynamic_mask(self, dynamic_mask):
         """
         Filters keypoints based on a dynamic mask, retaining only those in static regions.
+        Removes confidently dynamic map points and their views across all frames and keyframes,
+        accounting for mask contour uncertainty.
 
         Args:
             dynamic_mask (np.ndarray): Binary mask [H x W], where 0 indicates static areas
@@ -650,7 +657,9 @@ class Frame(FrameBase):
 
         Updates:
             Updates keypoint-related arrays (kps, kpsu, des, points, etc.) to include only
-            keypoints in static regions. Resets the KD-tree.
+            keypoints in static regions. Removes frame views for uncertain dynamic points
+            and deletes confidently dynamic map points, clearing their views in all frames
+            and keyframes. Resets the KD-tree.
         """
         with self._lock_features:
             self.set_dynamic_mask(dynamic_mask)
@@ -661,6 +670,10 @@ class Frame(FrameBase):
             # Normalize dynamic mask to 0 or 1 (handle 0/255 case)
             normalized_mask = (dynamic_mask > 0).astype(np.uint8)  # Convert 255 to 1, keep 0 as 0
 
+            # Compute confident dynamic mask (erode to exclude contour regions)
+            erosion_size = 5  # Size of erosion kernel (adjust based on mask uncertainty)
+            confident_mask = ndi.binary_erosion(normalized_mask, structure=np.ones((erosion_size, erosion_size))).astype(np.uint8)
+
             # Convert keypoint coordinates to integer pixel indices (rounding for accuracy)
             kps_int = np.round(self.kps).astype(int)  # shape: [N x 2], [x, y] (col, row)
 
@@ -669,6 +682,7 @@ class Frame(FrameBase):
             print("#########################apply_dynamic_mask################")
             print("shape of dynamic mask: ", dynamic_mask.shape)
             print("range of values in normalized mask: ", np.min(normalized_mask), " max: ", np.max(normalized_mask))
+            print("range of values in confident mask: ", np.min(confident_mask), " max: ", np.max(confident_mask))
             print("kps_int min: ", np.min(kps_int, axis=0), " max: ", np.max(kps_int, axis=0))
 
             valid_mask = (
@@ -678,8 +692,9 @@ class Frame(FrameBase):
             if not valid_mask.all():
                 print(f"Warning: {np.sum(~valid_mask)} keypoints out of bounds, filtering them.")
 
-            # Get dynamic mask values at keypoint positions
+            # Get dynamic and confident dynamic flags at keypoint positions
             dynamic_flags = normalized_mask[kps_int[valid_mask, 1], kps_int[valid_mask, 0]] == 1
+            confident_dynamic_flags = confident_mask[kps_int[valid_mask, 1], kps_int[valid_mask, 0]] == 1
 
             # Store dynamic keypoint mask aligned with original keypoints
             self.dynamic_kps_mask = np.zeros(len(self.kps), dtype=bool)
@@ -688,18 +703,50 @@ class Frame(FrameBase):
             # Combine masks: keep only valid and static keypoints
             final_mask = valid_mask & (~self.dynamic_kps_mask)
 
+            # Update map points: handle confident and uncertain dynamic points
+            if self.points is not None:
+                # Identify indices of removed keypoints
+                removed_indices = np.where(~final_mask)[0]
+                num_map_points_removed = 0
+                num_confident_map_points_removed = 0
+
+                # Create mask for confident dynamic keypoints
+                confident_dynamic_mask = np.zeros(len(self.kps), dtype=bool)
+                confident_dynamic_mask[valid_mask] = confident_dynamic_flags
+
+                for idx in removed_indices:
+                    point = self.points[idx]
+                    if point is not None:  # Only process actual MapPoint objects
+                        if confident_dynamic_mask[idx]:  # Confidently dynamic: remove map point entirely
+                            with point._lock_features:
+                                with point._lock_pos:
+                                    # Clear frame views in all frames
+                                    frame_views = list(point._frame_views.items())
+                                    for frame, f_idx in frame_views:
+                                        with frame._lock_features:
+                                            frame.remove_point_match(f_idx)
+                                    point._frame_views.clear()
+                                    # Mark as bad and clear observations
+                                    point.set_bad()  # Clears _observations, updates keyframes, removes from map
+                            num_confident_map_points_removed += 1
+                            num_map_points_removed += 1
+                        else:  # Uncertain dynamic: only remove frame view
+                            with point._lock_features:
+                                point.remove_frame_view(self, idx)
+                            num_map_points_removed += 1
+            else:
+                num_map_points_removed = 0
+                num_confident_map_points_removed = 0
+
             # Update all keypoint-related arrays
-            self.kps = self.kps[final_mask]
-            self.kpsu = self.kpsu[final_mask] if self.kpsu is not None else None
-            self.kpsn = self.kpsn[final_mask] if self.kpsn is not None else None
-            self.octaves = self.octaves[final_mask] if self.octaves is not None else None
-            self.sizes = self.sizes[final_mask] if self.sizes is not None else None
-            self.angles = self.angles[final_mask] if self.angles is not None else None
-            self.des = self.des[final_mask] if self.des is not None else None
-            self.depths = self.depths[final_mask] if self.depths is not None else None
-            self.points = self.points[final_mask] if self.points is not None else None
-            self.outliers = self.outliers[final_mask] if self.outliers is not None else None
-            self.kps_ur = self.kps_ur[final_mask] if self.kps_ur is not None else None
+            arrays_to_update = [
+                'kps', 'kpsu', 'kpsn', 'octaves', 'sizes', 'angles', 'des',
+                'depths', 'points', 'outliers', 'kps_ur'
+            ]
+            for attr in arrays_to_update:
+                value = getattr(self, attr, None)
+                if value is not None:
+                    setattr(self, attr, value[final_mask])
 
             # Update stereo keypoints (assuming rectification ensures bounds)
             if self.kps_r is not None and self.octaves_r is not None and self.des_r is not None:
@@ -715,16 +762,16 @@ class Frame(FrameBase):
                 print("Warning: No keypoints remain after applying dynamic mask.")
 
             # Print statistics
-            print("Map points :", self.points)
+            print("Map points:", self.points)
             num_removed = np.sum(~final_mask)
             print(f"Removed {num_removed} keypoints due to dynamic mask.")
             num_remaining = np.sum(final_mask)
             print(f"Remaining {num_remaining} keypoints after applying dynamic mask.")
-            num_map_points_remaining = np.sum(self.points is not None) if self.points is not None else 0
+            num_map_points_remaining = np.sum(self.points != None) if self.points is not None else 0
             print(f"Remaining {num_map_points_remaining} map points after applying dynamic mask.")
-            num_map_points_removed = np.sum(~final_mask) 
             print(f"Removed {num_map_points_removed} map points due to dynamic mask.")
-            
+            print(f"Removed {num_confident_map_points_removed} confidently dynamic map points (deleted entirely).")
+                
     def set_img_right(self, img_right): 
         self.img_right = img_right.copy()
         
