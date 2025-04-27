@@ -53,7 +53,7 @@ from utils_draw import *
 from loop_detector_configs import LoopDetectorConfigs
 
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
-from utils_depth import img_from_depth, filter_shadow_points, depth2pointcloud
+from utils_depth import img_from_depth, filter_shadow_points, depth2pointcloud, depth2pointcloud_with_mask
 
 from config_parameters import Parameters  
 
@@ -254,17 +254,7 @@ if __name__ == "__main__":
                                 depth_img = img_from_depth(depth_prediction, img_min=0, img_max=50)
                                 log_image("depth_prediction", depth_img)
                         
-                        curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50)
-
-                        curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
-                        cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
                         
-
-                        cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
-                        log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
-                        log_current_frame_pc(frame_id=img_id, entity_path="world/GT/curr_scan/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
-                        log_frame_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
-
                         # Entry point to dynamic object segmentation
                         #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
                         maskrcnn = MaskRCNNUtils()
@@ -283,6 +273,20 @@ if __name__ == "__main__":
                         # Set full black mask by force with one channel
                         # dynamic_mask = np.zeros_like(img)[:, :, 0]
                         print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
+
+
+                        # curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50)
+                        curr_pc = depth2pointcloud_with_mask(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50, mask=dynamic_mask)
+
+                        curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
+                        cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
+                        
+
+                        cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
+                        log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
+                        log_current_frame_pc(frame_id=img_id, entity_path="world/GT/curr_scan/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
+                        log_frame_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
+
                                       
                         slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
 

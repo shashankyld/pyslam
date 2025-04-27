@@ -45,7 +45,7 @@ from local_mapping import LocalMapping
 from initializer import Initializer
 import optimizer_g2o
 # import optimizer_gtsam 
-
+from utils_rerun import ensure_rgb
 from loop_closing import LoopClosing
 
 from timer import TimerFps
@@ -884,7 +884,10 @@ class Tracking:
         f_cur = Frame(self.camera, img, img_right=img_right, depth=depth, timestamp=timestamp, img_id=img_id) 
         f_cur.print_frame_stats()
         f_cur.apply_dynamic_mask(dynamic_mask) # apply dynamic mask to the current frame
+        print("Trying to run frame stats again after applying dynamic mask")
         f_cur.print_frame_stats(post=True)
+        print("Printing frame stats after applying dynamic mask done")
+
 
         self.f_cur = f_cur 
         #print("frame: ", f_cur.id)        

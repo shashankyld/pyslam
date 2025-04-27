@@ -54,6 +54,29 @@ def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
     colors = image[rows, cols] / 255.0
     return PointCloud(points, colors)
 
+def depth2pointcloud_with_mask(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, mask=None):
+    # Convert mask to boolean if it is not already
+    if mask is not None and mask.dtype != bool:
+        mask = mask.astype(bool)
+    
+    # Invert the mask 
+    if mask is not None:
+        mask = ~mask
+    # mask for valid depth values
+    depth = depth * 1/ 5000
+    valid = (depth > min_depth) & (depth < max_depth)
+    if mask is not None:
+        valid &= mask
+    # indices of valid depth values
+    rows, cols = np.where(valid)
+    z = depth[rows, cols]
+    x = (cols - cx) * z / fx
+    y = (rows - cy) * z / fy
+    points = np.stack([x, y, z], axis=-1)
+    # colors corresponding to valid depth values
+    colors = image[rows, cols] / 255.0
+    return PointCloud(points, colors)
+
 def depth2pointcloud_v2(depth, image, fx, fy, cx, cy):
     width, height = depth.shape[0], depth.shape[1]
     # Generate mesh grid and calculate point cloud coordinates
