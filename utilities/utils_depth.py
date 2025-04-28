@@ -54,6 +54,25 @@ def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, sca
     colors = image[rows, cols] / 255.0
     return PointCloud(points, colors)
 
+def kps_sparse_mask(image, kps):
+    """
+    Create a mask for the keypoints in the image.
+    
+    Parameters:
+      image: (h, w, 3) numpy array of the image.
+      kps: (N, 2) numpy array of keypoints in (x, y) format.
+    
+    Returns:
+      mask: (h, w) numpy array with True for keypoints and False otherwise.
+    """
+    h, w = image.shape[:2]
+    mask = np.zeros((h, w), dtype=bool)
+    for kp in kps:
+        x, y = int(kp[0]), int(kp[1])
+        if 0 <= x < w and 0 <= y < h:
+            mask[y, x] = True
+    return ~mask
+
 def depth2pointcloud_with_mask(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, mask=None, scale=5000):
     # Convert mask to boolean if it is not already
     if mask is not None and mask.dtype != bool:

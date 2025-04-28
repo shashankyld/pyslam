@@ -132,6 +132,55 @@ def log_snapshot_map(index, entity_path, points, colors=None):  # Added 'points'
         colors = np.array([0, 255, 0], dtype=np.uint8)
         rr.log(f"{entity_path}/snapshot_map_{index}", rr.Points3D(points, colors=colors))
 
+def log_matching_pointclouds(entity, points1, points2):  # Added 'points' parameter
+    """Logs the matching point clouds to rerun."""
+    # Convert to numpy arrays if they are not already
+    if not isinstance(points1, np.ndarray):
+        points1 = np.array(points1)
+    if not isinstance(points2, np.ndarray):
+        points2 = np.array(points2)
+    print("shape of points1", points1.shape)
+    print("shape of points2", points2.shape)
+    
+    ## Add a line between points1 and points2 with idx guiding which two points to connect, p1[0], p2[0] have a line, p1[1], p2[1] have a line and so on
+    if points1 is None or points2 is None:
+        print(f"Warning: Attempted to log None point clouds to {entity}")
+        return
+    if points1.shape[0] != points2.shape[0]:
+        print(f"Warning: Point clouds have different sizes {points1.shape[0]} and {points2.shape[0]} for {entity}")
+        return
+    if points1.shape[0]> 0:
+        if points1.shape[1] != 3 or points2.shape[1] != 3:
+            print(f"Warning: Point clouds have invalid shape {points1.shape} and {points2.shape} for {entity}")
+            return
+        # TODO- Lines between matched points
+        colors_0 = np.array([0, 0, 255], dtype=np.uint8)
+        colors_1 = np.array([255, 0, 0], dtype=np.uint8)
+      
+        # Log the points to rerun
+        rr.log(
+            f"{entity}/points1",
+            rr.Points3D(points1, colors=colors_0),
+        )
+        rr.log(
+            f"{entity}/points2",
+            rr.Points3D(points2, colors=colors_1),
+        )
+
+
+def log_random_pc(entity, points, colors=None):  # Added 'points' parameter
+    """Logs the local map to rerun."""
+    # points = get_local_map(frame_id)  # Removed the call to get_local_map
+    if colors is not None:
+        rr.log(
+            f"{entity}",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        # colors = Green
+        colors = np.array([0, 255, 0], dtype=np.uint8)
+        rr.log(f"{entity}", rr.Points3D(points, colors=colors))
+
 def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=None):  # Added 'points' parameter
     """Logs the local map snapshot to rerun."""
     # points = get_local_map_snapshot(frame_id)  # Removed the call to get_local_map_snapshot

@@ -762,7 +762,6 @@ class Frame(FrameBase):
                 print("Warning: No keypoints remain after applying dynamic mask.")
 
             # Print statistics
-            print("Map points:", self.points)
             num_removed = np.sum(~final_mask)
             print(f"Removed {num_removed} keypoints due to dynamic mask.")
             num_remaining = np.sum(final_mask)

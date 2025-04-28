@@ -54,9 +54,9 @@ from loop_detector_configs import LoopDetectorConfigs
 
 from depth_estimator_factory import depth_estimator_factory, DepthEstimatorType
 from utils_depth import img_from_depth, filter_shadow_points, depth2pointcloud, depth2pointcloud_with_mask
-
+from search_points import *
 from config_parameters import Parameters  
-
+from utils_depth import *
 from rerun_interface import Rerun
 
 from datetime import datetime
@@ -306,8 +306,8 @@ if __name__ == "__main__":
                         ###############MAPSNAPSHOT - STEP 1
                         ref_map_snapshot = slam.map.snapshot_manager.get_snapshot(index=5)
                         if ref_map_snapshot is not None:
-                            ref_map_points = ref_map_snapshot.coordinates
-                            log_snapshot_map(index=5, entity_path="world/slam", points=ref_map_points)
+                            ref_map_coordinates = ref_map_snapshot.coordinates
+                            log_snapshot_map(index=5, entity_path="world/slam", points=ref_map_coordinates)
 
                         
                         ###################CURRENT FRAME - STEP 2
@@ -352,25 +352,63 @@ if __name__ == "__main__":
                         if not args.headless:
                             log_image("Delaunay Triangulation", delaunay_img)
                             
-                        # Find matches with current frame and snapshot map
-                        try:
-                            ss_matches, num_ss_matches, ss_matched_keypoints = ref_map_snapshot.find_matches_by_projection(cur_frame, max_reproj_distance=3, max_descriptor_distance=30, ratio_test=0.8)
-                        except Exception as e:
-                            print(f"Error finding matches: {e}")
-                            ss_matches = []
-                            num_ss_matches = 0
-                            ss_matched_keypoints = []
+                        # Print Map Snapshot
+                        if ref_map_snapshot is not None:
+                            ref_map_points = ref_map_snapshot.points
+                            print("Length of ref_map_points: ", len(ref_map_points))
+                            
+                            num_found_map_pts, reproj_err_frame_map_sigma, matched_points_frame_idxs, map_point_associations = search_map_by_projection2(ref_map_points, cur_frame,
+                                    max_reproj_distance=Parameters.kMaxReprojectionDistanceMap * 2, 
+                                    max_descriptor_distance=None,
+                                    ratio_test=Parameters.kMatchRatioTestMap,
+                                    far_points_threshold=None)  
+                            
+                            print("num_found_map_pts: ", num_found_map_pts)
+                            print("reproj_err_frame_map_sigma: ", reproj_err_frame_map_sigma)
+                            print("map point associations: ", map_point_associations)
+                            
+                            # Where map_point_associations is not NONE
+                            snap_shot_mathced_idxs = [i for i in range(len(map_point_associations)) if map_point_associations[i] is not None]
+                            print("Length of matched_points_frame_idxs: ", len(matched_points_frame_idxs))
+                            frame_kps_matched_idxs = [i for i in map_point_associations if i is not None]
+                            print("Length of frame_kps_matched_idxs: ", len(frame_kps_matched_idxs))
+                            
+                            # Check if there are any matched points before proceeding
+                            if len(snap_shot_mathced_idxs) > 0:
+                                snap_shot_matched_coordinates = [ref_map_coordinates[i] for i in snap_shot_mathced_idxs]
+                                # Convert to numpy array
+                                snap_shot_matched_coordinates = np.array(snap_shot_matched_coordinates)
+                                print("shape of snap_shot_matched_coordinates: ", np.array(snap_shot_matched_coordinates).shape)
+                                
+                                frame_kps_matched_2d_coordinates = [cur_frame.kps[i] for i in frame_kps_matched_idxs]
+                                
+                                frame_kps_matched_3d_pc, _= cur_frame.unproject_points_3d(frame_kps_matched_idxs, transform_in_world=True)
+                                snap_shot_matched_2d_coordinates, _ = cur_frame.project_points(snap_shot_matched_coordinates)
+                                
+                                print("shape of snap_shot_matched_2d_coordinates: ", np.array(snap_shot_matched_2d_coordinates).shape)
+                                print("Length of snap_shot_matched_2d_coordinates: ", len(snap_shot_matched_2d_coordinates))
+                                print("shape of frame_kps_matched_3d_pc: ", np.array(frame_kps_matched_3d_pc).shape)
+                                print("Length of frame_kps_matched_3d_pc: ", len(snap_shot_matched_coordinates))
+                                print("Length of frame_kps_matched_3d_pc: ", len(frame_kps_matched_3d_pc))
+                                
+                                print("snap_shot_matched_coordinates: ", len(snap_shot_matched_coordinates))
+                                print("frame_kps_matched_2d_coordinates: ", len(frame_kps_matched_2d_coordinates))
+                                
+                                # Only log if we have points to match
+                                log_matching_pointclouds(entity="world/delaunay/matched_pcs", points1=snap_shot_matched_coordinates, points2=frame_kps_matched_3d_pc)
+                            
+                                snap_shot_matched_kps_delaunay = delaunay_image_kps(cur_frame.img, snap_shot_matched_2d_coordinates)
+                                current_frame_matched_kps_delaunay = delaunay_image_kps(cur_frame.img, frame_kps_matched_2d_coordinates)
+                                if not args.headless:
+                                    log_image("Delaunay Triangulation - Map Snapshot", snap_shot_matched_kps_delaunay)
+                                    log_image("Delaunay Triangulation - Current Frame", current_frame_matched_kps_delaunay)
+                            else:
+                                print("No matched points found between map snapshot and current frame.")
+                            
+                            
+                            
 
-                        # Print the number of matches
-                        print(f"Number of matches with snapshot map: {num_ss_matches}")
-                        print("SS matches: ", ss_matches)
-                        print("SS matched keypoints: ", ss_matched_keypoints)
-                        # Visualize the matches
-                        # try:
-                        #     delaunay_matches_kps_snapshot = delaunay_image_kps(cur_frame.img, ss_matched_keypoints)
-                        # except Exception as e:
-                        #     print(f"Error visualizing matches: {e}")
-                        #     delaunay_matches_kps_snapshot = cur_frame.img.copy()
+                                    
                             
                     if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                         online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
@@ -452,6 +490,13 @@ if __name__ == "__main__":
         except Exception as e:
             print('Exception while computing metrics: ', e)
             print(f'traceback: {traceback.format_exc()}')
+
+    except Exception as e:
+        print('Exception in main loop: ', e)
+        print(f'traceback: {traceback.format_exc()}')
+        is_viewer_closed = True
+        if args.headless:
+            force_kill_all_and_exit(verbose=True)
 
     finally:
         # Clean shutdown

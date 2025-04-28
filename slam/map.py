@@ -23,13 +23,13 @@ import math
 import cv2
 
 import ujson as json
-
+from config_parameters import Parameters
 from collections import Counter, deque
 
 from ordered_set import OrderedSet # from https://pypi.org/project/ordered-set/
 
 from threading import RLock, Thread
-
+from search_points import *
 from utils_geom import poseRt, add_ones, add_ones_1D
 from config_parameters import Parameters 
 from frame import Frame, FeatureTrackerShared, FrameBase
@@ -86,96 +86,7 @@ class MapSnapshot:
         # Store the number of points
         self.num_points = len(self.points)
         
-    def find_matches_by_projection(self, frame, max_reproj_distance=3, max_descriptor_distance=30, ratio_test=0.8):
-        """Find matches between the map points and keypoints in a frame.
-        
-        Args:
-            frame: A Frame object with keypoints and descriptors
-            max_reproj_distance: Maximum reprojection distance for matching
-            max_descriptor_distance: Maximum descriptor distance for matching
-            ratio_test: Ratio test threshold for descriptor matching
-        
-        Returns:
-            matches: A list of (map_point_idx, keypoint_idx) tuples
-            num_found: Number of matches found
-            matched_kps: List of matched keypoints in the frame
-        """
-        if self.num_points == 0:
-            return [], 0, []
-        
-        # Project map points into the frame
-        uvs, depths = frame.project_points(self.coordinates)
-        
-        # Check if the projected points are within the frame boundaries and have positive depth
-        in_frame = frame.camera.are_in_image(uvs, depths)
-        
-        # Check viewing angle
-        viewing_angles = np.zeros(self.num_points)
-        for i in range(self.num_points):
-            viewing_angles[i] = np.dot(frame.Rwc.T[2], self.normals[i])
-        in_view = viewing_angles < Parameters.kViewingCosLimitForPoint
-        
-        # Check distance constraints
-        distances = np.linalg.norm(frame.Ow - self.coordinates, axis=1)
-        in_distance = np.logical_and(distances >= np.array(self.min_distances), distances <= np.array(self.max_distances))
-        
-        # Combine all filters
-        valid_points = np.logical_and(np.logical_and(in_frame, in_view), in_distance)
-        
-        # Predict detection levels for valid points
-        valid_indices = np.where(valid_points)[0]
-        if len(valid_indices) == 0:
-            return [], 0, []
-        
-        pred_levels = predict_detection_levels([self.points[i] for i in valid_indices], distances[valid_indices])
-        
-        # Find matches
-        matches = []
-        for idx, i in enumerate(valid_indices):
-            # Calculate search radius based on the predicted scale level
-            radius = max_reproj_distance * FeatureTrackerShared.feature_manager.scale_factors[pred_levels[idx]]
-            
-            # Find keypoints within the radius
-            nearby_kps = []
-            for j, kp in enumerate(frame.kps):
-                if frame.points[j] is not None:
-                    continue  # Skip already matched keypoints
-                
-                dist = np.linalg.norm(kp - uvs[i])
-                if dist <= radius:
-                    nearby_kps.append((j, dist))
-            
-            if not nearby_kps:
-                continue
-            
-            # Sort nearby keypoints by distance
-            nearby_kps.sort(key=lambda x: x[1])
-            
-            # Find the best match based on descriptor distance
-            best_idx = -1
-            best_dist = float('inf')
-            second_best_dist = float('inf')
-            
-            for j, _ in nearby_kps:
-                des_dist = FeatureTrackerShared.descriptor_distance(self.descriptors[i], frame.des[j])
-                
-                if des_dist < best_dist:
-                    second_best_dist = best_dist
-                    best_dist = des_dist
-                    best_idx = j
-                elif des_dist < second_best_dist:
-                    second_best_dist = des_dist
-            
-            # Apply ratio test if needed
-            if best_idx != -1 and best_dist < max_descriptor_distance:
-                if ratio_test < 1.0 and best_dist > 0 and second_best_dist > 0 and best_dist > ratio_test * second_best_dist:
-                    continue
-                
-                matches.append((i, best_idx))
-        
-        matched_keypoints = [frame.kps[idx] for _, idx in matches]
-        return matches, len(matches), matched_keypoints
-
+    
 
 class MapSnapshotManager:
     """A class to manage multiple MapSnapshot objects."""
