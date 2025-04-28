@@ -28,7 +28,7 @@ import numpy as np
 import json
 
 import platform 
-
+from utilities.utils_delaunay import *
 from config import Config
 
 from slam import Slam, SlamState
@@ -293,11 +293,24 @@ if __name__ == "__main__":
                         log_current_frame_pc(frame_id=img_id, entity_path="world/GT/curr_scan/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
                         log_frame_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
 
-                                      
+                        ###################TRACKING#####################################     
                         slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
+                        
+                        ######################MAP SNAPSHOT#####################################
+                        cur_map_points = slam.map.points
+                        slam.map.snapshot_manager.add_snapshot(cur_map_points)
+                         
+                        print("MAPSNAPSHOT: ", len(slam.map.snapshot_manager.get_snapshot().points))
+                        
+                        #########################EXTRACTING MAP SNAPSHOT FROM A PAST TIME AND DELAUNAY ON IT###########################
+                        ###############MAPSNAPSHOT - STEP 1
+                        ref_map_snapshot = slam.map.snapshot_manager.get_snapshot(index=5)
+                        if ref_map_snapshot is not None:
+                            ref_map_points = ref_map_snapshot.coordinates
+                            log_snapshot_map(index=5, entity_path="world/slam", points=ref_map_points)
 
-
-
+                        
+                        ###################CURRENT FRAME - STEP 2
                         # Getting access to the current frame properties after being populated by the SLAM system
                         cur_frame = slam.tracking.f_cur  # Class Frame
                         cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
@@ -307,17 +320,21 @@ if __name__ == "__main__":
                         print("cur translation: ", slam.tracking.cur_t)
                         # Invert this 
                         cur_Twc = np.linalg.inv(cur_Tcw)
-                        log_coordinate_axes("world/slam/Curr Frame Pose", pose=cur_Twc, scale=0.5)
-                        log_frame_pc(frame_id=img_id, entity_path="world/slam/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_Twc)                                                  
+                        
+                        ################# LOGGING Current Frame pose, point cloud, global map, local map, and mathced map points with current frame and current map
+                        if not args.headless:
+                            log_coordinate_axes("world/slam/Curr Frame Pose", pose=cur_Twc, scale=0.5)
+                            log_frame_pc(frame_id=img_id, entity_path="world/slam/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_Twc)                                                  
                                     
 
                         # Collect data for rerun visualization
                         global_map_points, global_map_colors = slam.map.get_points_as_np()
                         local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
 
-                        log_local_map(frame_id=img_id, entity_path="world/slam", points=local_map_points)
-                        log_global_map(frame_id=img_id, entity_path="world/slam", points=global_map_points, colors=global_map_colors)
-                        log_current_frame_map_points(frame_id=img_id, entity_path="world/slam", points=cur_frame_points, colors=cur_frame_colors)
+                        if not args.headless:
+                            log_local_map(frame_id=img_id, entity_path="world/slam", points=local_map_points)
+                            log_global_map(frame_id=img_id, entity_path="world/slam", points=global_map_points, colors=global_map_colors)
+                            log_current_frame_map_points(frame_id=img_id, entity_path="world/slam", points=cur_frame_points, colors=cur_frame_colors)
                                 
 
                         if not args.headless:
@@ -330,6 +347,11 @@ if __name__ == "__main__":
                                 except Exception as e:
                                     print(f"Error drawing feature trails: {e}")
 
+                        ### PERFORMAING DELAUNAY TRIANGULATION ON THE CURRENT FRAME - KPS IN 2D
+                        delaunay_img = delaunay_image(cur_frame)
+                        if not args.headless:
+                            log_image("Delaunay Triangulation", delaunay_img)
+                            
                             
 
                             

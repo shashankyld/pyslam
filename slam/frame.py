@@ -495,8 +495,8 @@ class Frame(FrameBase):
             # Map points and outliers - boolean count
             points_len = np.sum(self.points != None) if self.points is not None else 0
             outliers_len = np.sum(self.outliers) if self.outliers is not None else 0
-            print("Frame MapPoints: ", self.points)
-            print("Frame Outliers: ", self.outliers)
+            # print("Frame MapPoints: ", self.points)
+            # print("Frame Outliers: ", self.outliers)
 
             
         print(f'Frame {self.id} stats:')

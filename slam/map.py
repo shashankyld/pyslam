@@ -34,7 +34,7 @@ from utils_geom import poseRt, add_ones, add_ones_1D
 from config_parameters import Parameters 
 from frame import Frame, FeatureTrackerShared, FrameBase
 from keyframe import KeyFrame
-from map_point import MapPoint, MapPointBase
+from map_point import MapPoint, MapPointBase, predict_detection_levels
 
 from utils_sys import Printer
 
@@ -51,7 +51,179 @@ kMaxLenFrameDeque = 20
 if not kVerbose:
     def print(*args, **kwargs):
         pass 
+
+
+class MapSnapshot:
+    """A lightweight class to store map points with their coordinates and descriptors."""
     
+    def __init__(self, map_points):
+        """Initialize a MapSnapshot with a set of map points.
+        
+        Args:
+            map_points: A set of MapPoint objects to be stored in the snapshot
+        """
+        self.points = []
+        self.descriptors = []
+        self.coordinates = []
+        self.normals = []
+        self.min_distances = []
+        self.max_distances = []
+        
+        # Extract and store only the necessary information from map points
+        for p in map_points:
+            if not p.is_bad:
+                self.points.append(p)
+                self.descriptors.append(p.des.copy() if p.des is not None else None)
+                self.coordinates.append(p.pt.copy())
+                self.normals.append(p.normal.copy())
+                self.min_distances.append(p.min_distance)
+                self.max_distances.append(p.max_distance)
+        
+        # Convert to numpy arrays for efficient computation
+        self.coordinates = np.array(self.coordinates) if self.coordinates else np.array([])
+        self.normals = np.array(self.normals) if self.normals else np.array([])
+        
+        # Store the number of points
+        self.num_points = len(self.points)
+        
+    def find_matches_by_projection(self, frame, max_reproj_distance=3, max_descriptor_distance=30, ratio_test=0.8):
+        """Find matches between the map points and keypoints in a frame.
+        
+        Args:
+            frame: A Frame object with keypoints and descriptors
+            max_reproj_distance: Maximum reprojection distance for matching
+            max_descriptor_distance: Maximum descriptor distance for matching
+            ratio_test: Ratio test threshold for descriptor matching
+        
+        Returns:
+            matches: A list of (map_point_idx, keypoint_idx) tuples
+            num_found: Number of matches found
+            matched_kps: List of matched keypoints in the frame
+        """
+        if self.num_points == 0:
+            return [], 0, []
+        
+        # Project map points into the frame
+        uvs, depths = frame.project_points(self.coordinates)
+        
+        # Check if the projected points are within the frame boundaries and have positive depth
+        in_frame = frame.camera.are_in_image(uvs, depths)
+        
+        # Check viewing angle
+        viewing_angles = np.zeros(self.num_points)
+        for i in range(self.num_points):
+            viewing_angles[i] = np.dot(frame.Rwc.T[2], self.normals[i])
+        in_view = viewing_angles < Parameters.kViewingCosLimitForPoint
+        
+        # Check distance constraints
+        distances = np.linalg.norm(frame.Ow - self.coordinates, axis=1)
+        in_distance = np.logical_and(distances >= np.array(self.min_distances), distances <= np.array(self.max_distances))
+        
+        # Combine all filters
+        valid_points = np.logical_and(np.logical_and(in_frame, in_view), in_distance)
+        
+        # Predict detection levels for valid points
+        valid_indices = np.where(valid_points)[0]
+        if len(valid_indices) == 0:
+            return [], 0, []
+        
+        pred_levels = predict_detection_levels([self.points[i] for i in valid_indices], distances[valid_indices])
+        
+        # Find matches
+        matches = []
+        for idx, i in enumerate(valid_indices):
+            # Calculate search radius based on the predicted scale level
+            radius = max_reproj_distance * FeatureTrackerShared.feature_manager.scale_factors[pred_levels[idx]]
+            
+            # Find keypoints within the radius
+            nearby_kps = []
+            for j, kp in enumerate(frame.kps):
+                if frame.points[j] is not None:
+                    continue  # Skip already matched keypoints
+                
+                dist = np.linalg.norm(kp - uvs[i])
+                if dist <= radius:
+                    nearby_kps.append((j, dist))
+            
+            if not nearby_kps:
+                continue
+            
+            # Sort nearby keypoints by distance
+            nearby_kps.sort(key=lambda x: x[1])
+            
+            # Find the best match based on descriptor distance
+            best_idx = -1
+            best_dist = float('inf')
+            second_best_dist = float('inf')
+            
+            for j, _ in nearby_kps:
+                des_dist = FeatureTrackerShared.descriptor_distance(self.descriptors[i], frame.des[j])
+                
+                if des_dist < best_dist:
+                    second_best_dist = best_dist
+                    best_dist = des_dist
+                    best_idx = j
+                elif des_dist < second_best_dist:
+                    second_best_dist = des_dist
+            
+            # Apply ratio test if needed
+            if best_idx != -1 and best_dist < max_descriptor_distance:
+                if ratio_test < 1.0 and best_dist > 0 and second_best_dist > 0 and best_dist > ratio_test * second_best_dist:
+                    continue
+                
+                matches.append((i, best_idx))
+        
+        matched_keypoints = [frame.kps[idx] for _, idx in matches]
+        return matches, len(matches), matched_keypoints
+
+
+class MapSnapshotManager:
+    """A class to manage multiple MapSnapshot objects."""
+    
+    def __init__(self, max_snapshots=Parameters.kMaxMapSnapshots):
+        """Initialize a MapSnapshotManager.
+        
+        Args:
+            max_snapshots: Maximum number of snapshots to store
+        """
+        self.max_snapshots = max_snapshots
+        self.snapshots = []
+        
+    def add_snapshot(self, map_points):
+        """Add a new snapshot of the map.
+        
+        Args:
+            map_points: A set of MapPoint objects for the new snapshot
+        """
+        snapshot = MapSnapshot(map_points)
+        
+        # Add to the beginning of the list (most recent first)
+        self.snapshots.insert(0, snapshot)
+        
+        # Remove oldest snapshot if we've exceeded the maximum
+        if len(self.snapshots) > self.max_snapshots:
+            self.snapshots.pop() # Remove the oldest snapshot (last in the list)
+            
+    def get_snapshot(self, index=0):
+        """Get a snapshot at a specified index.
+        
+        Args:
+            index: Index of the snapshot to retrieve (0 is the most recent)
+        
+        Returns:
+            MapSnapshot: The requested snapshot, or None if index is out of range
+        """
+        if 0 <= index < len(self.snapshots):
+            return self.snapshots[index]
+        return None
+        
+    def clear(self):
+        """Clear all snapshots."""
+        self.snapshots.clear()
+        
+    def size(self):
+        """Get the number of snapshots currently stored."""
+        return len(self.snapshots)
              
 class ReloadedSessionMapInfo:
     def __init__(self, num_keyframes, num_points, max_point_id, max_frame_id, max_keyframe_id):
@@ -87,6 +259,9 @@ class Map(object):
         
         self.viewer_scale = -1
         
+        # Initialize map snapshot manager
+        self.snapshot_manager = MapSnapshotManager()
+        
     def is_reloaded(self):
         return self.reloaded_session_map_info is not None
         
@@ -103,6 +278,9 @@ class Map(object):
                 self.keyframes_map.clear()
                 
                 self.local_map.reset()
+                
+                # Clear map snapshots
+                self.snapshot_manager.clear()
                 
     def reset_session(self):
         print('Map: reset_session...')        
@@ -132,7 +310,9 @@ class Map(object):
 
                     # Reset the session of the local map
                     self.local_map.reset_session(keyframes_to_remove, points_to_remove)
-
+                    
+                    # Clear map snapshots
+                    self.snapshot_manager.clear()
 
     def __getstate__(self):
         # Create a copy of the instance's __dict__
@@ -808,7 +988,7 @@ class LocalMapBase(object):
             self.keyframes = local_keyframes
             self.points = good_points 
             self.ref_keyframes = ref_keyframes                                                  
-        return local_keyframes, good_points, ref_keyframes   
+        return local_keyframes, good_points, ref_keyframes  
          
 
     # from a given input frame compute: 
@@ -906,5 +1086,5 @@ class LocalCovisibilityMap(LocalMapBase):
     # update the local keyframes, the viewed points and the reference keyframes (that see the viewed points but are not in the local keyframes)
     def update(self, kf_ref):
         self.update_keyframes(kf_ref)
-        return self.update_from_keyframes(self.keyframes)         
-  
+        return self.update_from_keyframes(self.keyframes)
+

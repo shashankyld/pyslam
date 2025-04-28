@@ -119,6 +119,19 @@ def log_local_map(frame_id, entity_path, points, colors=None):  # Added 'points'
         colors = np.array([0, 255, 0], dtype=np.uint8)
         rr.log(f"{entity_path}/local_map", rr.Points3D(points, colors=colors))
 
+def log_snapshot_map(index, entity_path, points, colors=None):  # Added 'points' parameter
+    """Logs the local map to rerun."""
+    # points = get_local_map(frame_id)  # Removed the call to get_local_map
+    if colors is not None:
+        rr.log(
+            f"{entity_path}/snapshot_map_{index}",
+            rr.Points3D(points, colors=colors),
+        )
+    else:
+        # colors = Green
+        colors = np.array([0, 255, 0], dtype=np.uint8)
+        rr.log(f"{entity_path}/snapshot_map_{index}", rr.Points3D(points, colors=colors))
+
 def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=None):  # Added 'points' parameter
     """Logs the local map snapshot to rerun."""
     # points = get_local_map_snapshot(frame_id)  # Removed the call to get_local_map_snapshot
