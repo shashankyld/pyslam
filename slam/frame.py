@@ -771,6 +771,9 @@ class Frame(FrameBase):
             print(f"Remaining {num_map_points_remaining} map points after applying dynamic mask.")
             print(f"Removed {num_map_points_removed} map points due to dynamic mask.")
             print(f"Removed {num_confident_map_points_removed} confidently dynamic map points (deleted entirely).")
+            # Exception error for proof: num_confident_map_points_removed > 0
+            if num_confident_map_points_removed > 0:
+                raise Exception(f"Removed {num_confident_map_points_removed} confidently dynamic map points (deleted entirely).")
                 
     def set_img_right(self, img_right): 
         self.img_right = img_right.copy()

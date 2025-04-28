@@ -38,6 +38,8 @@ class Parameters:
     kLocalMappingParallelKpsMatchingNumWorkers=6
     kLocalMappingDebugAndPrintToFile = True
     
+    # Map Snapshots
+    kMaxMapSnapshots = 10                           # Maximum number of map snapshots to store
     
     # Number of desired keypoints per frame 
     kNumFeatures=2000                               # Default number of keypoints (can be overridden by settings file)

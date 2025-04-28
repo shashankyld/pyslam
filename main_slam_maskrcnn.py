@@ -66,7 +66,7 @@ import argparse
 
 
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     
 
 if __name__ == "__main__":   
@@ -100,16 +100,17 @@ if __name__ == "__main__":
     groundtruth = groundtruth_factory(config.dataset_settings)
 
     camera = PinholeCamera(config)
-
+    depth_factor = 1/camera.depth_factor #eg final value = 5000
+    
     # Select your tracker configuration (see the file feature_tracker_configs.py) 
     # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
     # WARNING: At present, SLAM does not support LOFTR and other "pure" image matchers (further details in the commenting notes about LOFTR in feature_tracker_configs.py).
-    feature_tracker_config = FeatureTrackerConfigs.ORB2
+    feature_tracker_config = FeatureTrackerConfigs.LIGHTGLUE # ORB2
         
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW2_INDEPENDENT, DBOW3, DBOW3_INDEPENDENT, IBOW, OBINDEX2, VLAD, HDC_DELF, SAD, ALEXNET, NETVLAD, COSPLACE, EIGENPLACES  etc.
     # NOTE: under mac, the boost/text deserialization used by DBOW2 and DBOW3 may be very slow.
-    loop_detection_config = LoopDetectorConfigs.DBOW3
+    loop_detection_config = LoopDetectorConfigs.NETVLAD # DBOW3
 
     # Override the feature tracker and loop detector configuration from the `settings` file
     if config.feature_tracker_config_name is not None:  # Check if we set `FeatureTrackerConfig.name` in the `settings` file 
@@ -200,7 +201,7 @@ if __name__ == "__main__":
             
     img_id = 0#210, 340, 400, 770   # you can start from a desired frame id if needed 
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
-   
+    end_img_id = 50
     
     try:
         print("Entering main loop...")
@@ -222,6 +223,11 @@ if __name__ == "__main__":
                     img = dataset.getImageColor(img_id)
                     depth = dataset.getDepth(img_id) 
                     img_right = dataset.getImageColorRight(img_id) if dataset.sensor_type == SensorType.STEREO else None
+
+                    if img_id == end_img_id:
+                        print("End image id reached, exiting...")
+                        is_viewer_closed = True
+                        break
                 else:
                     # Dataset has ended, break the loop
                     print("Dataset has ended at frame:", img_id)
@@ -275,8 +281,8 @@ if __name__ == "__main__":
                         print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
 
 
-                        # curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50)
-                        curr_pc = depth2pointcloud_with_mask(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50, mask=dynamic_mask)
+                        # curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50, scale=depth_factor)
+                        curr_pc = depth2pointcloud_with_mask(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=dynamic_mask, scale=depth_factor)
 
                         curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
                         cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
@@ -289,6 +295,15 @@ if __name__ == "__main__":
 
                                       
                         slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
+
+                        ## PRINTING MAP SNAPSHOTS 
+                        print(" MAP SNAPSHOT: ####################################################################")
+                        snapshots = slam.map.get_snapshots()
+                        for i, snapshot in enumerate(snapshots):
+                            if snapshot is not None:
+                                print(f"Snapshot {i}: {snapshot}")
+                            else:
+                                print(f"Snapshot {i} is None")
 
                         # Getting access to the current frame properties after being populated by the SLAM system
                         cur_frame = slam.tracking.f_cur  # Class Frame

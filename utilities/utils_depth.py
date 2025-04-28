@@ -40,9 +40,9 @@ class PointCloud:
         self.colors = colors    # array Nx3
 
         
-def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
+def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, scale = 5000):
     # mask for valid depth values
-    depth = depth * 1/ 5000
+    depth = depth * 1/ scale
     valid = (depth > min_depth) & (depth < max_depth)
     # indices of valid depth values
     rows, cols = np.where(valid)
@@ -54,7 +54,7 @@ def depth2pointcloud(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0):
     colors = image[rows, cols] / 255.0
     return PointCloud(points, colors)
 
-def depth2pointcloud_with_mask(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, mask=None):
+def depth2pointcloud_with_mask(depth, image, fx, fy, cx, cy, max_depth, min_depth=0.0, mask=None, scale=5000):
     # Convert mask to boolean if it is not already
     if mask is not None and mask.dtype != bool:
         mask = mask.astype(bool)
@@ -63,7 +63,7 @@ def depth2pointcloud_with_mask(depth, image, fx, fy, cx, cy, max_depth, min_dept
     if mask is not None:
         mask = ~mask
     # mask for valid depth values
-    depth = depth * 1/ 5000
+    depth = depth * 1/ scale
     valid = (depth > min_depth) & (depth < max_depth)
     if mask is not None:
         valid &= mask
