@@ -296,14 +296,7 @@ if __name__ == "__main__":
                                       
                         slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
 
-                        ## PRINTING MAP SNAPSHOTS 
-                        print(" MAP SNAPSHOT: ####################################################################")
-                        snapshots = slam.map.get_snapshots()
-                        for i, snapshot in enumerate(snapshots):
-                            if snapshot is not None:
-                                print(f"Snapshot {i}: {snapshot}")
-                            else:
-                                print(f"Snapshot {i} is None")
+
 
                         # Getting access to the current frame properties after being populated by the SLAM system
                         cur_frame = slam.tracking.f_cur  # Class Frame
