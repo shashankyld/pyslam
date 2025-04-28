@@ -66,7 +66,9 @@ def delaunay_image_kps(img, kps):
         cv2.line(img, tuple(points_2d[simplex[0]]), tuple(points_2d[simplex[1]]), (0, 255, 0), 1)
         cv2.line(img, tuple(points_2d[simplex[1]]), tuple(points_2d[simplex[2]]), (0, 255, 0), 1)
         cv2.line(img, tuple(points_2d[simplex[2]]), tuple(points_2d[simplex[0]]), (0, 255, 0), 1)
-    return img
+    return img, tri
+
+
 
 def convert_delauany_to_networkx(tri):
     ''' 

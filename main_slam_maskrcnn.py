@@ -277,7 +277,7 @@ if __name__ == "__main__":
                         if not args.headless:
                             log_mask_type("dynamic_mask_dilated", dynamic_mask)
                         # Set full black mask by force with one channel
-                        # dynamic_mask = np.zeros_like(img)[:, :, 0]
+                        dynamic_mask = np.zeros_like(img)[:, :, 0]
                         print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
 
 
@@ -397,8 +397,20 @@ if __name__ == "__main__":
                                 # Only log if we have points to match
                                 log_matching_pointclouds(entity="world/delaunay/matched_pcs", points1=snap_shot_matched_coordinates, points2=frame_kps_matched_3d_pc)
                             
-                                snap_shot_matched_kps_delaunay = delaunay_image_kps(cur_frame.img, snap_shot_matched_2d_coordinates)
-                                current_frame_matched_kps_delaunay = delaunay_image_kps(cur_frame.img, frame_kps_matched_2d_coordinates)
+                                snap_shot_matched_kps_delaunay, _ = delaunay_image_kps(cur_frame.img, snap_shot_matched_2d_coordinates)
+                                current_frame_matched_kps_delaunay, current_frame_matched_kps_tri = delaunay_image_kps(cur_frame.img, frame_kps_matched_2d_coordinates)
+
+                                print("############################## TRIANGULATION ##############################")
+                                print("current_frame_matched_kps_tri", current_frame_matched_kps_tri)
+
+                                ## TODO:
+                                #1. Using the current_frame_matched_kps_tri, create a networkx graph object
+                                #2. Iterate over the graph edges - when iterating iterate over indices of the points in the current_frame_matched_kps_tri and not the coordinates themselves
+                                #3. For each edge, check the edge length in 3D using the same indices in both snap_shot_matched_coordinates and frame_kps_matched_3d_pc
+                                #4. If the edge length is greater than a threshold, remove the edge from the graph
+                                #5. Use the connected components of the graph to get the connected components
+                                #6 Add a new function to plot connected components in the graph on image and then visualize it in rerun
+
                                 if not args.headless:
                                     log_image("Delaunay Triangulation - Map Snapshot", snap_shot_matched_kps_delaunay)
                                     log_image("Delaunay Triangulation - Current Frame", current_frame_matched_kps_delaunay)
