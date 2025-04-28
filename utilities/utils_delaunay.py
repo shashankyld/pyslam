@@ -37,7 +37,7 @@ connected_components = get_connected_components(graph)
 print(connected_components)  # Output: [{1, 2, 3}, {4, 5}]
 '''
 
-def delaunay_image(cur_frame):
+def delaunay_frame(cur_frame):
 
     ''' 
     Takes in the current time stamp and slam object and runs delaunay triangulation on the current frame
@@ -48,6 +48,20 @@ def delaunay_image(cur_frame):
     tri = Delaunay(points_2d)
     # print("Delaunay Triangulation Done", tri.simplices)
     img = cur_frame.img.copy() 
+    for simplex in tri.simplices:
+        cv2.line(img, tuple(points_2d[simplex[0]]), tuple(points_2d[simplex[1]]), (0, 255, 0), 1)
+        cv2.line(img, tuple(points_2d[simplex[1]]), tuple(points_2d[simplex[2]]), (0, 255, 0), 1)
+        cv2.line(img, tuple(points_2d[simplex[2]]), tuple(points_2d[simplex[0]]), (0, 255, 0), 1)
+    return img
+
+def delaunay_image_kps(img, kps):
+    """ Imput image, keypoints and return the delaunay triangulation of the image with the keypoints """
+    # Getting access to the current frame properties after being populated by the SLAM system
+    points_2d = kps.copy() # List - convert to numpy array
+    points_2d = np.array(points_2d).astype(int)
+    tri = Delaunay(points_2d)
+    # print("Delaunay Triangulation Done", tri.simplices)
+    img = img.copy() 
     for simplex in tri.simplices:
         cv2.line(img, tuple(points_2d[simplex[0]]), tuple(points_2d[simplex[1]]), (0, 255, 0), 1)
         cv2.line(img, tuple(points_2d[simplex[1]]), tuple(points_2d[simplex[2]]), (0, 255, 0), 1)

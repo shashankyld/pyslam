@@ -105,12 +105,12 @@ if __name__ == "__main__":
     # Select your tracker configuration (see the file feature_tracker_configs.py) 
     # FeatureTrackerConfigs: SHI_TOMASI_ORB, FAST_ORB, ORB, ORB2, ORB2_FREAK, ORB2_BEBLID, BRISK, AKAZE, FAST_FREAK, SIFT, ROOT_SIFT, SURF, KEYNET, SUPERPOINT, CONTEXTDESC, LIGHTGLUE, XFEAT, XFEAT_XFEAT
     # WARNING: At present, SLAM does not support LOFTR and other "pure" image matchers (further details in the commenting notes about LOFTR in feature_tracker_configs.py).
-    feature_tracker_config = FeatureTrackerConfigs.LIGHTGLUE # ORB2
+    feature_tracker_config = FeatureTrackerConfigs.ORB2 # ORB2
         
     # Select your loop closing configuration (see the file loop_detector_configs.py). Set it to None to disable loop closing. 
     # LoopDetectorConfigs: DBOW2, DBOW2_INDEPENDENT, DBOW3, DBOW3_INDEPENDENT, IBOW, OBINDEX2, VLAD, HDC_DELF, SAD, ALEXNET, NETVLAD, COSPLACE, EIGENPLACES  etc.
     # NOTE: under mac, the boost/text deserialization used by DBOW2 and DBOW3 may be very slow.
-    loop_detection_config = LoopDetectorConfigs.NETVLAD # DBOW3
+    loop_detection_config = LoopDetectorConfigs.DBOW3 # DBOW3
 
     # Override the feature tracker and loop detector configuration from the `settings` file
     if config.feature_tracker_config_name is not None:  # Check if we set `FeatureTrackerConfig.name` in the `settings` file 
@@ -348,12 +348,29 @@ if __name__ == "__main__":
                                     print(f"Error drawing feature trails: {e}")
 
                         ### PERFORMAING DELAUNAY TRIANGULATION ON THE CURRENT FRAME - KPS IN 2D
-                        delaunay_img = delaunay_image(cur_frame)
+                        delaunay_img = delaunay_frame(cur_frame)
                         if not args.headless:
                             log_image("Delaunay Triangulation", delaunay_img)
                             
-                            
+                        # Find matches with current frame and snapshot map
+                        try:
+                            ss_matches, num_ss_matches, ss_matched_keypoints = ref_map_snapshot.find_matches_by_projection(cur_frame, max_reproj_distance=3, max_descriptor_distance=30, ratio_test=0.8)
+                        except Exception as e:
+                            print(f"Error finding matches: {e}")
+                            ss_matches = []
+                            num_ss_matches = 0
+                            ss_matched_keypoints = []
 
+                        # Print the number of matches
+                        print(f"Number of matches with snapshot map: {num_ss_matches}")
+                        print("SS matches: ", ss_matches)
+                        print("SS matched keypoints: ", ss_matched_keypoints)
+                        # Visualize the matches
+                        # try:
+                        #     delaunay_matches_kps_snapshot = delaunay_image_kps(cur_frame.img, ss_matched_keypoints)
+                        # except Exception as e:
+                        #     print(f"Error visualizing matches: {e}")
+                        #     delaunay_matches_kps_snapshot = cur_frame.img.copy()
                             
                     if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                         online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)

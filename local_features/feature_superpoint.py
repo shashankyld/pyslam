@@ -113,7 +113,9 @@ class SuperPointFeature2D(BaseFeature2D):
             self.kps = convert_superpts_to_keypoints(self.pts.T, size=self.keypoint_size)
             if kVerbose:
                 print('detector: SUPERPOINT, #features: ', len(self.kps), ', frame res: ', frame.shape[0:2])      
-            return self.kps, transpose_des(self.des)                 
+            return self.kps, transpose_des(self.des) 
+
+        
             
     # return keypoints if available otherwise call detectAndCompute()    
     def detect(self, frame, mask=None):  # mask is a fake input  
