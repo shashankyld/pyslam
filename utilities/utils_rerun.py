@@ -181,6 +181,31 @@ def log_random_pc(entity, points, colors=None):  # Added 'points' parameter
         colors = np.array([0, 255, 0], dtype=np.uint8)
         rr.log(f"{entity}", rr.Points3D(points, colors=colors))
 
+def log_random_pc2(entity, points, colors=None, radius = None):  # Added 'points' parameter
+    """Logs the local map to rerun."""
+    if colors == "green":
+        colors = np.array([0, 255, 0], dtype=np.uint8)
+    elif colors == "red":
+        colors = np.array([255, 0, 0], dtype=np.uint8)
+    elif colors == "blue":
+        colors = np.array([0, 0, 255], dtype=np.uint8)
+    elif colors == "yellow":
+        colors = np.array([255, 255, 0], dtype=np.uint8)
+    if radius is not None:
+        radii = np.ones(points.shape[0]) * radius
+    
+
+    rr.log(
+        f"{entity}",
+        rr.Points3D(points, colors=colors, radii=radii),  # Added radii
+    )
+
+
+        
+    
+
+
+
 def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=None):  # Added 'points' parameter
     """Logs the local map snapshot to rerun."""
     # points = get_local_map_snapshot(frame_id)  # Removed the call to get_local_map_snapshot

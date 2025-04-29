@@ -1293,7 +1293,9 @@ class Frame(FrameBase):
             return pts3d, pts3d_mask
         else:
             return None, None
-                                                               
+
+
+                                       
     def compute_points_median_depth(self, points3d = None, percentile=0.5):
         with self._lock_pose:        
             Rcw2 = self._pose.Rcw[2,:3]  # just 2-nd row 
