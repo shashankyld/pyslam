@@ -39,7 +39,11 @@ class Parameters:
     kLocalMappingDebugAndPrintToFile = True
     
     # Map Snapshots
-    kMaxMapSnapshots = 10                           # Maximum number of map snapshots to store
+    kMaxMapSnapshots = 20                         # Maximum number of map snapshots to store
+    kCompareMapSnapshotIndex = 18 # 5 timestamps earlier
+
+    # Dynamic Threshold
+    kDynamicEdgeThreshold = 0.1
     
     # Number of desired keypoints per frame 
     kNumFeatures=2000                               # Default number of keypoints (can be overridden by settings file)

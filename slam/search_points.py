@@ -403,7 +403,7 @@ def search_map_by_projection2(points, frame,
         if i % 100 == 0 and i > 0:
             print(f"[search_map_by_projection2] Processed {i}/{len(points)} points, found {found_pts_count} matches so far")
             
-        if not visible_pts[i]:
+        if not visible_pts[i] or p.is_bad:  # Point not visible in frame or is bad
             continue
             
         predicted_level = predicted_levels[i]
@@ -453,121 +453,6 @@ def search_map_by_projection2(points, frame,
     
     return found_pts_count, avg_descriptor_distance, matched_kp_indices, map_point_associations
 
-# # search by projection matches between {input map points} and {unmatched keypoints of frame f_cur}, (access frame from tracking thread, no need to lock)
-# def search_map_by_projection2(points, frame, 
-#                               max_reproj_distance=Parameters.kMaxReprojectionDistanceMap, 
-#                               max_descriptor_distance=None,
-#                               ratio_test=Parameters.kMatchRatioTestMap,
-#                               far_points_threshold=None):
-#     """
-#     Search matches between input map points and frame keypoints, completely independent of SLAM state.
-#     This function doesn't care about tracking state or previously matched points.
-    
-#     Args:
-#         points: list of map points
-#         frame: current frame
-#         max_reproj_distance: maximum reprojection distance for matching
-#         max_descriptor_distance: maximum descriptor distance for matching
-#         ratio_test: ratio test threshold for match validation
-#         far_points_threshold: optional threshold to filter far points
-        
-#     Returns:
-#         found_pts_count: number of matched points
-#         avg_descriptor_distance: average descriptor distance of matches
-#         matched_kp_indices: indices of matched keypoints in frame
-#     """
-#     print(f"[search_map_by_projection2] Starting with {len(points)} points")
-    
-#     if max_descriptor_distance is None:
-#         max_descriptor_distance = Parameters.kMaxDescriptorDistance
-        
-#     found_pts_count = 0
-#     matched_kp_indices = []
-#     descriptor_distances = []
-    
-#     if len(points) == 0:
-#         print("[search_map_by_projection2] No input points to process")
-#         return 0, 0, []
-    
-#     # Check visibility of all points in the frame
-#     print("[search_map_by_projection2] Checking point visibility")
-#     visible_pts, projs, depths, dists = frame.are_visible(points)
-#     visible_count = np.sum(visible_pts)
-#     print(f"[search_map_by_projection2] {visible_count}/{len(points)} points are visible in frame")
-    
-#     # Filter far points if threshold is provided
-#     if far_points_threshold is not None:
-#         print(f"[search_map_by_projection2] Filtering points beyond {far_points_threshold}")
-#         old_visible_count = visible_count
-#         visible_pts = np.logical_and(visible_pts, depths < far_points_threshold)
-#         visible_count = np.sum(visible_pts)
-#         print(f"[search_map_by_projection2] After far point filtering: {visible_count}/{old_visible_count} points still visible")
-    
-#     # Predict keypoint detection levels based on point distances
-#     predicted_levels = predict_detection_levels(points, dists)
-#     kp_scale_factors = FeatureTrackerShared.feature_manager.scale_factors[predicted_levels]
-#     radiuses = max_reproj_distance * kp_scale_factors
-    
-#     # Find candidate keypoints within projection radiuses using KD tree
-#     print("[search_map_by_projection2] Finding candidate keypoints using KD tree")
-#     kd_cur_idxs = frame.kd.query_ball_point(projs, radiuses)
-#     total_candidates = sum(len(idxs) for idxs in kd_cur_idxs)
-#     print(f"[search_map_by_projection2] Found {total_candidates} total candidate keypoints")
-    
-#     # Process each point
-#     print("[search_map_by_projection2] Processing points...")
-#     for i, p in enumerate(points):
-#         if i % 100 == 0 and i > 0:
-#             print(f"[search_map_by_projection2] Processed {i}/{len(points)} points, found {found_pts_count} matches so far")
-            
-#         if not visible_pts[i]:
-#             continue
-            
-#         predicted_level = predicted_levels[i]
-#         best_dist = float('inf')
-#         best_dist2 = float('inf')
-#         best_level = -1
-#         best_level2 = -1
-#         best_kp_idx = -1
-        
-#         # Check all candidate keypoints for this point
-#         for kp_idx in kd_cur_idxs[i]:
-#             # Check detection level
-#             kp_level = frame.octaves[kp_idx]
-#             if (kp_level < predicted_level-1) or (kp_level > predicted_level):
-#                 continue
-                
-#             # Compute descriptor distance
-#             descriptor_dist = p.min_des_distance(frame.des[kp_idx])
-            
-#             # Keep track of best and second best matches
-#             if descriptor_dist < best_dist:
-#                 best_dist2 = best_dist
-#                 best_level2 = best_level
-#                 best_dist = descriptor_dist
-#                 best_level = kp_level
-#                 best_kp_idx = kp_idx
-#             elif descriptor_dist < best_dist2:
-#                 best_dist2 = descriptor_dist
-#                 best_level2 = kp_level
-        
-#         # Apply matching criterion
-#         if best_dist < max_descriptor_distance:
-#             # Apply ratio test only if best and second best are in same scale level
-#             if (best_level2 == best_level) and (best_dist > best_dist2 * ratio_test):
-#                 continue
-                
-#             found_pts_count += 1
-#             matched_kp_indices.append(best_kp_idx)
-#             descriptor_distances.append(best_dist)
-    
-#     # Compute average descriptor distance if we found matches
-#     avg_descriptor_distance = np.mean(descriptor_distances) if descriptor_distances else max_descriptor_distance
-    
-#     print(f"[search_map_by_projection2] RESULTS: Found {found_pts_count} matches out of {len(points)} points")
-#     print(f"[search_map_by_projection2] Average descriptor distance: {avg_descriptor_distance:.2f}")
-    
-#     return found_pts_count, avg_descriptor_distance, matched_kp_indices
 
 
 # search by projection matches between {map points of last frames} and {unmatched keypoints of f_cur}, (access frame from tracking thread, no need to lock)

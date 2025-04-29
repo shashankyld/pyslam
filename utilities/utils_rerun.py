@@ -252,12 +252,12 @@ def log_current_frame_pc(frame_id, entity_path, points, colors=None, pose = np.e
     else:
         rr.log(f"{entity_path}/current_frame_pc", rr.Points3D(points, colors=(0, 255, 0), radii=radii))  # Default color green with radii
 
-def log_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4)):  # Added 'points' parameter
+def log_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4), fraction = 0.05):  # Added 'points' parameter
     """Logs the current frame to rerun with frame id."""
     # Transform the points to the world frame from camera frame
     points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
     # Downsample points to 5 percent and also colors accordingly
-    indexs = np.random.choice(points.shape[0], int(points.shape[0] * 0.05), replace=False)
+    indexs = np.random.choice(points.shape[0], int(points.shape[0] * fraction), replace=False)
     points = points[indexs]
     if colors is not None:
         colors = colors[indexs]
@@ -653,6 +653,39 @@ def log_delaunay_map_points_3d(delaunay_map_points_3d, entity_path = "world"+"/d
         f"{entity_path}/delaunay_map_points",
         rr.Points3D(delaunay_map_points_3d, colors=(0, 255, 0)),  # Green color for Delaunay points
     )
+
+def log_image_kps_graph(entity_path,image, kps, graph ):
+    """
+    Logs the image with keypoints and graph to rerun.
+    
+    Parameters:
+    -----------
+    image : np.ndarray
+        The image to log.
+    kps : np.ndarray
+        Keypoints to log.
+    graph : np.ndarray
+        Graph edges to log.
+    entity_path : str
+        Base path for the entity in the visualization.
+    """
+    if image is None or kps is None or graph is None:
+        return
+    image = ensure_rgb(image)  # Convert to RGB if needed
+    
+    # Log the image
+    rr.log(f"{entity_path}/image", rr.Image(image))
+    
+    # Log the keypoints
+    rr.log(f"{entity_path}/keypoints", rr.Points2D(kps, colors=(255, 0, 0)))  # Red color for keypoints
+    
+    # Draw edges on the image based on the graph
+    cv2_img = image.copy()
+    for edge in graph:
+        pt1 = tuple(kps[edge[0]].astype(int))
+        pt2 = tuple(kps[edge[1]].astype(int))
+        cv2.line(cv2_img, pt1, pt2, (0, 255, 0), 2)  # Green color for edges
+    rr.log(f"{entity_path}/image_with_graph", rr.Image(cv2_img))  # Log the image with edges
 
 def log_all(
     frame_id,

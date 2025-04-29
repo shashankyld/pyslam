@@ -69,6 +69,60 @@ def delaunay_image_kps(img, kps):
     return img, tri
 
 
+def delaunay_image_kps_connected_components(img, kps, connected_components):
+    """Draw connected components with different colors on the image.
+    Assumes the largest component is static background and highlights smaller components
+    as potential dynamic objects.
+    
+    Args:
+        img: Input image
+        kps: List of keypoint coordinates
+        connected_components: List of sets, where each set contains node indices
+    """
+    img = img.copy()
+    colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255),
+             (255, 0, 255), (255, 128, 0), (128, 255, 0), (0, 128, 255)]
+    
+    # Convert keypoints to integer coordinates
+    kps = np.array(kps).astype(int)
+    
+    # Sort components by size (largest first)
+    sorted_components = sorted(connected_components, key=len, reverse=True)
+    
+    if len(sorted_components) > 1:
+        # First component (largest) is assumed to be static background
+        static_component = sorted_components[0]
+        dynamic_components = sorted_components[1:]
+        
+        # Draw static component in green
+        for node in static_component:
+            cv2.circle(img, tuple(kps[node]), 2, (0, 255, 0), -1)
+            
+        # Draw dynamic components in different colors
+        for i, component in enumerate(dynamic_components):
+            color = colors[(i+1) % len(colors)]  # Skip green (used for static)
+            
+            # Draw connections between points in component
+            component_list = list(component)
+            for j in range(len(component_list)):
+                for k in range(j+1, len(component_list)):
+                    pt1 = tuple(kps[component_list[j]])
+                    pt2 = tuple(kps[component_list[k]])
+                    cv2.line(img, pt1, pt2, color, 1)
+            
+            # Draw points in component
+            for node in component:
+                cv2.circle(img, tuple(kps[node]), 3, color, -1)
+                
+            # Add component size label
+            if len(component) > 2:  # Only label significant components
+                mean_pos = np.mean(kps[list(component)], axis=0).astype(int)
+                cv2.putText(img, f'Size: {len(component)}', 
+                          tuple(mean_pos), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 
+                          0.5, color, 1)
+    
+    return img
 
 def convert_delauany_to_networkx(tri):
     ''' 
@@ -78,6 +132,7 @@ def convert_delauany_to_networkx(tri):
     graph = nx.Graph()
     for simplex in tri.simplices:
         graph.add_edges_from([(simplex[0], simplex[1]), (simplex[1], simplex[2]), (simplex[2], simplex[0])])
+
     return graph
 
 def delaunay_triangulation(f_cur):
