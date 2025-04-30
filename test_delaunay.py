@@ -233,7 +233,7 @@ if __name__ == "__main__":
     print(poses[0])
 
     starting_frame = 30
-    ending_frame = 80
+    ending_frame = 55
 
     # Initialize configuration
     config = Config()
@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
     # Get a sample frame
     if dataset.isOk():
-        frame_id = 30
+        frame_id = starting_frame
         img1 = dataset.getImageColor(frame_id)
         depth1 = dataset.getDepth(frame_id)
         
@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
     # Get a sample frame
     if dataset.isOk():
-        frame_id = 60
+        frame_id = ending_frame
         img2 = dataset.getImageColor(frame_id)
         depth2 = dataset.getDepth(frame_id)
         
@@ -321,12 +321,12 @@ if __name__ == "__main__":
 
 
     pose1 = poses[0]
-    pose2 = poses[60-31]
+    pose2 = poses[ending_frame-starting_frame]
     print("pose1", pose1)
     print("pose2", pose2)
 
-    log_frame_pc(frame_id=30, entity_path="world/GT/scans/", points=pc1_points, colors=pc1_colors, pose = pose1, fraction = 1.0)
-    log_frame_pc(frame_id=60, entity_path="world/GT/scans/", points=pc2_points, colors=pc2_colors, pose = pose2, fraction = 1.0)
+    log_frame_pc(frame_id=starting_frame, entity_path="world/GT/scans/", points=pc1_points, colors=pc1_colors, pose = pose1, fraction = 1.0)
+    log_frame_pc(frame_id=ending_frame, entity_path="world/GT/scans/", points=pc2_points, colors=pc2_colors, pose = pose2, fraction = 1.0)
 
 
     print("Depth 1 max and min", np.max(depth1), np.min(depth1))
@@ -434,7 +434,7 @@ if __name__ == "__main__":
 
     # Visualize matches
     output_img = visualize_matches(img1, img2, kpts0, kpts1, matches, add_text=True)
-    log_image(entity="Matches between Frame 30 and Frame 60", image=output_img)
+    log_image(entity=f"Matches between Frame {starting_frame} and Frame {ending_frame}", image=output_img)
     
 
     # Unproject keypoints to 3D points
@@ -455,7 +455,7 @@ if __name__ == "__main__":
 
     # Apply delaunay triangulation to the keypoints of img1, then draw the triangulation on img1
     img1_delaunay, tri = delaunay_image_kps(img1, kps0)
-    log_image(entity="Delaunay Triangulation on Frame 30", image=img1_delaunay)
+    log_image(entity=f"Delaunay Triangulation on Frame {starting_frame}", image=img1_delaunay)
 
     # Create a graph from the delaunay triangulation and for each edge compute its distance in 3D and as text the depth value on top of the delaunay_image copy and then log it again
     delaunay_graph = convert_delauany_to_networkx(tri)
@@ -514,6 +514,38 @@ if __name__ == "__main__":
                         {edge: {'distance_diff': np.abs(delaunay_graph.edges[edge]['distance_3d'] - delaunay_graph.edges[edge]['distance_3d_other'])} 
                         for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
     
+    # Store for the edge, store a tuple with distance moved by the kps from frame1 to frame2 [node1motion, node2motion]
+    nx.set_edge_attributes(delaunay_graph,
+                        {edge: {'node1motion': np.linalg.norm(points0[edge[0]] - points1[edge[0]]), 
+                                'node2motion': np.linalg.norm(points0[edge[1]] - points1[edge[1]])} 
+                        for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+    
+    # Store for each edge, R*theta where R is the avg_length of the edge in frame1 and frame2 and theta is the angle between the two edges in 3D
+    # First estimate edge vectors and then compute the angle between them
+    for edge in delaunay_graph.edges:
+        if edge[0] < len(points0) and edge[1] < len(points0):
+            # Get the points for the edge
+            pt1 = points0[edge[0]]
+            pt2 = points0[edge[1]]
+            pt3 = points1[edge[0]]
+            pt4 = points1[edge[1]]
+
+            # Calculate the edge vectors
+            vec1 = pt2 - pt1
+            vec2 = pt4 - pt3
+
+            # Calculate the angle between the two vectors
+            angle = np.arccos(np.clip(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)), -1.0, 1.0))
+
+            # Store the angle in the graph
+            delaunay_graph.edges[edge]['angle_change'] = angle
+            # Store the average length of the edge in frame1 and frame2
+            avg_length = (np.linalg.norm(vec1) + np.linalg.norm(vec2)) / 2
+            delaunay_graph.edges[edge]['avg_length'] = avg_length
+            # Store the R*theta value in the graph
+            delaunay_graph.edges[edge]['R_theta'] = avg_length * angle
+            
+    
 
     ## log a histogram like image to rerun - of the edge param - distance_diff
     # Get the edge lengths
@@ -527,11 +559,11 @@ if __name__ == "__main__":
     # Print every thing about the graph
     print("Delaunay Graph Info:")
     print("Delaunay Graph Edges with Attributes:")
-    for u, v, data in delaunay_graph.edges(data=True):
-        print(f"Edge ({u}, {v}): {data}")
-    print("Delaunay Graph Nodes with Attributes:")
-    for node, data in delaunay_graph.nodes(data=True):
-        print(f"Node {node}: {data}")
+    # for u, v, data in delaunay_graph.edges(data=True):
+    #     print(f"Edge ({u}, {v}): {data}")
+    # print("Delaunay Graph Nodes with Attributes:")
+    # for node, data in delaunay_graph.nodes(data=True):
+    #     print(f"Node {node}: {data}")
     # Print the number of edges and nodes
     print("Number of edges in the graph:", delaunay_graph.number_of_edges())
     print("Number of nodes in the graph:", delaunay_graph.number_of_nodes())
@@ -546,7 +578,17 @@ if __name__ == "__main__":
     for edge in delaunay_graph.edges:
 
         # For all the edges with distance_diff > threshold, draw them in blue
-        if delaunay_graph.edges[edge]['distance_diff'] > 1:
+        if delaunay_graph.edges[edge]['distance_diff'] > 0.4:
+            pt1 = tuple(kps0[edge[0]])
+            pt2 = tuple(kps0[edge[1]])
+            cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+
+        # elif max(delaunay_graph.edges[edge]['node1motion'], delaunay_graph.edges[edge]['node2motion']) > 0.35 and min(delaunay_graph.edges[edge]['node1motion'], delaunay_graph.edges[edge]['node2motion']) < 0.1:
+        #     pt1 = tuple(kps0[edge[0]])
+        #     pt2 = tuple(kps0[edge[1]])
+        #     cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+
+        elif delaunay_graph.edges[edge]['R_theta'] > 0.25:
             pt1 = tuple(kps0[edge[0]])
             pt2 = tuple(kps0[edge[1]])
             cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
