@@ -676,3 +676,19 @@ if __name__ == "__main__":
             cv2.line(connected_components_image, pt1, pt2, color, 1)
     # Log the connected components image
     log_image(entity="Connected Components in Delaunay Triangulation", image=connected_components_image)
+
+    ## Make a tmp directory to save the images
+    tmp_dir = "tmp"
+    if not os.path.exists(tmp_dir):
+        os.makedirs(tmp_dir)
+
+    # Save the images - img1, img2 in the tmp directory
+
+
+
+    ## TODO: 
+    # 1. Import SAM2 to run on the images stored in the tmp directory along with the prompts
+    # 2. From connected components, largest one is the static region, so leave it. for the rest with min 3 nodes, set prompts to SAM2
+    # 3. For each component in the connected components, create a new object for tracking with SAM2 and prompts are keypoints in the component
+
+    
