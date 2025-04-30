@@ -20,6 +20,56 @@ import time
 import rerun as rr 
 from utils_rerun import *
 
+import networkx as nx
+
+def get_connected_components(G):
+    """
+    Returns a list of NetworkX Graph objects, each representing a connected component
+    of the input graph G.
+    
+    Args:
+        G (nx.Graph): Input NetworkX graph (undirected)
+    
+    Returns:
+        list: List of nx.Graph objects, each a connected component
+    """
+    def dfs(v, visited, component_nodes, component_edges):
+        """DFS to collect nodes and edges of a connected component."""
+        visited.add(v)
+        component_nodes.add(v)
+        
+        # Explore neighbors
+        for u in G.neighbors(v):
+            if u not in visited:
+                component_edges.add((v, u) if v < u else (u, v))  # Ensure consistent edge ordering
+                dfs(u, visited, component_nodes, component_edges)
+    
+    visited = set()
+    components = []
+    
+    # Iterate through all nodes to find unvisited ones
+    for node in G.nodes():
+        if node not in visited:
+            component_nodes = set()
+            component_edges = set()
+            
+            # Run DFS to collect nodes and edges of current component
+            dfs(node, visited, component_nodes, component_edges)
+            
+            # Create new subgraph for the component
+            component_graph = nx.Graph()
+            component_graph.add_nodes_from((n, G.nodes[n]) for n in component_nodes)
+            component_graph.add_edges_from(
+                (u, v, G.edges[u, v]) for u, v in component_edges if (u, v) in G.edges
+            )
+            
+            components.append(component_graph)
+
+    # Sort components by number of nodes in decreasing order
+    components.sort(key=lambda x: x.number_of_nodes(), reverse=True)
+    
+    return components
+
 def visualize_edge_distance_histogram(delaunay_graph):
     """
     Creates a histogram visualization of edge distance differences using OpenCV.
@@ -573,25 +623,52 @@ if __name__ == "__main__":
     largest_cc = max(nx.connected_components(delaunay_graph), key=len)
     print("Largest connected component size:", len(largest_cc))
 
+    modified_delaunay_graph = delaunay_graph.copy()
 
     dynamic_edge_image = img1_delaunay.copy()
-    for edge in delaunay_graph.edges:
 
-        # For all the edges with distance_diff > threshold, draw them in blue
-        if delaunay_graph.edges[edge]['distance_diff'] > 0.4:
-            pt1 = tuple(kps0[edge[0]])
-            pt2 = tuple(kps0[edge[1]])
-            cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+    for edge in modified_delaunay_graph.edges:
+
+        # # For all the edges with distance_diff > threshold, draw them in blue
+        # if delaunay_graph.edges[edge]['distance_diff'] > 0.6:
+        #     pt1 = tuple(kps0[edge[0]])
+        #     pt2 = tuple(kps0[edge[1]])
+        #     cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+        #     # Remove that edge from the graph
+        #     delaunay_graph.remove_edge(edge[0], edge[1])
 
         # elif max(delaunay_graph.edges[edge]['node1motion'], delaunay_graph.edges[edge]['node2motion']) > 0.35 and min(delaunay_graph.edges[edge]['node1motion'], delaunay_graph.edges[edge]['node2motion']) < 0.1:
         #     pt1 = tuple(kps0[edge[0]])
         #     pt2 = tuple(kps0[edge[1]])
         #     cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+        #     # Remove that edge from the graph
+        #     delaunay_graph.remove_edge(edge[0], edge[1])
 
-        elif delaunay_graph.edges[edge]['R_theta'] > 0.25:
+
+        if delaunay_graph.edges[edge]['R_theta'] > 0.25:
             pt1 = tuple(kps0[edge[0]])
             pt2 = tuple(kps0[edge[1]])
             cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+            # Remove that edge from the graph
+            modified_delaunay_graph.remove_edge(edge[0], edge[1])
     # Log the dynamic edge image
     log_image(entity="Dynamic Edges in Delaunay Triangulation", image=dynamic_edge_image)
+
+    print("Modified Delaunay Graph:", modified_delaunay_graph)
+    # Visualizing connetected components
+    connected_components = get_connected_components(modified_delaunay_graph)
+    print("Number of connected components in the modified graph:", len(connected_components))
+    print("First connected component:", connected_components[0])
     
+    connected_components_image = img1.copy()
+    colors_for_components = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
+    for i, component in enumerate(connected_components):
+        if component.number_of_nodes() < 3:
+            continue
+        color = colors_for_components[i % len(colors_for_components)]
+        for edge in component.edges:
+            pt1 = tuple(kps0[edge[0]])
+            pt2 = tuple(kps0[edge[1]])
+            cv2.line(connected_components_image, pt1, pt2, color, 1)
+    # Log the connected components image
+    log_image(entity="Connected Components in Delaunay Triangulation", image=connected_components_image)
