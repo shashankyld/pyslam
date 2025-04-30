@@ -22,27 +22,75 @@ from utils_rerun import *
 
 import networkx as nx
 
+# def get_connected_components(G):
+#     """
+#     Returns a list of NetworkX Graph objects, each representing a connected component
+#     of the input graph G.
+    
+#     Args:
+#         G (nx.Graph): Input NetworkX graph (undirected)
+    
+#     Returns:
+#         list: List of nx.Graph objects, each a connected component
+#     """
+#     def dfs(v, visited, component_nodes, component_edges):
+#         """DFS to collect nodes and edges of a connected component."""
+#         visited.add(v)
+#         component_nodes.add(v)
+        
+#         # Explore neighbors
+#         for u in G.neighbors(v):
+#             if u not in visited:
+#                 component_edges.add((v, u) if v < u else (u, v))  # Ensure consistent edge ordering
+#                 dfs(u, visited, component_nodes, component_edges)
+    
+#     visited = set()
+#     components = []
+    
+#     # Iterate through all nodes to find unvisited ones
+#     for node in G.nodes():
+#         if node not in visited:
+#             component_nodes = set()
+#             component_edges = set()
+            
+#             # Run DFS to collect nodes and edges of current component
+#             dfs(node, visited, component_nodes, component_edges)
+            
+#             # Create new subgraph for the component
+#             component_graph = nx.Graph()
+#             component_graph.add_nodes_from((n, G.nodes[n]) for n in component_nodes)
+#             component_graph.add_edges_from(
+#                 (u, v, G.edges[u, v]) for u, v in component_edges if (u, v) in G.edges
+#             )
+            
+#             components.append(component_graph)
+
+#     # Sort components by number of nodes in decreasing order
+#     components.sort(key=lambda x: x.number_of_nodes(), reverse=True)
+    
+#     return components
+
 def get_connected_components(G):
     """
-    Returns a list of NetworkX Graph objects, each representing a connected component
-    of the input graph G.
+    Returns a list of.ConcurrentHashMap<Region, Set<Region>> NetworkX Graph objects, each representing a connected component
+    of the input graph G, sorted by number of nodes in decreasing order, including all edges
+    within each component along with their data.
     
     Args:
         G (nx.Graph): Input NetworkX graph (undirected)
     
     Returns:
-        list: List of nx.Graph objects, each a connected component
+        list: List of nx.Graph objects, each a connected component, sorted by node count
     """
-    def dfs(v, visited, component_nodes, component_edges):
-        """DFS to collect nodes and edges of a connected component."""
+    def dfs(v, visited, component_nodes):
+        """DFS to collect nodes of a connected component."""
         visited.add(v)
         component_nodes.add(v)
         
         # Explore neighbors
         for u in G.neighbors(v):
             if u not in visited:
-                component_edges.add((v, u) if v < u else (u, v))  # Ensure consistent edge ordering
-                dfs(u, visited, component_nodes, component_edges)
+                dfs(u, visited, component_nodes)
     
     visited = set()
     components = []
@@ -51,20 +99,23 @@ def get_connected_components(G):
     for node in G.nodes():
         if node not in visited:
             component_nodes = set()
-            component_edges = set()
             
-            # Run DFS to collect nodes and edges of current component
-            dfs(node, visited, component_nodes, component_edges)
+            # Run DFS to collect nodes of current component
+            dfs(node, visited, component_nodes)
             
             # Create new subgraph for the component
             component_graph = nx.Graph()
+            # Add nodes with their data
             component_graph.add_nodes_from((n, G.nodes[n]) for n in component_nodes)
-            component_graph.add_edges_from(
-                (u, v, G.edges[u, v]) for u, v in component_edges if (u, v) in G.edges
-            )
+            
+            # Add all edges between nodes in the component with their data
+            for u in component_nodes:
+                for v in G.neighbors(u):
+                    if v in component_nodes and (u, v) not in component_graph.edges():
+                        component_graph.add_edge(u, v, **G.edges[u, v])
             
             components.append(component_graph)
-
+    
     # Sort components by number of nodes in decreasing order
     components.sort(key=lambda x: x.number_of_nodes(), reverse=True)
     
