@@ -313,8 +313,8 @@ if __name__ == "__main__":
     print(poses.shape)
     print(poses[0])
 
-    starting_frame = 20
-    ending_frame = 40
+    starting_frame = 30
+    ending_frame = 55
     # Initialize configuration
     config = Config()
 

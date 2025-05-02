@@ -486,7 +486,7 @@ class Frame(FrameBase):
                     self.kps_ur = np.full(len(self.kps), -1, dtype=float)
                     self.compute_stereo_matches(img, img_right)
 
-    def print_frame_stats(self, post= None):
+    def print_frame_stats(self, entity= None):
         with self._lock_features:
             kps_len = len(self.kps) if self.kps is not None else 0
             des_shape = self.des.shape if self.des is not None else None
@@ -525,16 +525,16 @@ class Frame(FrameBase):
                 exit(1) 
             img = ensure_rgb(img)
             if img is not None:
-                if post is not None:
-                    rr.log(f"frames_post_applying_mask/image", rr.Image(img))   
+                if entity is not None:
+                    rr.log(f"{entity}/image", rr.Image(img))   
                 else:
                     rr.log(f"frames/image", rr.Image(img))
             
             if keypoints is not None:
                 # kp_color = green
                 kp_color = (0, 255, 0) 
-                if post is not None:
-                    rr.log(f"frames_post_applying_mask/keypoints", rr.Points2D(keypoints, colors=kp_color))
+                if entity is not None:
+                    rr.log(f"{entity}/keypoints", rr.Points2D(keypoints, colors=kp_color))
                 else:
                     rr.log(f"frames/keypoints", rr.Points2D(keypoints, colors=kp_color))
 

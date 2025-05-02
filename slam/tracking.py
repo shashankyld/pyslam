@@ -885,7 +885,7 @@ class Tracking:
         f_cur.print_frame_stats()
         f_cur.apply_dynamic_mask(dynamic_mask) # apply dynamic mask to the current frame
         print("Trying to run frame stats again after applying dynamic mask")
-        f_cur.print_frame_stats(post=True)
+        f_cur.print_frame_stats(entity='after applying dynamic mask')
         print("Printing frame stats after applying dynamic mask done")
 
 

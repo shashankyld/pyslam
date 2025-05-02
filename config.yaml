@@ -21,17 +21,17 @@ TUM_DATASET:
   base_path: /home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM # DATA FROM LEGION
   #
   # name: rgbd_dataset_freiburg3_long_office_household
-  # settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
+  settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   # name: rgbd_dataset_freiburg1_desk
   # settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
-  # name: rgbd_dataset_freiburg3_walking_xyz  # do not use this for mono, there are some in-place rotations during exploratory phases
+  name: rgbd_dataset_freiburg3_walking_xyz  # do not use this for mono, there are some in-place rotations during exploratory phases
   # name: rgbd_dataset_freiburg3_walking_rpy
   # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
 
-  name: ball
-  settings: settings/WILDGS_ball.yaml # do not forget to set the corresponding camera settings file
+  # name: ball
+  # settings: settings/WILDGS_ball.yaml # do not forget to set the corresponding camera settings file
   #
   associations: associations.txt
   groundtruth_file: auto
