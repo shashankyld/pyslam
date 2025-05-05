@@ -30,7 +30,7 @@ from matplotlib import pyplot as plt
 import platform 
 from utilities.utils_delaunay import *
 from config import Config
-from utils_sam2 import *
+
 from slam import Slam, SlamState
 from slam_plot_drawer import SlamPlotDrawer
 from camera  import PinholeCamera
@@ -38,9 +38,6 @@ from ground_truth import groundtruth_factory
 from dataset_factory import dataset_factory
 from dataset_types import DatasetType, SensorType
 from trajectory_writer import TrajectoryWriter
-from thirdparty.LightGlue.lightglue import LightGlue, SuperPoint, DISK
-from thirdparty.LightGlue.lightglue import viz2d
-from thirdparty.LightGlue.lightglue.utils import rbd
 
 # from viewer3D import Viewer3D
 from utils_sys import getchar, Printer, force_kill_all_and_exit
@@ -89,11 +86,6 @@ if __name__ == "__main__":
         datetime_string = None
 
     dataset = dataset_factory(config)
-    
-    dataset_images_path_dir = config.dataset_path + "/"+ config.dataset_settings['name'] + '/rgb'
-    images_paths_ordered = sorted(os.listdir(dataset_images_path_dir))
-    print(f"images_paths_ordered: {images_paths_ordered}")
-
     is_monocular=(dataset.sensor_type==SensorType.MONOCULAR)    
     num_total_frames = dataset.num_frames
 
@@ -271,8 +263,6 @@ if __name__ == "__main__":
                         
                         # Entry point to dynamic object segmentation
                         #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
-                        
-                        """
                         maskrcnn = MaskRCNNUtils()
                         logging.debug("Estimating dynamic mask")
                         dynamic_mask = maskrcnn.human_mask(img)
@@ -289,15 +279,13 @@ if __name__ == "__main__":
                             print("logging mask")
 
                             # log_mask_type("dynamic_mask_dilated", dynamic_mask)
-                        """
-                        
                         # Set full black mask by force with one channel
-                        dynamic_mask = np.zeros_like(img)[:, :, 0]
+                        # dynamic_mask = np.zeros_like(img)[:, :, 0]
                         print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
 
 
-                        # curr_dense_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50, scale=depth_factor)
-                        curr_dense_pc = depth2pointcloud_with_mask(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=dynamic_mask, scale=depth_factor)
+                        # curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50, scale=depth_factor)
+                        curr_pc = depth2pointcloud_with_mask(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=dynamic_mask, scale=depth_factor)
 
                         curr_gt_timestamp, x,y,z, qx,qy,qz,qw, abs_scale  = groundtruth.getTimestampPoseAndAbsoluteScale(img_id)
                         cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
@@ -305,8 +293,8 @@ if __name__ == "__main__":
 
                         cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
                         log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
-                        log_current_frame_pc(entity_path="world/GT/curr_scan/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_gt_Twc)
-                        log_frame_dense_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_gt_Twc)
+                        log_current_frame_pc(frame_id=img_id, entity_path="world/GT/curr_scan/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
+                        log_frame_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_gt_Twc)
 
                         ###################TRACKING#####################################     
                         slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
@@ -315,7 +303,7 @@ if __name__ == "__main__":
                         ###################CURRENT FRAME 
                         # Getting access to the current frame properties after being populated by the SLAM system
                         cur_frame = slam.tracking.f_cur  # Class Frame
-                        curr_frame_map_points, curr_frame_map_colors = cur_frame.get_points_as_np()
+                        cur_frame_points, cur_frame_colors = cur_frame.get_points_as_np()
                         curr_img = cur_frame.img
                         cur_Tcw = slam.tracking.f_cur.pose
                         print("cur_Tcw: ", cur_Tcw)
@@ -326,7 +314,7 @@ if __name__ == "__main__":
                         ################# LOGGING Current Frame pose, point cloud, global map, local map, and mathced map points with current frame and current map
                         if not args.headless:
                             log_coordinate_axes("world/slam/Curr Frame Pose", pose=cur_Twc, scale=0.5)
-                            log_frame_dense_pc(frame_id=img_id, entity_path="world/slam/scans/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_Twc)                                                  
+                            log_frame_pc(frame_id=img_id, entity_path="world/slam/scans/", points=curr_pc.points, colors=curr_pc.colors, pose = cur_Twc)                                                  
                                     
 
                         # Collect data for rerun visualization
@@ -334,9 +322,9 @@ if __name__ == "__main__":
                         local_map_points, local_map_colors = slam.map.local_map.get_points_as_np()
 
                         if not args.headless:
-                            log_local_map(entity_path="world/slam", points=local_map_points)
-                            log_global_map(entity_path="world/slam", points=global_map_points, colors=global_map_colors)
-                            log_current_frame_map_points(entity_path="world/slam", points=curr_frame_map_points, colors=curr_frame_map_colors)
+                            log_local_map(frame_id=img_id, entity_path="world/slam", points=local_map_points)
+                            log_global_map(frame_id=img_id, entity_path="world/slam", points=global_map_points, colors=global_map_colors)
+                            log_current_frame_map_points(frame_id=img_id, entity_path="world/slam", points=cur_frame_points, colors=cur_frame_colors)
                                 
 
                         if not args.headless:
@@ -351,7 +339,7 @@ if __name__ == "__main__":
                                     print(f"Error drawing feature trails: {e}")                        
                         
                         ### Extract frame from k_frames_away
-                        if img_id > k_frames_away - 1:
+                        if img_id > k_frames_away:
                             # Get the frame from k_frames_away
                             k_frames_away_frame = slam.map.get_frame(-k_frames_away)
                             if k_frames_away_frame is not None:
@@ -361,78 +349,17 @@ if __name__ == "__main__":
                                 
                                 # Log the frame
                                 log_coordinate_axes(entity_path="world/slam/k_frames_away", pose=k_frames_away_Twc, scale=0.5)
-                                log_current_frame_map_points(entity_path="world/slam/k_frames_away", points=k_frames_away_points, colors=k_frames_away_colors)
-                                k_frames_away_dense_pc = depth2pointcloud_with_mask((k_frames_away_frame.depth_img / k_frames_away_frame.camera.depth_factor) , k_frames_away_frame.img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=k_frames_away_frame.dynamic_mask, scale=depth_factor)
-                                print("k_frames_away_dense_pc: ", k_frames_away_dense_pc)
-                                log_frame_dense_pc(frame_id=img_id-k_frames_away, entity_path="world/slam/k_frames_away", points=k_frames_away_dense_pc.points, colors=k_frames_away_dense_pc.colors, pose=k_frames_away_Twc)
+                                log_current_frame_map_points(frame_id=img_id-k_frames_away, entity_path="world/slam/k_frames_away", points=k_frames_away_points, colors=k_frames_away_colors)
+                                k_frame_away_pc = depth2pointcloud_with_mask((k_frames_away_frame.depth_img / k_frames_away_frame.camera.depth_factor) , k_frames_away_frame.img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=k_frames_away_frame.dynamic_mask, scale=depth_factor)
+                                print("k_frame_away_pc: ", k_frame_away_pc)
+                                log_frame_pc(frame_id=img_id-k_frames_away, entity_path="world/slam/k_frames_away", points=k_frame_away_pc.points, colors=k_frame_away_pc.colors, pose=k_frames_away_Twc)
                                 log_image("world/k_frames_away_img", k_frames_away_frame.img)
                                 k_frames_away_frame.print_frame_stats(entity="k_frames_away")
 
-                                
-                                # TODO
-                                # 1. Get new kps,des for the current frame img and the k_frames_away frame img using a new feature tracker and matcher objects 
-                                # 2. Get the matches between the two frames
-                                # 3. Get prompts for SAM2, import and create SAM2 object. For SAM2 video object, create a tmp folder with imgs loaded and saved from dataloader - apply on all the images in the tmp folder, tmp folder contains all the images until the current frame and the next frame. when propagation is complete, 
-                                # 4. Get the masks from the SAM2 object for teh next frame and use it in the next iteration, currently is using MASKRCNN if you can see. have a new variable for the predicted mask, if exists use it, else MASKRCNN or black mask as already existing in the code.
-                                # 5. For all the above steps, follow the same process used in test_delaunay.py 
-
-                                # 1. Get new kps,des for the current frame img and the k_frames_away frame img using a new feature tracker and matcher objects
-                                import torch
-                                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                                num_features = 1000
-                                extractor = SuperPoint(max_num_keypoints=num_features).eval().to(device)
-                                matcher = LightGlue(features="superpoint").eval().to(device)
-
-                                # Convert images to torch tensors
-                                img1_torch_HWC = torch.from_numpy(k_frames_away_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-                                img2_torch_HWC = torch.from_numpy(cur_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-
-                                img1_torch_HWC = img1_torch_HWC.to(device)
-                                img2_torch_HWC = img2_torch_HWC.to(device)
-
-                                ref_feat = extractor.extract(img1_torch_HWC.to(device))
-                                curr_feat = extractor.extract(img2_torch_HWC.to(device))
-
-                                # 2. Get the matches between the two frames
-                                matches01 = matcher({"image0": ref_feat, "image1": curr_feat})
-                                feats0, feats1, matches01 = [
-                                    rbd(x) for x in [ref_feat, curr_feat, matches01]
-                                ]  # remove batch dimension
-
-                                kpts0, kpts1, matches = feats0["keypoints"], feats1["keypoints"], matches01["matches"]
-                                m_kpts0, m_kpts1 = kpts0[matches[..., 0]], kpts1[matches[..., 1]]
-
-                                print("Number of keypoints in ref image: ", len(kpts0))
-                                print("Number of keypoints in curr image: ", len(kpts1))
-                                print("matches shape: ", matches.shape)
-
-
-                                ## TODO: Complete Delaunay triangulation on the current frames matched points and then check if the edges are dynamic and create prompts for the current frame. 
-                                
-
-                                # 3. Get prompts for SAM2, import and create SAM2 object.
-                                # For SAM2 video object, create a tmp folder with imgs loaded and saved from dataloader
-                                # - apply on all the images in the tmp folder, tmp folder contains all the images until the current frame and the next frame.
-                                # when propagation is complete,
-
-                                ## Make a tmp directory to save the images
-                                tmp_dir = "tmp"
-                                import shutil
-                                # if folder exists already - remove it
-                                if os.path.exists(tmp_dir):
-                                    shutil.rmtree(tmp_dir)
-                                if not os.path.exists(tmp_dir):
-                                    os.makedirs(tmp_dir)
-
-                                print(f"Created temporary directory - full path: {os.path.abspath(tmp_dir)}")
-                                # Save the images - img1, img2 in the tmp directory
-                                cv2.imwrite(os.path.join(tmp_dir, f"{img_id-k_frames_away}.jpg"), k_frames_away_frame.img)
-                                cv2.imwrite(os.path.join(tmp_dir, f"{img_id}.jpg"), cur_frame.img)
-                                print(f"Saved images to {tmp_dir}")
-
-                                sam2_folder_path = create_temp_symlink_folder(dataset_images_path_dir, img_id - k_frames_away, img_id, temp_folder_name="sam2_temp_symlinks")
-                                # log_sam2_folder(entity="world/sam2", path=sam2_folder_path)
-
+                        
+                        ## TODO
+                        # 1. Get new kps,des for the current frame img and the k_frames_away frame img using a new feature tracker and matcher objects 
+                            
                     if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                         online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
                         

@@ -106,7 +106,7 @@ def log_image(entity, image):
         cv2.putText(error_img, "Error", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
         rr.log(f"{entity}", rr.Image(ensure_rgb(error_img)))
         
-def log_local_map(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
+def log_local_map(entity_path, points, colors=None):  # Added 'points' parameter
     """Logs the local map to rerun."""
     # points = get_local_map(frame_id)  # Removed the call to get_local_map
     if colors is not None:
@@ -200,10 +200,52 @@ def log_random_pc2(entity, points, colors=None, radius = None):  # Added 'points
         rr.Points3D(points, colors=colors, radii=radii),  # Added radii
     )
 
-
+import os
         
+def log_sam2_folder(entity="sam2", path=None):
+    """Logs all the images in the folder to rerun, image with 5 columns and N rows, each element is an image concatenated to one other, N depending on the number of images"""
+    if path is None:
+        print(f"Warning: Attempted to log None folder path to {entity}")
+        return
     
+    # Get all image files in the folder
+    image_files = [f for f in os.listdir(path) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    
+    # Sort the image files
+    image_files.sort()
+    
+    # Create a list to hold the images
+    images = []
+    
+    # Read and append each image to the list
+    for img_file in image_files:
+        img_path = os.path.join(path, img_file)
+        img = cv2.imread(img_path)
+        if img is not None:
+            images.append(img)
+    
+    # Concatenate images into a single image with 5 columns
+    if len(images) > 0:
+        rows = (len(images) + 4) // 5  # Calculate number of rows needed
+        concatenated_image = np.zeros((rows * images[0].shape[0], 5 * images[0].shape[1], 3), dtype=np.uint8)
+        
+        for i, img in enumerate(images):
+            row = i // 5
+            col = i % 5
+            concatenated_image[row * img.shape[0]:(row + 1) * img.shape[0], col * img.shape[1]:(col + 1) * img.shape[1]] = img
+        
+        # Add text on each image - its image file path - only the filename and not the full path
+        for i, img_file in enumerate(image_files):
+            row = i // 5
+            col = i % 5
+            x = col * images[0].shape[1] + 5
+            y = row * images[0].shape[0] + 20
+            cv2.putText(concatenated_image, img_file, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
+        rr.log(f"{entity}/images", rr.Image(concatenated_image))
+    else:
+        print(f"Warning: No images found in folder {path} to log to {entity}")
+        return
 
 
 def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=None):  # Added 'points' parameter
@@ -236,7 +278,7 @@ def log_local_map_snapshot(frame_id, entity_path, points, colors=None, current=N
 
 
 
-def log_global_map(frame_id, entity_path, points,colors=None):  # Added 'points' parameter
+def log_global_map(entity_path, points,colors=None):  # Added 'points' parameter
     """Logs the global map to rerun."""
     # points = get_global_map(frame_id)  # Removed the call to get_global_map
     if colors is not None:
@@ -247,18 +289,18 @@ def log_global_map(frame_id, entity_path, points,colors=None):  # Added 'points'
     else:
         rr.log(f"{entity_path}/global_map", rr.Points3D(points))
 
-def log_current_frame_map_points(frame_id, entity_path, points, colors=None):  # Added 'points' parameter
+def log_current_frame_map_points(entity_path, points, colors=None):  # Added 'points' parameter
     """Logs the current frame to rerun."""
     # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d
     if colors is not None:
         rr.log(
-            f"{entity_path}/current_frame_3d",
+            f"{entity_path}/map_points",
             rr.Points3D(points, colors=colors),
         )
     else:
-        rr.log(f"{entity_path}/current_frame_3d", rr.Points3D(points))
+        rr.log(f"{entity_path}/map_points", rr.Points3D(points))
 
-def log_current_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4)):  # Added 'points' parameter
+def log_current_frame_pc(entity_path, points, colors=None, pose = np.eye(4)):  # Added 'points' parameter
     """Logs the current frame to rerun."""
     # Transform the points to the world frame from camera frame
     points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
@@ -277,7 +319,7 @@ def log_current_frame_pc(frame_id, entity_path, points, colors=None, pose = np.e
     else:
         rr.log(f"{entity_path}/current_frame_pc", rr.Points3D(points, colors=(0, 255, 0), radii=radii))  # Default color green with radii
 
-def log_frame_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4), fraction = 0.05):  # Added 'points' parameter
+def log_frame_dense_pc(frame_id, entity_path, points, colors=None, pose = np.eye(4), fraction = 0.05):  # Added 'points' parameter
     """Logs the current frame to rerun with frame id."""
     # Transform the points to the world frame from camera frame
     points = np.dot(pose[:3, :3], points.T).T + pose[:3, 3]
