@@ -26,6 +26,7 @@ import os
 import sys
 import numpy as np
 import json
+from test_delaunay import get_connected_components, visualize_edge_distance_histogram, unproject_kps, filter_features_by_depth, filter_features_by_depth2, display_depth, display_frame, visualize_matches
 from matplotlib import pyplot as plt
 import platform 
 from utilities.utils_delaunay import *
@@ -69,8 +70,8 @@ import argparse
 
 
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
-k_frames_away = 20
-    
+k_frames_away = 25
+k_num_resample_prompts = 20
 
 if __name__ == "__main__":   
     parser = argparse.ArgumentParser()
@@ -184,7 +185,8 @@ if __name__ == "__main__":
             raise ValueError("Groundtruth data is None. Please check the dataset.")
         
     # Initialize rerun for visualization
-    if not args.headless:
+    # if not args.headless:
+    if True:
         rerun_record_name = f"pyslam_{dataset.name}_{int(time.time())}"  # Add timestamp for uniqueness
         rr.init(rerun_record_name, spawn=True)
         
@@ -207,9 +209,9 @@ if __name__ == "__main__":
 
     rr.set_time_seconds("frame_timestamp", 0)
             
-    img_id = 0#210, 340, 400, 770   # you can start from a desired frame id if needed 
+    img_id = 210#210, 340, 400, 770   # you can start from a desired frame id if needed 
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
-    end_img_id = 100
+    end_img_id = 1000
     
     try:
         print("Entering main loop...")
@@ -304,9 +306,10 @@ if __name__ == "__main__":
                         
 
                         cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
-                        log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
-                        log_current_frame_pc(entity_path="world/GT/curr_scan/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_gt_Twc)
-                        log_frame_dense_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_gt_Twc)
+                        if not args.headless:
+                            log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
+                            log_current_frame_pc(entity_path="world/GT/curr_scan/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_gt_Twc)
+                            log_frame_dense_pc(frame_id=img_id, entity_path="world/GT/scans/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_gt_Twc)
 
                         ###################TRACKING#####################################     
                         slam.track(img, img_right, depth, img_id, timestamp, dynamic_mask=dynamic_mask)  # main SLAM function 
@@ -327,7 +330,7 @@ if __name__ == "__main__":
                         if not args.headless:
                             log_coordinate_axes("world/slam/Curr Frame Pose", pose=cur_Twc, scale=0.5)
                             log_frame_dense_pc(frame_id=img_id, entity_path="world/slam/scans/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_Twc)                                                  
-                                    
+                            log_current_frame_pc(entity_path="world/slam/curr_scan/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_Twc)
 
                         # Collect data for rerun visualization
                         global_map_points, global_map_colors = slam.map.get_points_as_np()
@@ -364,7 +367,8 @@ if __name__ == "__main__":
                                 log_current_frame_map_points(entity_path="world/slam/k_frames_away", points=k_frames_away_points, colors=k_frames_away_colors)
                                 k_frames_away_dense_pc = depth2pointcloud_with_mask((k_frames_away_frame.depth_img / k_frames_away_frame.camera.depth_factor) , k_frames_away_frame.img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=k_frames_away_frame.dynamic_mask, scale=depth_factor)
                                 print("k_frames_away_dense_pc: ", k_frames_away_dense_pc)
-                                log_frame_dense_pc(frame_id=img_id-k_frames_away, entity_path="world/slam/k_frames_away", points=k_frames_away_dense_pc.points, colors=k_frames_away_dense_pc.colors, pose=k_frames_away_Twc)
+                                # log_frame_dense_pc(frame_id=img_id-k_frames_away, entity_path="world/slam/k_frames_away", points=k_frames_away_dense_pc.points, colors=k_frames_away_dense_pc.colors, pose=k_frames_away_Twc)
+                                log_current_frame_pc(entity_path="world/slam/k_frames_away/curr_scan", points=k_frames_away_dense_pc.points, colors=k_frames_away_dense_pc.colors, pose=k_frames_away_Twc)
                                 log_image("world/k_frames_away_img", k_frames_away_frame.img)
                                 k_frames_away_frame.print_frame_stats(entity="k_frames_away")
 
@@ -393,6 +397,26 @@ if __name__ == "__main__":
                                 ref_feat = extractor.extract(img1_torch_HWC.to(device))
                                 curr_feat = extractor.extract(img2_torch_HWC.to(device))
 
+                                # Print # of keypoints before filtering
+                                print("ref_feat keypoints before filtering depth: ", ref_feat["keypoints"].shape)
+                                print("curr_feat keypoints before filtering depth: ", curr_feat["keypoints"].shape)
+
+                                ref_depth = k_frames_away_frame.depth_img 
+                                curr_depth = cur_frame.depth_img
+
+                                # Print max and min of ref_depth and curr_depth
+                                print("ref_depth max: ", ref_depth.max())   
+                                print("ref_depth min: ", ref_depth.min())
+                                print("curr_depth max: ", curr_depth.max())
+                                print("curr_depth min: ", curr_depth.min())
+
+                                ref_feat = filter_features_by_depth2(ref_feat, ref_depth)
+                                curr_feat = filter_features_by_depth2(curr_feat, curr_depth)
+
+                                # Print # of keypoints after filtering
+                                print("ref_feat keypoints after filtering depth: ", ref_feat["keypoints"].shape)
+                                print("curr_feat keypoints after filtering depth: ", curr_feat["keypoints"].shape)
+
                                 # 2. Get the matches between the two frames
                                 matches01 = matcher({"image0": ref_feat, "image1": curr_feat})
                                 feats0, feats1, matches01 = [
@@ -406,33 +430,161 @@ if __name__ == "__main__":
                                 print("Number of keypoints in curr image: ", len(kpts1))
                                 print("matches shape: ", matches.shape)
 
+                                # Visualize matches
+                                output_img = visualize_matches(k_frames_away_frame.img,curr_img,  kpts0, kpts1, matches, add_text=True)
+                                log_image(entity=f"Matches between Frame curr and Frame k_frames_away", image=output_img)
 
                                 ## TODO: Complete Delaunay triangulation on the current frames matched points and then check if the edges are dynamic and create prompts for the current frame. 
                                 
+                                # 1. Prepare keypoints for Delaunay triangulation
+                                m_kpts0_np = m_kpts0.int().cpu().numpy()
+                                m_kpts1_np = m_kpts1.int().cpu().numpy()
 
-                                # 3. Get prompts for SAM2, import and create SAM2 object.
-                                # For SAM2 video object, create a tmp folder with imgs loaded and saved from dataloader
-                                # - apply on all the images in the tmp folder, tmp folder contains all the images until the current frame and the next frame.
-                                # when propagation is complete,
+                                print("m_kpts0_np shape: ", m_kpts0_np.shape)
+                                print("m_kpts1_np shape: ", m_kpts1_np.shape)
+                                
+                                # 2. Apply Delaunay triangulation to the matched keypoints
+                                img_delaunay, tri = delaunay_image_kps(cur_frame.img, m_kpts1_np)
+                                if not args.headless:
+                                    log_image("world/matched_kps/cur_frame/delaunay_triangulation", img_delaunay)
+                                
+                                # 3. Create a graph from the Delaunay triangulation
+                                delaunay_graph = convert_delauany_to_networkx(tri)
+                                
+                                # 
 
-                                ## Make a tmp directory to save the images
-                                tmp_dir = "tmp"
-                                import shutil
-                                # if folder exists already - remove it
-                                if os.path.exists(tmp_dir):
-                                    shutil.rmtree(tmp_dir)
-                                if not os.path.exists(tmp_dir):
-                                    os.makedirs(tmp_dir)
+                                
+                                # 4. Unproject keypoints to 3D points
+                                points0, z_1 = unproject_kps(ref_depth, 
+                                                      m_kpts0_np, camera, k_frames_away_Twc, transform_to_world=True)
+                                points1, z_2 = unproject_kps(curr_depth, 
+                                                      m_kpts1_np, camera, cur_Twc, transform_to_world=True)
+                                
+                                print("points0 shape: ", points0.shape)
+                                print("points1 shape: ", points1.shape)
+                                print("points0 depth zero:", z_1 )
+                                print("points1 depth zero:", z_2 )
 
-                                print(f"Created temporary directory - full path: {os.path.abspath(tmp_dir)}")
-                                # Save the images - img1, img2 in the tmp directory
-                                cv2.imwrite(os.path.join(tmp_dir, f"{img_id-k_frames_away}.jpg"), k_frames_away_frame.img)
-                                cv2.imwrite(os.path.join(tmp_dir, f"{img_id}.jpg"), cur_frame.img)
-                                print(f"Saved images to {tmp_dir}")
+                                # Visualize the 3D points
+                                log_random_pc2(entity= "world/slam/kps matched in k_frames_away", points=points0, colors="green", radius=0.04)
+                                log_random_pc2(entity= "world/slam/kps matched in cur_frame", points=points1, colors="blue", radius=0.04)
 
+
+                                # 5. Calculate and store edge properties
+                                # Store 3D distances in both frames
+                                nx.set_edge_attributes(delaunay_graph, 
+                                    {edge: {'distance_3d': np.linalg.norm(points1[edge[0]] - points1[edge[1]])}
+                                    for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+                                    
+                                
+                                nx.set_edge_attributes(delaunay_graph, 
+                                    {edge: {'distance_3d_other': np.linalg.norm(points0[edge[0]] - points0[edge[1]])} 
+                                    for edge in delaunay_graph.edges if edge[0] < len(points0) and edge[1] < len(points0)})
+                                
+                                # Store distance differences between frames
+                                nx.set_edge_attributes(delaunay_graph, 
+                                    {edge: {'distance_diff': np.abs(delaunay_graph.edges[edge]['distance_3d'] - 
+                                                                  delaunay_graph.edges[edge]['distance_3d_other'])} 
+                                    for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+                                
+                                # Store motion of nodes
+                                nx.set_edge_attributes(delaunay_graph,
+                                    {edge: {'node1motion': np.linalg.norm(points0[edge[0]] - points1[edge[0]]), 
+                                            'node2motion': np.linalg.norm(points0[edge[1]] - points1[edge[1]])} 
+                                    for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+                                
+                                # Calculate angle changes and R*theta metric for rotation detection
+                                for edge in delaunay_graph.edges:
+                                    if edge[0] < len(points0) and edge[1] < len(points0):
+                                        # Get the points for the edge
+                                        pt1 = points0[edge[0]]
+                                        pt2 = points0[edge[1]]
+                                        pt3 = points1[edge[0]]
+                                        pt4 = points1[edge[1]]
+
+                                        # Calculate the edge vectors
+                                        vec1 = pt2 - pt1
+                                        vec2 = pt4 - pt3
+
+                                        # Calculate the angle between the two vectors
+                                        angle = np.arccos(np.clip(np.dot(vec1, vec2) / 
+                                                               (np.linalg.norm(vec1) * np.linalg.norm(vec2)), -1.0, 1.0))
+
+                                        # Store the angle, average length, and R*theta in the graph
+                                        delaunay_graph.edges[edge]['angle_change'] = angle
+                                        avg_length = (np.linalg.norm(vec1) + np.linalg.norm(vec2)) / 2
+                                        delaunay_graph.edges[edge]['avg_length'] = avg_length
+                                        delaunay_graph.edges[edge]['R_theta'] = avg_length * angle
+
+                                # Effective distance metric = sqrt (( l1cos(theta) - l2)**2 + l1sin(theta)**2)
+                                nx.set_edge_attributes(delaunay_graph, 
+                                    {edge: {'effective_distance': np.sqrt((delaunay_graph.edges[edge]['distance_3d'] * 
+                                                                  np.cos(delaunay_graph.edges[edge]['angle_change']) - 
+                                                                  delaunay_graph.edges[edge]['distance_3d_other'])**2 + 
+                                                                  (delaunay_graph.edges[edge]['distance_3d'] * 
+                                                                   np.sin(delaunay_graph.edges[edge]['angle_change']))**2)} 
+                                    for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+                                
+                                # 6. Detect dynamic edges and remove them from the graph
+                                modified_delaunay_graph = delaunay_graph.copy()
+                                dynamic_edge_image = img_delaunay.copy()
+
+                                for edge in list(modified_delaunay_graph.edges):
+                                    is_dynamic = False
+                                    # Check if edge properties exist
+                                    if 'distance_diff' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['distance_diff'] > 0.2:
+                                        is_dynamic = True
+                                    elif 'R_theta' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['R_theta'] > 0.2:
+                                        is_dynamic = True
+
+                                    # Check effective distance 
+                                    if 'effective_distance' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['effective_distance'] > 0.2:
+                                        is_dynamic = True
+                                    if is_dynamic:
+                                        # Draw dynamic edges in blue
+                                        pt1 = tuple(m_kpts1_np[edge[0]])
+                                        pt2 = tuple(m_kpts1_np[edge[1]])
+                                        cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+                                        # Remove edge from graph
+                                        modified_delaunay_graph.remove_edge(edge[0], edge[1])
+                                
+                                # if not args.headless:
+                                if True:
+                                    log_image("world/matched_kps/cur_frame/delaunay_dynamic_edges", dynamic_edge_image)
+                                
+                                # 7. Extract connected components (potential dynamic objects)
+                                connected_components = get_connected_components(modified_delaunay_graph)
+                                print(f"Number of connected components: {len(connected_components)}")
+                                
+                                # 8. Visualize connected components
+                                # if not args.headless:
+                                if True:
+                                    connected_components_image = cur_frame.img.copy()
+                                    colors_for_components = [(255, 0, 0), (0, 255, 0), (0, 0, 255), 
+                                                           (255, 255, 0), (255, 0, 255), (0, 255, 255)]
+                                    
+                                    for i, component in enumerate(connected_components):
+                                        if component.number_of_nodes() < 3:
+                                            continue
+                                        color = colors_for_components[i % len(colors_for_components)]
+                                        for edge in component.edges:
+                                            pt1 = tuple(m_kpts1_np[edge[0]])
+                                            pt2 = tuple(m_kpts1_np[edge[1]])
+                                            cv2.line(connected_components_image, pt1, pt2, color, 1)
+                                    
+                                    log_image("world/matched_kps/cur_frame/connected_components", connected_components_image)
+                                
+                                # 9. Prepare for SAM2 processing
+                                # Create temporary directory for frames if needed
                                 sam2_folder_path = create_temp_symlink_folder(dataset_images_path_dir, img_id - k_frames_away, img_id, temp_folder_name="sam2_temp_symlinks")
-                                # log_sam2_folder(entity="world/sam2", path=sam2_folder_path)
-
+                                # log_sam2_folder(entity_path="world/sam2", folder_path=sam2_folder_path)
+                                # 10. For SAM2 integration, prepare points from top components as prompts
+                                sorted_components = sorted(connected_components, key=lambda x: x.number_of_nodes(), reverse=True)
+                                
+                                
+                                
+                                # TODO: Use SAM2 for segmentation with dynamic_prompts
+                                
                     if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                         online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)
                         

@@ -30,7 +30,7 @@ TUM_DATASET:
   # name: rgbd_dataset_freiburg3_walking_rpy
   # settings: settings/TUM1.yaml # do not forget to set the corresponding camera settings file 
 
-  name: ball
+  name: ball #table_tracking2 # person_tracking # ball
   settings: settings/WILDGS_ball.yaml # do not forget to set the corresponding camera settings file
   #
   associations: associations.txt
@@ -47,7 +47,7 @@ BONN_DATASET:
   #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   # name: rgbd_bonn_static_close_far
-  name: rgbd_bonn_balloon_tracking2
+  # name: rgbd_bonn_balloon_tracking2
   # name: rgbd_bonn_static
   
 
@@ -56,7 +56,7 @@ BONN_DATASET:
   #settings: settings/TUM1.yaml # do not forget to correctly set the corresponding camera settings file
   #
   # name: rgbd_bonn_static_close_far # do not use this for mono, there are some in-place rotations during exploratory phases # DATA FROM LEGION
-  # name: rgbd_bonn_crowd ## DATA FROM LAB
+  name: rgbd_bonn_crowd ## DATA FROM LAB
   settings: settings/rgbd_bonn.yaml # do not forget to set the corresponding camera settings file 
   #
   associations: associations.txt

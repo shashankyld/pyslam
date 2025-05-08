@@ -152,8 +152,14 @@ def unproject_kps(depth_img, kps, camera, pose, transform_to_world=False):
     # Unproject keypoints to 3D points
     points = []
     depth_zero_count = 0
+    visited_xy = set()
     for kp in kps:
         x, y = int(kp[0]), int(kp[1])
+        if (x, y) in visited_xy:
+            print(f"Duplicate keypoint at ({x}, {y})")
+            continue
+        visited_xy.add((x, y))
+
         depth = depth_img[y, x]  # Get the depth value at the keypoint location
         if depth == 0:
             depth_zero_count += 1
@@ -168,7 +174,7 @@ def unproject_kps(depth_img, kps, camera, pose, transform_to_world=False):
         # Transform points to world coordinates using the pose
         points_homogeneous = np.hstack((points, np.ones((points.shape[0], 1))))
         points_world = pose @ points_homogeneous.T
-        return points_world[:3].T
+        return points_world[:3].T, depth_zero_count
     
     print(f"Number of keypoints with zero depth: {depth_zero_count}")
     print(f"Number of valid keypoints: {len(points)}")
@@ -176,7 +182,7 @@ def unproject_kps(depth_img, kps, camera, pose, transform_to_world=False):
     
     
 
-    return points
+    return points, depth_zero_count
 
 def filter_features_by_depth(ref_feat, depth_scaled):
     """
@@ -205,7 +211,7 @@ def filter_features_by_depth(ref_feat, depth_scaled):
 
 def filter_features_by_depth2(ref_feat, depth_scaled):
     """
-    Filters keypoints from reference features where depth is zero and depth is less than 3m.
+    Filters keypoints from reference features where depth is zero and depth is less than Xm.
     
     Args:
         ref_feat: Dictionary containing feature data (keypoints, keypoint_scores, descriptors)
@@ -214,14 +220,15 @@ def filter_features_by_depth2(ref_feat, depth_scaled):
     Returns:
         ref_feat: Filtered reference features
     """
+    max_depth = 6 #m
     ref_feat_kps = ref_feat["keypoints"][0].int().cpu().numpy()
     valid_indices = [
         i for i, kp in enumerate(ref_feat_kps)
-        if depth_scaled[int(kp[1]), int(kp[0])] != 0 and depth_scaled[int(kp[1]), int(kp[0])] < 4
+        if depth_scaled[int(kp[1]), int(kp[0])] != 0 and depth_scaled[int(kp[1]), int(kp[0])] < max_depth
     ]
     
     if len(valid_indices) < len(ref_feat_kps):
-        print(f"Removing {len(ref_feat_kps) - len(valid_indices)} keypoints with zero depth or depth > 3m")
+        print(f"Removing {len(ref_feat_kps) - len(valid_indices)} keypoints with zero depth or depth > {max_depth}m")
         ref_feat["keypoints"] = ref_feat["keypoints"][:, valid_indices]
         ref_feat["keypoint_scores"] = ref_feat["keypoint_scores"][:, valid_indices]
         ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
