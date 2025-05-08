@@ -72,6 +72,7 @@ import argparse
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
 k_frames_away = 25
 k_num_resample_prompts = 20
+effective_distance_threshold = 0.2
 
 if __name__ == "__main__":   
     parser = argparse.ArgumentParser()
@@ -525,6 +526,19 @@ if __name__ == "__main__":
                                                                    np.sin(delaunay_graph.edges[edge]['angle_change']))**2)} 
                                     for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
                                 
+                                # Calulate change in the length of every node and store it in the graph
+                                nx.set_node_attributes(delaunay_graph, 
+                                    {node: {'length_change_vector': points0[node] - points1[node]} 
+                                    for node in range(len(points1)) if node < len(points1)})
+
+                                nx.set_node_attributes(delaunay_graph, 
+                                    {node: {'length_change': np.linalg.norm(points0[node] - points1[node])} 
+                                    for node in range(len(points1)) if node < len(points1)})    
+                                
+                                
+
+
+
                                 # 6. Detect dynamic edges and remove them from the graph
                                 modified_delaunay_graph = delaunay_graph.copy()
                                 dynamic_edge_image = img_delaunay.copy()
@@ -532,13 +546,13 @@ if __name__ == "__main__":
                                 for edge in list(modified_delaunay_graph.edges):
                                     is_dynamic = False
                                     # Check if edge properties exist
-                                    if 'distance_diff' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['distance_diff'] > 0.2:
+                                    if 'distance_diff' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['distance_diff'] > effective_distance_threshold:
                                         is_dynamic = True
-                                    elif 'R_theta' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['R_theta'] > 0.2:
+                                    elif 'R_theta' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['R_theta'] > effective_distance_threshold:
                                         is_dynamic = True
 
                                     # Check effective distance 
-                                    if 'effective_distance' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['effective_distance'] > 0.2:
+                                    if 'effective_distance' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['effective_distance'] > effective_distance_threshold:
                                         is_dynamic = True
                                     if is_dynamic:
                                         # Draw dynamic edges in blue
@@ -555,7 +569,32 @@ if __name__ == "__main__":
                                 # 7. Extract connected components (potential dynamic objects)
                                 connected_components = get_connected_components(modified_delaunay_graph)
                                 print(f"Number of connected components: {len(connected_components)}")
-                                
+
+
+                                ## For each connected component, get the avg motion of the nodes
+                                for i, component in enumerate(connected_components):
+                                    avg_motion = np.mean([delaunay_graph.nodes[node]['length_change_vector'] for node in component.nodes], axis=0)
+                                    avg_length_change = np.mean([delaunay_graph.nodes[node]['length_change'] for node in component.nodes])
+                                    # print avg motion and number of nodes
+                                    print(f"Component {i}: Avg motion: {avg_motion}, Number of nodes: {len(component.nodes)}, Avg length change: {avg_length_change}")
+
+                                ## For components with avg length change < effective_distance_threshold/factor, remove them from connected components list and create a new static_component by combining them 
+                                static_component = nx.Graph()
+                                for i, component in enumerate(connected_components):
+                                    avg_length_change = np.mean([delaunay_graph.nodes[node]['length_change'] for node in component.nodes])
+                                    if avg_length_change < effective_distance_threshold / 2:
+                                        # Add nodes and edges to static component
+                                        static_component.add_nodes_from(component.nodes)
+                                        static_component.add_edges_from(component.edges)
+                                        # Remove component from connected components list
+                                        connected_components.remove(component)
+                                        print(f"Component {i} is static, avg length change: {avg_length_change}")
+                                    else:
+                                        print(f"Component {i} is dynamic, avg length change: {avg_length_change}")
+                                        
+
+
+
                                 # 8. Visualize connected components
                                 # if not args.headless:
                                 if True:
@@ -564,12 +603,20 @@ if __name__ == "__main__":
                                                            (255, 255, 0), (255, 0, 255), (0, 255, 255)]
                                     
                                     for i, component in enumerate(connected_components):
-                                        if component.number_of_nodes() < 3:
-                                            continue
                                         color = colors_for_components[i % len(colors_for_components)]
+
+                                        if component.number_of_nodes() == 1:
+                                            # Draw single node in Large
+                                            for node in component.nodes:
+                                                pt = tuple(m_kpts1_np[node])
+                                                cv2.circle(connected_components_image, pt, 5, color, -1)
+
                                         for edge in component.edges:
                                             pt1 = tuple(m_kpts1_np[edge[0]])
                                             pt2 = tuple(m_kpts1_np[edge[1]])
+                                            if component.number_of_nodes() < 4:
+                                                # Draw edge with large line since easier to see
+                                                cv2.line(connected_components_image, pt1, pt2, color, 5)
                                             cv2.line(connected_components_image, pt1, pt2, color, 1)
                                     
                                     log_image("world/matched_kps/cur_frame/connected_components", connected_components_image)

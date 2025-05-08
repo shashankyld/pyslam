@@ -71,6 +71,7 @@ def get_connected_components(G):
     
     # Sort components by number of nodes in decreasing order
     components.sort(key=lambda x: x.number_of_nodes(), reverse=True)
+
     
     return components
 
