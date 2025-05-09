@@ -653,11 +653,18 @@ if __name__ == "__main__":
 
                                 # Set negative prompts from the static component
                                 negative_points_for_sam2 = []
-                                for node in static_component.nodes:
-                                    pt = tuple(m_kpts1_np[node])
-                                    negative_points_for_sam2.append(pt)
+                                for i, node in enumerate(static_component.nodes):
+                                    # Randomly sample points from the static component - 10 points
+                                    total = len(static_component.nodes)
+                                    if total > 10:
+                                        if i % (total // 10) == 0:
+                                            pt = tuple(m_kpts1_np[node])
+                                            negative_points_for_sam2.append(pt)
+                                    else:
+                                        pt = tuple(m_kpts1_np[node])
+                                        negative_points_for_sam2.append(pt)
 
-                                    
+                                
                                 # Apply SAM2 for the sam2_folder_path and visualize the results of the mask 
                                 if sam2_folder_path and len(points_for_sam2) > 0:
                                     try:
@@ -703,14 +710,7 @@ if __name__ == "__main__":
                                         # Create labels array (all points are positive)
                                         labels = np.ones(prompt_points.shape[0], dtype=np.int32)
 
-                                        # Add negative points (static component) as negative prompts
-                                        if len(negative_points_for_sam2) > 0:
-                                            negative_points_for_sam2 = np.array(negative_points_for_sam2, dtype=np.float32)
-                                            negative_labels = np.zeros(negative_points_for_sam2.shape[0], dtype=np.int32)
-                                            
-                                            # Concatenate positive and negative points
-                                            prompt_points = np.concatenate((prompt_points, negative_points_for_sam2), axis=0)
-                                            labels = np.concatenate((labels, negative_labels), axis=0)
+                                        
                                         
                                         # Add points as prompts (use first frame in sequence)
                                         _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
