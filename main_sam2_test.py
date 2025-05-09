@@ -43,8 +43,8 @@ os.chdir(os.path.join(SLAM_ROOT, "thirdparty", "sam2"))
 
 
 # Use relative paths that work with Hydra's package system
-sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_large.pt")
-model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"  # Hydra will look for this relative to the sam2 package
+sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_tiny.pt")
+model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"  # Hydra will look for this relative to the sam2 package
 
 # Make sure the checkpoint exists
 if not os.path.exists(sam2_checkpoint):

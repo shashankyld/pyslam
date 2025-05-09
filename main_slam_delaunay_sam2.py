@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
     dataset = dataset_factory(config)
     
-    dataset_images_path_dir = config.dataset_path + "/"+ config.dataset_settings['name'] + '/rgb'
+    dataset_images_path_dir = config.dataset_path + "/"+ config.dataset_settings['name'] + '/rgb_jpg/'
     images_paths_ordered = sorted(os.listdir(dataset_images_path_dir))
     print(f"images_paths_ordered: {images_paths_ordered}")
 
@@ -209,8 +209,8 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-            
-    img_id = 210#210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 0 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    img_id = starting_img_id
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
     end_img_id = 1000
     
@@ -591,7 +591,9 @@ if __name__ == "__main__":
                                         print(f"Component {i} is static, avg length change: {avg_length_change}")
                                     else:
                                         print(f"Component {i} is dynamic, avg length change: {avg_length_change}")
-                                        
+
+                                # For each component, creat a prompt for SAM2 and save all of them in a dictionay set it to the current frame. 
+
 
 
 
@@ -599,7 +601,7 @@ if __name__ == "__main__":
                                 # if not args.headless:
                                 if True:
                                     connected_components_image = cur_frame.img.copy()
-                                    colors_for_components = [(255, 0, 0), (0, 255, 0), (0, 0, 255), 
+                                    colors_for_components = [(255, 255, 255),(255,0,0), (0, 255, 0), (0, 0, 255), 
                                                            (255, 255, 0), (255, 0, 255), (0, 255, 255)]
                                     
                                     for i, component in enumerate(connected_components):
@@ -623,14 +625,111 @@ if __name__ == "__main__":
                                 
                                 # 9. Prepare for SAM2 processing
                                 # Create temporary directory for frames if needed
-                                sam2_folder_path = create_temp_symlink_folder(dataset_images_path_dir, img_id - k_frames_away, img_id, temp_folder_name="sam2_temp_symlinks")
-                                # log_sam2_folder(entity_path="world/sam2", folder_path=sam2_folder_path)
+                                sam2_folder_path = create_temp_symlink_folder(dataset_images_path_dir, img_id-1, img_id+2, temp_folder_name="sam2_temp_symlinks")
+                                # log_sam2_folder(entity="world/sam2", path=sam2_folder_path)
                                 # 10. For SAM2 integration, prepare points from top components as prompts
                                 sorted_components = sorted(connected_components, key=lambda x: x.number_of_nodes(), reverse=True)
                                 
                                 
                                 
-                                # TODO: Use SAM2 for segmentation with dynamic_prompts
+                                # TODO: Use SAM2 for segmentation with the second largest component
+                                if len(sorted_components) > 0 and len(sorted_components[0].nodes) > 5:
+                                    # Get the  largest component
+                                    dynamic_component = sorted_components[0]
+                                    print(f"Second largest component: {dynamic_component.nodes}")
+                                    
+                                    # Get the points for the second largest component
+                                    points_for_sam2 = []
+                                    for node in dynamic_component.nodes:
+                                        pt = tuple(m_kpts1_np[node])
+                                        points_for_sam2.append(pt)
+                                    
+                                    # Convert to numpy array
+                                    points_for_sam2 = np.array(points_for_sam2, dtype=np.float32)
+
+                                else:
+                                    # No prompts
+                                    points_for_sam2 = np.array([], dtype=np.float32)
+
+                                # Set negative prompts from the static component
+                                negative_points_for_sam2 = []
+                                for node in static_component.nodes:
+                                    pt = tuple(m_kpts1_np[node])
+                                    negative_points_for_sam2.append(pt)
+
+                                    
+                                # Apply SAM2 for the sam2_folder_path and visualize the results of the mask 
+                                if sam2_folder_path and len(points_for_sam2) > 0:
+                                    try:
+                                        # Import SAM2 modules
+                                        import sys
+                                        import os
+                                        SLAM_ROOT = os.path.dirname(os.path.abspath(__file__))
+                                        sys.path.append(os.path.join(SLAM_ROOT, "thirdparty", "sam2"))
+                                        
+                                        from sam2.build_sam import build_sam2_video_predictor
+                                        
+                                        print(f"Running SAM2 on folder: {sam2_folder_path}")
+                                        
+                                        # Setup device
+                                        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                                        print(f"Using device for SAM2: {device}")
+                                        
+                                        # Change to SAM2 directory for loading checkpoints
+                                        original_dir = os.getcwd()
+                                        sam2_dir = os.path.join(SLAM_ROOT, "thirdparty", "sam2")
+                                        os.chdir(sam2_dir)
+                                        
+                                        # Load SAM2 model
+                                        sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_tiny.pt")
+                                        model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
+                                        
+                                        predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
+                                        
+                                        # Change back to original directory
+                                        os.chdir(original_dir)
+                                        
+                                        # Initialize inference state with the video path
+                                        inference_state = predictor.init_state(video_path=sam2_folder_path)
+                                        
+                                        # Select a subset of points for SAM2 prompt (no more than k_num_resample_prompts)
+                                        if points_for_sam2.shape[0] > k_num_resample_prompts:
+                                            # Randomly sample points
+                                            indices = np.random.choice(points_for_sam2.shape[0], k_num_resample_prompts, replace=False)
+                                            prompt_points = points_for_sam2[indices]
+                                        else:
+                                            prompt_points = points_for_sam2
+                                            
+                                        # Create labels array (all points are positive)
+                                        labels = np.ones(prompt_points.shape[0], dtype=np.int32)
+
+                                        # Add negative points (static component) as negative prompts
+                                        # if len(negative_points_for_sam2) > 0:
+                                        #     negative_points_for_sam2 = np.array(negative_points_for_sam2, dtype=np.float32)
+                                        #     negative_labels = np.zeros(negative_points_for_sam2.shape[0], dtype=np.int32)
+                                            
+                                        #     # Concatenate positive and negative points
+                                        #     prompt_points = np.concatenate((prompt_points, negative_points_for_sam2), axis=0)
+                                        #     labels = np.concatenate((labels, negative_labels), axis=0)
+                                        
+                                        # Add points as prompts (use first frame in sequence)
+                                        _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
+                                            inference_state=inference_state,
+                                            frame_idx=-2, # one before the last frame
+                                            obj_id=1,     # First object ID
+                                            points=prompt_points,
+                                            labels=labels
+                                        )
+                                        
+                                        
+                                                                                                                            
+                                    except Exception as e:
+                                        print(f"Error in SAM2 processing: {e}")
+                                        print(traceback.format_exc())
+                                        print("Continuing without SAM2 mask...")
+                                else:
+                                    print("No SAM2 processing - either no folder path or no points available")
+
                                 
                     if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:
                         online_trajectory_writer.write_trajectory(slam.tracking.cur_R, slam.tracking.cur_t, timestamp)

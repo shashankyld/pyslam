@@ -29,7 +29,7 @@ def create_temp_symlink_folder(dataset_images_path_dir, start_idx, end_idx, temp
     os.makedirs(temp_root)
 
     # Create symlinks
-    for fname in images_paths_ordered[start_idx:end_idx]:
+    for fname in images_paths_ordered[start_idx:end_idx]: # Includes the start index, excludes the end index
         src_path = os.path.join(dataset_images_path_dir, fname)
         dst_path = os.path.join(temp_root, fname)
         if not os.path.exists(src_path):
@@ -37,3 +37,4 @@ def create_temp_symlink_folder(dataset_images_path_dir, start_idx, end_idx, temp
         os.symlink(os.path.abspath(src_path), dst_path)
 
     return temp_root
+

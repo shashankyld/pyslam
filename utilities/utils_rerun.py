@@ -201,7 +201,10 @@ def log_random_pc2(entity, points, colors=None, radius = None):  # Added 'points
     )
 
 import os
-        
+    
+
+
+
 def log_sam2_folder(entity="sam2", path=None):
     """Logs all the images in the folder to rerun, image with 5 columns and N rows, each element is an image concatenated to one other, N depending on the number of images"""
     if path is None:
