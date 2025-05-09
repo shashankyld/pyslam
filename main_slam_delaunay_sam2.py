@@ -681,8 +681,8 @@ if __name__ == "__main__":
                                         os.chdir(sam2_dir)
                                         
                                         # Load SAM2 model
-                                        sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_tiny.pt")
-                                        model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
+                                        sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_large.pt")
+                                        model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
                                         
                                         predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
                                         
@@ -704,13 +704,13 @@ if __name__ == "__main__":
                                         labels = np.ones(prompt_points.shape[0], dtype=np.int32)
 
                                         # Add negative points (static component) as negative prompts
-                                        # if len(negative_points_for_sam2) > 0:
-                                        #     negative_points_for_sam2 = np.array(negative_points_for_sam2, dtype=np.float32)
-                                        #     negative_labels = np.zeros(negative_points_for_sam2.shape[0], dtype=np.int32)
+                                        if len(negative_points_for_sam2) > 0:
+                                            negative_points_for_sam2 = np.array(negative_points_for_sam2, dtype=np.float32)
+                                            negative_labels = np.zeros(negative_points_for_sam2.shape[0], dtype=np.int32)
                                             
-                                        #     # Concatenate positive and negative points
-                                        #     prompt_points = np.concatenate((prompt_points, negative_points_for_sam2), axis=0)
-                                        #     labels = np.concatenate((labels, negative_labels), axis=0)
+                                            # Concatenate positive and negative points
+                                            prompt_points = np.concatenate((prompt_points, negative_points_for_sam2), axis=0)
+                                            labels = np.concatenate((labels, negative_labels), axis=0)
                                         
                                         # Add points as prompts (use first frame in sequence)
                                         _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
@@ -720,7 +720,15 @@ if __name__ == "__main__":
                                             points=prompt_points,
                                             labels=labels
                                         )
-                                        
+
+                                        dynamic_masks = sam2_logits_to_masks(out_mask_logits, curr_img, threshold=0)
+                                        # Visualize the masks using rerun
+                                        for i, mask in enumerate(dynamic_masks):
+                                            mask = mask.astype(np.uint8) * 255
+                                            mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+                                            mask = cv2.addWeighted(curr_img, 0.5, mask, 0.5, 0)
+                                            log_image(f"world/sam2/mask_{i}", mask)
+
                                         
                                                                                                                             
                                     except Exception as e:
