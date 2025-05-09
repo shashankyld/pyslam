@@ -157,7 +157,36 @@ if __name__ == "__main__":
         depth_estimator = depth_estimator_factory(depth_estimator_type=depth_estimator_type, max_depth=max_depth,
                                                   dataset_env_type=dataset.environmentType(), camera=camera) 
         Printer.green(f'Depth_estimator_type: {depth_estimator_type.name}, max_depth: {max_depth}')       
-                
+    
+
+    # Import SAM2 modules
+    import sys
+    import os
+    SLAM_ROOT = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(os.path.join(SLAM_ROOT, "thirdparty", "sam2"))
+    
+    from sam2.build_sam import build_sam2_video_predictor
+    
+
+    
+    # Setup device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device for SAM2: {device}")
+    
+    # Change to SAM2 directory for loading checkpoints
+    original_dir = os.getcwd()
+    sam2_dir = os.path.join(SLAM_ROOT, "thirdparty", "sam2")
+    os.chdir(sam2_dir)
+    
+    # Load SAM2 model
+    sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_large.pt")
+    model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+    
+    predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
+    
+    # Change back to original directory
+    os.chdir(original_dir)
+
     # create SLAM object
     slam = Slam(camera, feature_tracker_config, 
                 loop_detection_config, dataset.sensorType(), 
@@ -209,7 +238,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-    starting_img_id = 0 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 210 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     img_id = starting_img_id
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
     end_img_id = 1000
@@ -564,7 +593,7 @@ if __name__ == "__main__":
                                 
                                 # if not args.headless:
                                 if True:
-                                    log_image("world/matched_kps/cur_frame/delaunay_dynamic_edges", dynamic_edge_image)
+                                    log_image("delaunay_dynamic_edges", dynamic_edge_image)
                                 
                                 # 7. Extract connected components (potential dynamic objects)
                                 connected_components = get_connected_components(modified_delaunay_graph)
@@ -587,7 +616,7 @@ if __name__ == "__main__":
                                         static_component.add_nodes_from(component.nodes)
                                         static_component.add_edges_from(component.edges)
                                         # Remove component from connected components list
-                                        connected_components.remove(component)
+                                        # connected_components.remove(component)
                                         print(f"Component {i} is static, avg length change: {avg_length_change}")
                                     else:
                                         print(f"Component {i} is dynamic, avg length change: {avg_length_change}")
@@ -621,21 +650,21 @@ if __name__ == "__main__":
                                                 cv2.line(connected_components_image, pt1, pt2, color, 5)
                                             cv2.line(connected_components_image, pt1, pt2, color, 1)
                                     
-                                    log_image("world/matched_kps/cur_frame/connected_components", connected_components_image)
+                                    log_image("connected_components", connected_components_image)
                                 
                                 # 9. Prepare for SAM2 processing
                                 # Create temporary directory for frames if needed
-                                sam2_folder_path = create_temp_symlink_folder(dataset_images_path_dir, img_id-1, img_id+2, temp_folder_name="sam2_temp_symlinks")
-                                # log_sam2_folder(entity="world/sam2", path=sam2_folder_path)
+                                sam2_folder_path = create_temp_actual_folder(dataset_images_path_dir, img_id-1, img_id+2, temp_folder_name="sam2_temp_symlinks")
+                                log_sam2_folder(entity="sam2", path=sam2_folder_path)
                                 # 10. For SAM2 integration, prepare points from top components as prompts
                                 sorted_components = sorted(connected_components, key=lambda x: x.number_of_nodes(), reverse=True)
                                 
                                 
                                 
                                 # TODO: Use SAM2 for segmentation with the second largest component
-                                if len(sorted_components) > 0 and len(sorted_components[0].nodes) > 5:
+                                if len(sorted_components) > 0 and len(sorted_components[1].nodes) > 5:
                                     # Get the  largest component
-                                    dynamic_component = sorted_components[0]
+                                    dynamic_component = sorted_components[1]
                                     print(f"Second largest component: {dynamic_component.nodes}")
                                     
                                     # Get the points for the second largest component
@@ -668,33 +697,9 @@ if __name__ == "__main__":
                                 # Apply SAM2 for the sam2_folder_path and visualize the results of the mask 
                                 if sam2_folder_path and len(points_for_sam2) > 0:
                                     try:
-                                        # Import SAM2 modules
-                                        import sys
-                                        import os
-                                        SLAM_ROOT = os.path.dirname(os.path.abspath(__file__))
-                                        sys.path.append(os.path.join(SLAM_ROOT, "thirdparty", "sam2"))
-                                        
-                                        from sam2.build_sam import build_sam2_video_predictor
-                                        
                                         print(f"Running SAM2 on folder: {sam2_folder_path}")
-                                        
-                                        # Setup device
-                                        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-                                        print(f"Using device for SAM2: {device}")
-                                        
-                                        # Change to SAM2 directory for loading checkpoints
-                                        original_dir = os.getcwd()
-                                        sam2_dir = os.path.join(SLAM_ROOT, "thirdparty", "sam2")
-                                        os.chdir(sam2_dir)
-                                        
-                                        # Load SAM2 model
-                                        sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_large.pt")
-                                        model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
-                                        
-                                        predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
-                                        
-                                        # Change back to original directory
-                                        os.chdir(original_dir)
+                                        # Print # files in folder
+                                        print(f"Number of files in folder: {len(os.listdir(sam2_folder_path))}")
                                         
                                         # Initialize inference state with the video path
                                         inference_state = predictor.init_state(video_path=sam2_folder_path)
@@ -710,12 +715,12 @@ if __name__ == "__main__":
                                         # Create labels array (all points are positive)
                                         labels = np.ones(prompt_points.shape[0], dtype=np.int32)
 
-                                        
+                                        len_of_folder = len(os.listdir(sam2_folder_path))
                                         
                                         # Add points as prompts (use first frame in sequence)
                                         _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
                                             inference_state=inference_state,
-                                            frame_idx=-2, # one before the last frame
+                                            frame_idx=len_of_folder-2, # one before the last frame
                                             obj_id=1,     # First object ID
                                             points=prompt_points,
                                             labels=labels
@@ -727,10 +732,74 @@ if __name__ == "__main__":
                                             mask = mask.astype(np.uint8) * 255
                                             mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
                                             mask = cv2.addWeighted(curr_img, 0.5, mask, 0.5, 0)
-                                            log_image(f"world/sam2/mask_{i}", mask)
+                                            log_image(f"sam2/mask_{i}", mask)
 
-                                        
-                                                                                                                            
+                                        # Propagate the masks trough the video sequence
+                                        # Forward propagation
+                                        forward_segments = {}
+                                        for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
+                                            inference_state,
+                                            start_frame_idx=len_of_folder-2,  # Your prompt frame
+                                            reverse=False
+                                        ):
+                                            forward_segments[out_frame_idx] = {
+                                                out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
+                                                for i, out_obj_id in enumerate(out_obj_ids)
+                                            }
+
+                                        # Backward propagation
+                                        backward_segments = {}
+                                        for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
+                                            inference_state,
+                                            start_frame_idx=len_of_folder-2,  # Your prompt frame
+                                            reverse=True
+                                        ):
+                                            backward_segments[out_frame_idx] = {
+                                                out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
+                                                for i, out_obj_id in enumerate(out_obj_ids)
+                                            }
+
+                                        # Reverse the backward segments to match the forward order
+                                        backward_segments = {k: v for k, v in reversed(backward_segments.items())}
+
+                                        # Combine the segments
+                                        video_segments = {**backward_segments, **forward_segments}
+
+                                        # Extract the masks for the next frame
+                                        print("###################################################")
+                                        print("video_segments: ", video_segments)
+                                        print("###################################################")
+                                        # Log all the masks in the video segments
+                                        # Log all the masks in the video segments
+                                        for i, (frame_idx, obj_masks) in enumerate(video_segments.items()):
+                                            print(f"Frame {frame_idx} masks: {obj_masks}")
+                                            for obj_id, mask in obj_masks.items():  # Iterate through dict items (obj_id, mask)
+                                                if isinstance(mask, np.ndarray):  # Ensure mask is a NumPy array
+                                                    try:
+                                                        # Extract first channel if mask has multiple dimensions
+                                                        if len(mask.shape) == 3 and mask.shape[0] == 1:
+                                                            mask = mask[0]  # Get the first mask if it's shaped [1, H, W]
+                                                        
+                                                        # Convert boolean to uint8
+                                                        mask = mask.astype(np.uint8) * 255
+                                                        
+                                                        # Convert to BGR for blending (same as the working code above)
+                                                        mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+                                                        
+                                                        # Blend with the original image
+                                                        mask = cv2.addWeighted(curr_img, 0.5, mask, 0.5, 0)
+                                                        
+                                                        # Log the result
+                                                        log_image(f"sam2/mask_{i}_{obj_id}", mask)
+                                                    except Exception as e:
+                                                        print(f"Error processing mask for object {obj_id}: {e}")
+                                                        print(f"Mask shape: {mask.shape}, Image shape: {curr_img.shape}")
+                                                else:
+                                                    print(f"Mask for object {obj_id} is not a valid NumPy array: {type(mask)}")        
+
+                                        predictor.reset_state(inference_state)
+
+
                                     except Exception as e:
                                         print(f"Error in SAM2 processing: {e}")
                                         print(traceback.format_exc())
