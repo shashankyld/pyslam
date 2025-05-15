@@ -84,4 +84,5 @@ class MaskRCNNUtils:
         for human in humans:
             # Use the mask from the detection results directly
             mask = np.where(human['mask'] > 0.5, 255, mask)  
+            # Means the mask is binary, 255 for human and 0 for background
         return mask
