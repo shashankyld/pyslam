@@ -413,6 +413,7 @@ if __name__ == "__main__":
                         print("-k_frames_away -1: ", -k_frames_away-1)
                         # print number of frames in the map
                         print("Number of frames in the map: ", len(slam.map.frames))
+                        # TODO: Wait for the map
 
 
                         if img_id > starting_img_id+6:
