@@ -45,93 +45,186 @@ class DelaunayDynamic:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.extractor = SuperPoint(max_num_keypoints=self.num_features).eval().to(self.device)
         self.matcher = LightGlue(features="superpoint").eval().to(self.device)
+        # New attributes for feature storage
+        self.ref_matched_data = None   #Stores matched keypoints, descriptors, scores in extraction-like format
+        self.ref_id = None  # Stores the reference frame ID
 
-    def _extract_features(self, ref_id, cur_id): 
+    # def _extract_features(self, ref_id, cur_id): 
+    #     """
+    #     Extract features from the reference and current frames.
+    #     """
+    #     ref_frame = self.slam.map.get_frame(ref_id)
+    #     cur_frame = self.slam.map.get_frame(cur_id)
+    #     dynamic_mask_ref = ref_frame.dynamic_mask
+    #     dynamic_mask_cur = cur_frame.dynamic_mask
+    #     # Set known attributes
+    #     self.ref_frame = ref_frame
+    #     self.cur_frame = cur_frame
+    #     self.dynamic_mask = dynamic_mask_cur
+
+    #     ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+    #     cur_torch_HWC = torch.from_numpy(cur_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+    #     ref_torch_HWC = ref_torch_HWC.to(self.device)
+    #     cur_torch_HWC = cur_torch_HWC.to(self.device)
+        
+    #     ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
+    #     cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
+
+    #     print("ref_feat keypoints before filtering with depth: ", ref_feat["keypoints"].shape)
+    #     print("cur_feat keypoints before filtering with depth: ", cur_feat["keypoints"].shape)
+
+    #     ref_depth = ref_frame.depth_img
+    #     cur_depth = cur_frame.depth_img
+
+    #     # Print max and min of ref_depth and curr_depth
+    #     print("ref_depth max: ", ref_depth.max())   
+    #     print("ref_depth min: ", ref_depth.min())
+    #     print("curr_depth max: ", cur_depth.max())
+    #     print("curr_depth min: ", cur_depth.min())
+
+    #     ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
+    #     cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
+
+    #     # Print # of keypoints after filtering
+    #     print("ref_feat keypoints after filtering depth: ", ref_feat["keypoints"].shape)
+    #     print("curr_feat keypoints after filtering depth: ", cur_feat["keypoints"].shape)
+
+    #     # Remove features that are masked out
+    #     ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
+    #     cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
+    #     print("ref_feat keypoints after filtering mask: ", ref_feat["keypoints"].shape)
+    #     print("curr_feat keypoints after filtering mask: ", cur_feat["keypoints"].shape)
+
+    #     # Increment the recursion depth
+    #     self.recursion_depth += 1
+
+    #     # Check if the number of keypoints is less than half the number of features
+    #     if ref_feat["keypoints"].shape[1] < self.num_features // 2 and self.recursion_depth < self.recursion_limit:
+    #         print("Number of keypoints is less than half the number of features, extracting again with double the number of features")
+    #         self.extractor.conf.max_num_keypoints = self.num_features * 2
+    #         ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
+    #         cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
+    #         ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
+    #         cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
+    #         ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
+    #         cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
+            
+    #     # Print the number of keypoints after filtering
+    #     print("Feature extraction recursion depth: ", self.recursion_depth)
+    #     print("Extracting features with num_features: ", self.extractor.conf.max_num_keypoints)
+    #     print("ref_feat keypoints after filtering with: ", ref_feat["keypoints"].shape)
+    #     print("curr_feat keypoints after filtering: ", cur_feat["keypoints"].shape)
+
+    #     return ref_feat, cur_feat
+
+    def _extract_features(self, ref_id, cur_id):
         """
-        Extract features from the reference and current frames.
+        Extract features for the current frame and use stored matched features for the reference frame if available.
         """
-        ref_frame = self.slam.map.get_frame(ref_id)
         cur_frame = self.slam.map.get_frame(cur_id)
-        dynamic_mask_ref = ref_frame.dynamic_mask
         dynamic_mask_cur = cur_frame.dynamic_mask
-        # Set known attributes
-        self.ref_frame = ref_frame
         self.cur_frame = cur_frame
         self.dynamic_mask = dynamic_mask_cur
 
-        ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         cur_torch_HWC = torch.from_numpy(cur_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-        ref_torch_HWC = ref_torch_HWC.to(self.device)
         cur_torch_HWC = cur_torch_HWC.to(self.device)
-        
-        ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
-        cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
 
-        print("ref_feat keypoints before filtering with depth: ", ref_feat["keypoints"].shape)
-        print("cur_feat keypoints before filtering with depth: ", cur_feat["keypoints"].shape)
-
-        ref_depth = ref_frame.depth_img
-        cur_depth = cur_frame.depth_img
-
-        # Print max and min of ref_depth and curr_depth
-        print("ref_depth max: ", ref_depth.max())   
-        print("ref_depth min: ", ref_depth.min())
-        print("curr_depth max: ", cur_depth.max())
-        print("curr_depth min: ", cur_depth.min())
-
-        ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
-        cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
-
-        # Print # of keypoints after filtering
-        print("ref_feat keypoints after filtering depth: ", ref_feat["keypoints"].shape)
-        print("curr_feat keypoints after filtering depth: ", cur_feat["keypoints"].shape)
-
-        # Remove features that are masked out
-        ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
-        cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
-        print("ref_feat keypoints after filtering mask: ", ref_feat["keypoints"].shape)
-        print("curr_feat keypoints after filtering mask: ", cur_feat["keypoints"].shape)
-
-        # Increment the recursion depth
-        self.recursion_depth += 1
-
-        # Check if the number of keypoints is less than half the number of features
-        if ref_feat["keypoints"].shape[1] < self.num_features // 2 and self.recursion_depth < self.recursion_limit:
-            print("Number of keypoints is less than half the number of features, extracting again with double the number of features")
-            self.extractor.conf.max_num_keypoints = self.num_features * 2
+        # Check if matched features for reference frame can be reused
+        if self.ref_id == ref_id and self.ref_matched_data is not None:
+            ref_feat = self.ref_matched_data
+            print(f"Reusing stored matched features for reference frame {ref_id} with {ref_feat['keypoints'].shape[1]} keypoints")
+        else:
+            # Extract new features for reference frame
+            ref_frame = self.slam.map.get_frame(ref_id)
+            dynamic_mask_ref = ref_frame.dynamic_mask
+            self.ref_frame = ref_frame
+            ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+            ref_torch_HWC = ref_torch_HWC.to(self.device)
             ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
-            cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
+
+            ref_depth = ref_frame.depth_img
             ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
-            cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
             ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
+            self.ref_id = ref_id
+            print(f"Extracted new features for reference frame {ref_id} with {ref_feat['keypoints'].shape[1]} keypoints")
+
+        # Extract features for current frame
+        cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
+        cur_depth = cur_frame.depth_img
+        cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
+        cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
+
+        # Handle low keypoint count with recursion
+        self.recursion_depth += 1
+        if (ref_feat["keypoints"].shape[1] < self.num_features // 2 or 
+            cur_feat["keypoints"].shape[1] < self.num_features // 2) and self.recursion_depth < self.recursion_limit:
+            print("Low keypoint count, doubling num_features and re-extracting")
+            self.extractor.conf.max_num_keypoints = self.num_features * 2
+            if self.ref_id != ref_id or self.ref_matched_data is None:
+                ref_frame = self.slam.map.get_frame(ref_id)
+                ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
+                ref_torch_HWC = ref_torch_HWC.to(self.device)
+                ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
+                ref_feat = self._filter_features_by_depth(ref_feat, ref_frame.depth_img)
+                ref_feat = self._filter_features_by_mask(ref_feat, ref_frame.dynamic_mask)
+                self.ref_id = ref_id
+            cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
+            cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
             cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
-            
-        # Print the number of keypoints after filtering
-        print("Feature extraction recursion depth: ", self.recursion_depth)
-        print("Extracting features with num_features: ", self.extractor.conf.max_num_keypoints)
-        print("ref_feat keypoints after filtering with: ", ref_feat["keypoints"].shape)
-        print("curr_feat keypoints after filtering: ", cur_feat["keypoints"].shape)
+
+        print(f"Feature extraction recursion depth: {self.recursion_depth}")
+        print(f"Extracting features with num_features: {self.extractor.conf.max_num_keypoints}")
+        print(f"ref_feat keypoints: {ref_feat['keypoints'].shape}")
+        print(f"cur_feat keypoints: {cur_feat['keypoints'].shape}")
 
         return ref_feat, cur_feat
 
+    # def _match_features(self, ref_feat, cur_feat):
+    #     """
+    #     Match features between the reference and current frames.
+    #     """
+    #     matches01 = self.matcher({"image0": ref_feat, "image1": cur_feat})
+    #     feats0, feats1, matches01 = [
+    #         rbd(x) for x in [ref_feat, cur_feat, matches01]
+    #     ]  # remove batch dimension
+
+    #     kpts0, kpts1, matches = feats0["keypoints"], feats1["keypoints"], matches01["matches"]
+    #     m_kpts0, m_kpts1 = kpts0[matches[..., 0]], kpts1[matches[..., 1]]
+
+    #     print("Number of keypoints in ref image: ", len(kpts0))
+    #     print("Number of keypoints in curr image: ", len(kpts1))
+    #     print("matches shape: ", matches.shape)
+
+    #     # Visualize matches
+    #     output_img = self._visualize_matches(self.ref_frame.img,self.cur_frame.img,  kpts0, kpts1, matches, add_text=True)
+    #     log_image(entity=f"Matches between Frame curr and Frame k_frames_away", image=output_img)
+
+    #     return m_kpts0, m_kpts1, matches
+
     def _match_features(self, ref_feat, cur_feat):
         """
-        Match features between the reference and current frames.
+        Match features and store matched data for the reference frame in extraction-like format.
         """
         matches01 = self.matcher({"image0": ref_feat, "image1": cur_feat})
-        feats0, feats1, matches01 = [
-            rbd(x) for x in [ref_feat, cur_feat, matches01]
-        ]  # remove batch dimension
+        feats0, feats1, matches01 = [rbd(x) for x in [ref_feat, cur_feat, matches01]]
 
         kpts0, kpts1, matches = feats0["keypoints"], feats1["keypoints"], matches01["matches"]
         m_kpts0, m_kpts1 = kpts0[matches[..., 0]], kpts1[matches[..., 1]]
 
-        print("Number of keypoints in ref image: ", len(kpts0))
-        print("Number of keypoints in curr image: ", len(kpts1))
-        print("matches shape: ", matches.shape)
+        # Store matched data for reference frame in extraction-like format
+        self.ref_matched_data = {
+            "keypoints": torch.unsqueeze(m_kpts0, 0),  # Shape: [1, N, 2]
+            "descriptors": torch.unsqueeze(feats0["descriptors"][matches[..., 0]], 0),  # Shape: [1, N, D]
+            "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"][matches[..., 0]], 0)  # Shape: [1, N]
+        }
+
+        print(f"Number of keypoints in ref image: {len(kpts0)}")
+        print(f"Number of keypoints in curr image: {len(kpts1)}")
+        print(f"Number of matches: {matches.shape[0]}")
+        print(f"Stored {self.ref_matched_data['keypoints'].shape[1]} matched keypoints for reference frame")
 
         # Visualize matches
-        output_img = self._visualize_matches(self.ref_frame.img,self.cur_frame.img,  kpts0, kpts1, matches, add_text=True)
+        output_img = self._visualize_matches(self.ref_frame.img, self.cur_frame.img, kpts0, kpts1, matches, add_text=True)
         log_image(entity=f"Matches between Frame curr and Frame k_frames_away", image=output_img)
 
         return m_kpts0, m_kpts1, matches
