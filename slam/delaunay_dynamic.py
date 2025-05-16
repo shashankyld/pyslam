@@ -366,6 +366,8 @@ class DelaunayDynamic:
         ref_feat["keypoints"] = ref_feat["keypoints"][:, valid_indices]
         ref_feat["keypoint_scores"] = ref_feat["keypoint_scores"][:, valid_indices]
         ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
+
+        print("ref kps scores: ", ref_feat["keypoint_scores"])
     
         return ref_feat
     
@@ -393,6 +395,8 @@ class DelaunayDynamic:
         ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
     
         return ref_feat
+    
+    # def _filter_features_for_being_outlier_compared_to_surrounding_pc(self, ref_feat, point_cloud, threshold=0.1):
         
     def _visualize_matches(self, img0, img1, kpts0, kpts1, matches, color=(0, 255, 0), thickness=2, radius=6,  add_text = False):
         """
