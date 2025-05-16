@@ -241,7 +241,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-    starting_img_id = 210 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 250 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     img_id = starting_img_id
 
     # Set delaunay reference frame 
@@ -405,10 +405,20 @@ if __name__ == "__main__":
                         ### Extract frame from k_frames_away
                         delaunay_ref_f = slam.delaunay_ref_f
                         k_frames_away = img_id - delaunay_ref_f 
+                        print("img_id: ", img_id)   
+                        print("cur_frame id: ", cur_frame.id)
+                        print("delaunay_ref_f: ", delaunay_ref_f)
+                        print("k_frames_away: ", k_frames_away)
+                        print("img_id - delaunay_ref_f: ", img_id - delaunay_ref_f)
+                        print("-k_frames_away -1: ", -k_frames_away-1)
+                        # print number of frames in the map
+                        print("Number of frames in the map: ", len(slam.map.frames))
 
-                        if img_id > starting_img_id:
+
+                        if img_id > starting_img_id+6:
                             # Get the frame from k_frames_away
                             k_frames_away_frame = slam.map.get_frame(-k_frames_away-1)
+                            print("k_frames_away_frame: ", k_frames_away_frame)
                             print("current frame id: ", cur_frame.id)
                             print("k_frames_away_frame - id: ", k_frames_away_frame.id)
 
@@ -429,9 +439,10 @@ if __name__ == "__main__":
                             k_frames_away_frame.print_frame_stats(entity="k_frames_away")
                             
                             ## Checking the new class
-                            delaunay_dynamic = DelaunayDynamic()
+                            delaunay_dynamic = DelaunayDynamic(camera = camera)
                             ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(k_frames_away_frame, cur_frame, dynamic_mask)
-                            delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(cur_frame, m_kpts0, m_kpts1)
+                            # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
+                            delaunay_dynamic._update_graph_properties(k_frames_away_frame, cur_frame, dynamic_mask)
                             print("Exiting for diagnostics")
                             sys.exit(0)
 

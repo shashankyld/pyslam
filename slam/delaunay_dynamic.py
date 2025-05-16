@@ -21,14 +21,17 @@ from thirdparty.LightGlue.lightglue import viz2d
 from utils_rerun import *
 from thirdparty.LightGlue.lightglue.utils import rbd
 from utils_delaunay import *
+import networkx as nx
+
+
 
 class DelaunayDynamic:
-    def __init__(self, num_features = 1000, effective_distance_threshold = 0.1):
+    def __init__(self, num_features = 1000, effective_distance_threshold = 0.1, camera = None):
         self.num_features = num_features
         self.effective_distance_threshold = effective_distance_threshold
         self.dynamic_objects = DynamicObjects()
         self.dynamic_mask = None
-
+        self.camera = camera
         self.dynamic_objects_found = False
         self.graph = None
         self.recursion_depth = 0
@@ -139,11 +142,12 @@ class DelaunayDynamic:
         print(m_kpts0.shape, m_kpts1.shape, matches.shape)
         return ref_feat, cur_feat, m_kpts0, m_kpts1, matches
 
-
-    def _apply_delaunay_triangulation_and_get_graph(self, cur_frame, m_kpts0, m_kpts1):
+    def _apply_delaunay_triangulation_and_get_graph(self, ref_frame, cur_frame, dynamic_mask):
         """
         Apply Delaunay triangulation on the matched keypoints and get the graph.
         """
+        # Extract and match features
+        ref_feat, cur_feat, m_kpts0, m_kpts1, matches = self._extract_and_match_features(ref_frame, cur_frame, dynamic_mask)
         # 1. Prepare keypoints for Delaunay triangulation
         m_kpts0_np = m_kpts0.int().cpu().numpy()
         m_kpts1_np = m_kpts1.int().cpu().numpy()
@@ -158,7 +162,185 @@ class DelaunayDynamic:
         
         # 3. Create a graph from the Delaunay triangulation
         delaunay_graph = convert_delauany_to_networkx(tri)
-        return delaunay_graph
+        return ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches,delaunay_graph, img_delaunay
+        
+
+    
+    def _update_graph_properties(self, ref_frame, cur_frame, dynamic_mask):
+        """
+        Update the graph properties based on the matched keypoints and their 3D coordinates.
+        """
+        ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches,delaunay_graph, img_delaunay = self._apply_delaunay_triangulation_and_get_graph(ref_frame, cur_frame, dynamic_mask)
+        
+        ref_depth = ref_frame.depth_img 
+        cur_depth = cur_frame.depth_img
+        ref_frame_Tcw = ref_frame.pose
+        cur_frame_Tcw = cur_frame.pose
+        ref_frame_Twc = np.linalg.inv(ref_frame_Tcw)
+        cur_Twc = np.linalg.inv(cur_frame_Tcw)
+        # 4. Unproject keypoints to 3D points
+        points0, z_1 = self._unproject_kps(ref_depth, 
+                                m_kpts0_np, self.camera, ref_frame_Twc, transform_to_world=True)
+        points1, z_2 = self._unproject_kps(cur_depth, 
+                                m_kpts1_np, self.camera, cur_Twc, transform_to_world=True)
+        
+        print("points0 shape: ", points0.shape)
+        print("points1 shape: ", points1.shape)
+        print("points0 depth zero:", z_1 )
+        print("points1 depth zero:", z_2 )
+
+        # Visualize the 3D points
+        log_random_pc2(entity= "world/slam/kps matched in k_frames_away", points=points0, colors="green", radius=0.04)
+        log_random_pc2(entity= "world/slam/kps matched in cur_frame", points=points1, colors="blue", radius=0.04)
+
+        # Store 3D distances in both frames
+        nx.set_edge_attributes(delaunay_graph, 
+            {edge: {'distance_3d': np.linalg.norm(points1[edge[0]] - points1[edge[1]])}
+            for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+            
+        
+        nx.set_edge_attributes(delaunay_graph, 
+            {edge: {'distance_3d_other': np.linalg.norm(points0[edge[0]] - points0[edge[1]])} 
+            for edge in delaunay_graph.edges if edge[0] < len(points0) and edge[1] < len(points0)})
+        
+        # Store distance differences between frames
+        nx.set_edge_attributes(delaunay_graph, 
+            {edge: {'distance_diff': np.abs(delaunay_graph.edges[edge]['distance_3d'] - 
+                                            delaunay_graph.edges[edge]['distance_3d_other'])} 
+            for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+        
+        # Store motion of nodes
+        nx.set_edge_attributes(delaunay_graph,
+            {edge: {'node1motion': np.linalg.norm(points0[edge[0]] - points1[edge[0]]), 
+                    'node2motion': np.linalg.norm(points0[edge[1]] - points1[edge[1]])} 
+            for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+        
+        # Calculate angle changes and R*theta metric for rotation detection
+        for edge in delaunay_graph.edges:
+            if edge[0] < len(points0) and edge[1] < len(points0):
+                # Get the points for the edge
+                pt1 = points0[edge[0]]
+                pt2 = points0[edge[1]]
+                pt3 = points1[edge[0]]
+                pt4 = points1[edge[1]]
+
+                # Calculate the edge vectors
+                vec1 = pt2 - pt1
+                vec2 = pt4 - pt3
+
+                # Calculate the angle between the two vectors
+                angle = np.arccos(np.clip(np.dot(vec1, vec2) / 
+                                        (np.linalg.norm(vec1) * np.linalg.norm(vec2)), -1.0, 1.0))
+
+                # Store the angle, average length, and R*theta in the graph
+                delaunay_graph.edges[edge]['angle_change'] = angle
+                avg_length = (np.linalg.norm(vec1) + np.linalg.norm(vec2)) / 2
+                delaunay_graph.edges[edge]['avg_length'] = avg_length
+                delaunay_graph.edges[edge]['R_theta'] = avg_length * angle
+
+        # Effective distance metric = sqrt (( l1cos(theta) - l2)**2 + l1sin(theta)**2)
+        nx.set_edge_attributes(delaunay_graph, 
+            {edge: {'effective_distance': np.sqrt((delaunay_graph.edges[edge]['distance_3d'] * 
+                                            np.cos(delaunay_graph.edges[edge]['angle_change']) - 
+                                            delaunay_graph.edges[edge]['distance_3d_other'])**2 + 
+                                            (delaunay_graph.edges[edge]['distance_3d'] * 
+                                            np.sin(delaunay_graph.edges[edge]['angle_change']))**2)} 
+            for edge in delaunay_graph.edges if edge[0] < len(points1) and edge[1] < len(points1)})
+        
+        # Calulate change in the length of every node and store it in the graph
+        nx.set_node_attributes(delaunay_graph, 
+            {node: {'length_change_vector': points0[node] - points1[node]} 
+            for node in range(len(points1)) if node < len(points1)})
+
+        nx.set_node_attributes(delaunay_graph, 
+            {node: {'length_change': np.linalg.norm(points0[node] - points1[node])} 
+            for node in range(len(points1)) if node < len(points1)})    
+
+        # Detect dynamic edges and remove them from the graph
+        modified_delaunay_graph = delaunay_graph.copy()
+        dynamic_edge_image = img_delaunay.copy()
+
+        effective_distance_threshold = self.effective_distance_threshold
+
+        for edge in list(modified_delaunay_graph.edges):
+            is_dynamic = False
+            # Check if edge properties exist
+            if 'distance_diff' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['distance_diff'] > effective_distance_threshold:
+                is_dynamic = True
+            elif 'R_theta' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['R_theta'] > effective_distance_threshold:
+                is_dynamic = True
+
+            # Check effective distance 
+            if 'effective_distance' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['effective_distance'] > effective_distance_threshold:
+                is_dynamic = True
+            if is_dynamic:
+                # Draw dynamic edges in blue
+                pt1 = tuple(m_kpts1_np[edge[0]])
+                pt2 = tuple(m_kpts1_np[edge[1]])
+                cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+                # Remove edge from graph
+                modified_delaunay_graph.remove_edge(edge[0], edge[1])
+        
+        # if not args.headless:
+        if True:
+            log_image("delaunay_dynamic_edges", dynamic_edge_image)
+        
+        # 7. Extract connected components (potential dynamic objects)
+        connected_components = self._get_connected_components(modified_delaunay_graph)
+        print(f"Number of connected components: {len(connected_components)}")
+
+
+        ## For each connected component, get the avg motion of the nodes
+        for i, component in enumerate(connected_components):
+            avg_motion = np.mean([delaunay_graph.nodes[node]['length_change_vector'] for node in component.nodes], axis=0)
+            avg_length_change = np.mean([delaunay_graph.nodes[node]['length_change'] for node in component.nodes])
+            # print avg motion and number of nodes
+            print(f"Component {i}: Avg motion: {avg_motion}, Number of nodes: {len(component.nodes)}, Avg length change: {avg_length_change}")
+
+        ## For components with avg length change < effective_distance_threshold/factor, remove them from connected components list and create a new static_component by combining them 
+        static_component = nx.Graph()
+        for i, component in enumerate(connected_components):
+            avg_length_change = np.mean([delaunay_graph.nodes[node]['length_change'] for node in component.nodes])
+            if avg_length_change < effective_distance_threshold / 2:
+                # Add nodes and edges to static component
+                static_component.add_nodes_from(component.nodes)
+                static_component.add_edges_from(component.edges)
+                # Remove component from connected components list
+                # connected_components.remove(component)
+                print(f"Component {i} is static, avg length change: {avg_length_change}")
+            else:
+                print(f"Component {i} is dynamic, avg length change: {avg_length_change}")
+
+        # For each component, creat a prompt for SAM2 and save all of them in a dictionay set it to the current frame. 
+
+
+
+
+        # 8. Visualize connected components
+        # if not args.headless:
+        if True:
+            connected_components_image = cur_frame.img.copy()
+            colors_for_components = [(255, 255, 255),(255,0,0), (0, 255, 0), (0, 0, 255), 
+                                    (255, 255, 0), (255, 0, 255), (0, 255, 255)]
+            
+            for i, component in enumerate(connected_components):
+                color = colors_for_components[i % len(colors_for_components)]
+
+                if component.number_of_nodes() == 1:
+                    # Draw single node in Large
+                    for node in component.nodes:
+                        pt = tuple(m_kpts1_np[node])
+                        cv2.circle(connected_components_image, pt, 5, color, -1)
+
+                for edge in component.edges:
+                    pt1 = tuple(m_kpts1_np[edge[0]])
+                    pt2 = tuple(m_kpts1_np[edge[1]])
+                    if component.number_of_nodes() < 4:
+                        # Draw edge with large line since easier to see
+                        cv2.line(connected_components_image, pt1, pt2, color, 5)
+                    cv2.line(connected_components_image, pt1, pt2, color, 1)
+            
+            log_image("connected_components", connected_components_image)
 
 
     def _filter_features_by_depth(self, ref_feat, depth_scaled, max_depth=6):
@@ -261,3 +443,103 @@ class DelaunayDynamic:
 
             
         return output_img
+
+    def _unproject_kps(self, depth_img, kps, camera, pose, transform_to_world=False):
+        """
+        input: 
+        depth_img: depth image with values in meters
+        kps: keypoint coordinates to be unprojected
+        camera: camera object - with fx, fy, cx, cy that can be accessed by camera.fx, camera.fy, etc
+        pose: 4x4 pose matrix of the camera wrt the world
+        transform_to_world: if True, transform the points to world coordinates using the pose
+        
+        output:
+        points: 3D points in the camera or world coordinates depending on the transform_to_world flag
+        """
+        # Unproject keypoints to 3D points
+        points = []
+        depth_zero_count = 0
+        visited_xy = set()
+        for kp in kps:
+            x, y = int(kp[0]), int(kp[1])
+            if (x, y) in visited_xy:
+                print(f"Duplicate keypoint at ({x}, {y})")
+                continue
+            visited_xy.add((x, y))
+
+            depth = depth_img[y, x]  # Get the depth value at the keypoint location
+            if depth == 0:
+                depth_zero_count += 1
+                continue  # Skip if depth is zero
+            z = depth
+            x3d = (x - camera.cx) * z / camera.fx
+            y3d = (y - camera.cy) * z / camera.fy
+            points.append([x3d, y3d, z])
+
+        points = np.array(points)
+        if transform_to_world:
+            # Transform points to world coordinates using the pose
+            points_homogeneous = np.hstack((points, np.ones((points.shape[0], 1))))
+            points_world = pose @ points_homogeneous.T
+            return points_world[:3].T, depth_zero_count
+        
+        print(f"Number of keypoints with zero depth: {depth_zero_count}")
+        print(f"Number of valid keypoints: {len(points)}")
+        print("total keypoints", len(kps))
+        
+        
+
+        return points, depth_zero_count
+    
+
+    def _get_connected_components(self,G):
+        """
+        Returns a list of.ConcurrentHashMap<Region, Set<Region>> NetworkX Graph objects, each representing a connected component
+        of the input graph G, sorted by number of nodes in decreasing order, including all edges
+        within each component along with their data.
+        
+        Args:
+            G (nx.Graph): Input NetworkX graph (undirected)
+        
+        Returns:
+            list: List of nx.Graph objects, each a connected component, sorted by node count
+        """
+        def dfs(v, visited, component_nodes):
+            """DFS to collect nodes of a connected component."""
+            visited.add(v)
+            component_nodes.add(v)
+            
+            # Explore neighbors
+            for u in G.neighbors(v):
+                if u not in visited:
+                    dfs(u, visited, component_nodes)
+        
+        visited = set()
+        components = []
+        
+        # Iterate through all nodes to find unvisited ones
+        for node in G.nodes():
+            if node not in visited:
+                component_nodes = set()
+                
+                # Run DFS to collect nodes of current component
+                dfs(node, visited, component_nodes)
+                
+                # Create new subgraph for the component
+                component_graph = nx.Graph()
+                # Add nodes with their data
+                component_graph.add_nodes_from((n, G.nodes[n]) for n in component_nodes)
+                
+                # Add all edges between nodes in the component with their data
+                for u in component_nodes:
+                    for v in G.neighbors(u):
+                        if v in component_nodes and (u, v) not in component_graph.edges():
+                            component_graph.add_edge(u, v, **G.edges[u, v])
+                
+                components.append(component_graph)
+        
+        # Sort components by number of nodes in decreasing order
+        components.sort(key=lambda x: x.number_of_nodes(), reverse=True)
+
+        
+        return components
