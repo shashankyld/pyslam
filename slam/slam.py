@@ -99,7 +99,12 @@ class Slam(object):
         self.environment_type = environment_type
         self.slam_mode = slam_mode
         self.headless = headless
-          
+        
+        # Dynamic slam parameters
+        self.delaunay_ref_f = None
+        self.sam2_num_frames_to_propagate_backwards = 8
+        self.sam2_num_frames_to_propagate_forwards = 1
+
         self.feature_tracker = None
         self.init_feature_tracker(feature_tracker_config)
         

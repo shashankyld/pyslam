@@ -53,6 +53,7 @@ if not os.path.exists(sam2_checkpoint):
 # Load the predictor
 try:
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
+    print("predictor: ", predictor)
     print("SAM2 predictor loaded successfully!")
 finally:
     # Change back to the original directory
