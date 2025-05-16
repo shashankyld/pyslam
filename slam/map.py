@@ -45,7 +45,7 @@ import optimizer_g2o
 # import optimizer_gtsam
 
 kVerbose = True 
-kMaxLenFrameDeque = 50
+kMaxLenFrameDeque = 250
 
 
 if not kVerbose:

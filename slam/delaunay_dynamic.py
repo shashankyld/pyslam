@@ -23,10 +23,12 @@ from thirdparty.LightGlue.lightglue.utils import rbd
 from utils_delaunay import *
 import networkx as nx
 
-
+# Here 
+# ref_id = -k_frames_away+1 usually
+# cur_id = -1
 
 class DelaunayDynamic:
-    def __init__(self, num_features = 1000, effective_distance_threshold = 0.3, camera = None):
+    def __init__(self, num_features = 1000, effective_distance_threshold = 0.2, camera = None, slam = None):
         self.num_features = num_features
         self.effective_distance_threshold = effective_distance_threshold
         self.dynamic_objects = DynamicObjects()
@@ -36,7 +38,7 @@ class DelaunayDynamic:
         self.graph = None
         self.recursion_depth = 0
         self.recursion_limit = 3
-
+        self.slam = slam
         self.ref_frame = None
         self.cur_frame = None
         
@@ -44,14 +46,18 @@ class DelaunayDynamic:
         self.extractor = SuperPoint(max_num_keypoints=num_features).eval().to(self.device)
         self.matcher = LightGlue(features="superpoint").eval().to(self.device)
 
-    def _extract_features(self, ref_frame, cur_frame, dynamic_mask): 
+    def _extract_features(self, ref_id, cur_id): 
         """
         Extract features from the reference and current frames.
         """
+        ref_frame = self.slam.map.get_frame(ref_id)
+        cur_frame = self.slam.map.get_frame(cur_id)
+        dynamic_mask_ref = ref_frame.dynamic_mask
+        dynamic_mask_cur = cur_frame.dynamic_mask
         # Set known attributes
         self.ref_frame = ref_frame
         self.cur_frame = cur_frame
-        self.dynamic_mask = dynamic_mask
+        self.dynamic_mask = dynamic_mask_cur
 
         ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         cur_torch_HWC = torch.from_numpy(cur_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
@@ -81,8 +87,8 @@ class DelaunayDynamic:
         print("curr_feat keypoints after filtering depth: ", cur_feat["keypoints"].shape)
 
         # Remove features that are masked out
-        ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask)
-        cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask)
+        ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
+        cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
         print("ref_feat keypoints after filtering mask: ", ref_feat["keypoints"].shape)
         print("curr_feat keypoints after filtering mask: ", cur_feat["keypoints"].shape)
 
@@ -97,8 +103,8 @@ class DelaunayDynamic:
             cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
             ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
             cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
-            ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask)
-            cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask)
+            ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
+            cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
             
         # Print the number of keypoints after filtering
         print("Feature extraction recursion depth: ", self.recursion_depth)
@@ -130,24 +136,132 @@ class DelaunayDynamic:
 
         return m_kpts0, m_kpts1, matches
 
-    def _extract_and_match_features(self, ref_frame, cur_frame, dynamic_mask):
+    def _extract_and_match_features(self, ref_id, cur_id):
         """
         Extract and match features between the reference and current frames.
         """
         # Extract features
-        ref_feat, cur_feat = self._extract_features(ref_frame, cur_frame, dynamic_mask)
+        ref_feat, cur_feat = self._extract_features(ref_id, cur_id)
 
         # Match features
         m_kpts0, m_kpts1, matches = self._match_features(ref_feat, cur_feat)
         print(m_kpts0.shape, m_kpts1.shape, matches.shape)
         return ref_feat, cur_feat, m_kpts0, m_kpts1, matches
 
-    def _apply_delaunay_triangulation_and_get_graph(self, ref_frame, cur_frame, dynamic_mask):
+    def _extract_and_match_features_in_sliding_window(self, ref_id, cur_id):
+        """
+        Goal is to find the common keypoints between all the frames from the ref_frame to cur_frame.
+        Iterates forward and backward to ensure all frames are populated with common keypoints and descriptors.
+        Returns the final matched features between ref_frame and cur_frame.
+        """
+        # Get the list of frame IDs between ref_id and cur_id (inclusive)
+        frame_ids = list(range(ref_id, cur_id + 1))
+        n_frames = len(frame_ids)
+        if n_frames < 2:
+            raise ValueError("At least two frames are required for sliding window matching")
+
+        # Initialize dictionaries to store keypoints and descriptors for each frame
+        frame_kps = {fid: None for fid in frame_ids}
+        frame_des = {fid: None for fid in frame_ids}
+
+        # Step 1: Forward pass (ref_id to cur_id)
+        ref_kps, ref_des = None, None
+        for i in range(n_frames - 1):
+            fid0, fid1 = frame_ids[i], frame_ids[i + 1]
+
+            # Extract and match features between consecutive frames
+            ref_feat, cur_feat, m_kpts0, m_kpts1, matches = self._extract_and_match_features(fid0, fid1)
+
+            # On the first iteration, initialize ref_id keypoints and descriptors
+            if i == 0:
+                frame_kps[fid0] = ref_feat["keypoints"][0].cpu().numpy()
+                frame_des[fid0] = ref_feat["descriptors"][0].cpu().numpy()
+                ref_kps = m_kpts0.cpu().numpy()
+                ref_des = ref_feat["descriptors"][0][matches[:, 0]].cpu().numpy()
+
+            # Store matched keypoints and descriptors for fid1
+            frame_kps[fid1] = m_kpts1.cpu().numpy()
+            frame_des[fid1] = cur_feat["descriptors"][0][matches[:, 1]].cpu().numpy()
+
+            # Update ref_kps and ref_des to the common points for the next iteration
+            if i < n_frames - 2:
+                # Map matches to the next frame
+                ref_kps = m_kpts1.cpu().numpy()
+                ref_des = cur_feat["descriptors"][0][matches[:, 1]].cpu().numpy()
+
+        # Step 2: Backward pass (cur_id to ref_id)
+        cur_kps, cur_des = frame_kps[cur_id], frame_des[cur_id]
+        for i in range(n_frames - 1, 0, -1):
+            fid0, fid1 = frame_ids[i], frame_ids[i - 1]
+
+            # Extract and match features
+            ref_feat, cur_feat, m_kpts0, m_kpts1, matches = self._extract_and_match_features(fid0, fid1)
+
+            # Find common keypoints between current frame_kps[fid1] and m_kpts1
+            prev_kps = frame_kps[fid1]
+            indices = []
+            new_kps = []
+            for j, kp in enumerate(m_kpts1.cpu().numpy()):
+                # Find matching keypoint in prev_kps
+                for k, prev_kp in enumerate(prev_kps):
+                    if np.allclose(kp, prev_kp, atol=1e-3):
+                        indices.append(k)
+                        new_kps.append(kp)
+                        break
+
+            # Update keypoints and descriptors for fid1
+            frame_kps[fid1] = np.array(new_kps)
+            if len(indices) > 0:
+                frame_des[fid1] = frame_des[fid1][indices]
+
+            # Update cur_kps and cur_des
+            cur_kps = m_kpts1.cpu().numpy()
+            cur_des = cur_feat["descriptors"][0][matches[:, 1]].cpu().numpy()
+
+        # Step 3: Update frames with common keypoints and descriptors
+        for fid in frame_ids:
+            frame = self.slam.map.get_frame(fid)
+            frame.delaunay_kps = frame_kps[fid]
+            frame.delaunay_des = frame_des[fid]
+
+        # Step 4: Perform final matching between ref_id and cur_id
+        ref_feat, cur_feat, m_kpts0, m_kpts1, matches = self._extract_and_match_features(ref_id, cur_id)
+
+        # Filter to ensure only common keypoints are returned
+        ref_kps_final = frame_kps[ref_id]
+        cur_kps_final = frame_kps[cur_id]
+        matches_final = []
+        m_kpts0_final = []
+        m_kpts1_final = []
+        for idx0, idx1 in matches.cpu().numpy():
+            kp0 = ref_feat["keypoints"][0][idx0].cpu().numpy()
+            kp1 = cur_feat["keypoints"][0][idx1].cpu().numpy()
+            # Check if these keypoints exist in frame_kps
+            if (any(np.allclose(kp0, k, atol=1e-3) for k in ref_kps_final) and
+                    any(np.allclose(kp1, k, atol=1e-3) for k in cur_kps_final)):
+                matches_final.append([idx0, idx1])
+                m_kpts0_final.append(kp0)
+                m_kpts1_final.append(kp1)
+
+        matches_final = np.array(matches_final)
+        m_kpts0_final = np.array(m_kpts0_final)
+        m_kpts1_final = np.array(m_kpts1_final)
+
+        # Convert back to torch tensors if needed
+        m_kpts0_final = torch.from_numpy(m_kpts0_final).to(self.device)
+        m_kpts1_final = torch.from_numpy(m_kpts1_final).to(self.device)
+        matches_final = torch.from_numpy(matches_final).to(self.device)
+
+        return ref_feat, cur_feat, m_kpts0_final, m_kpts1_final, matches_final
+
+    def _apply_delaunay_triangulation_and_get_graph(self, ref_id, cur_id):
         """
         Apply Delaunay triangulation on the matched keypoints and get the graph.
         """
+        ref_frame = self.slam.map.get_frame(ref_id)
+        cur_frame = self.slam.map.get_frame(cur_id)
         # Extract and match features
-        ref_feat, cur_feat, m_kpts0, m_kpts1, matches = self._extract_and_match_features(ref_frame, cur_frame, dynamic_mask)
+        ref_feat, cur_feat, m_kpts0, m_kpts1, matches = self._extract_and_match_features(ref_id, cur_id)
         # 1. Prepare keypoints for Delaunay triangulation
         m_kpts0_np = m_kpts0.int().cpu().numpy()
         m_kpts1_np = m_kpts1.int().cpu().numpy()
@@ -166,12 +280,13 @@ class DelaunayDynamic:
         
 
     
-    def _update_graph_properties(self, ref_frame, cur_frame, dynamic_mask):
+    def _update_graph_properties(self, ref_id, cur_id):
         """
         Update the graph properties based on the matched keypoints and their 3D coordinates.
         """
-        ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches,delaunay_graph, img_delaunay = self._apply_delaunay_triangulation_and_get_graph(ref_frame, cur_frame, dynamic_mask)
-        
+        ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches,delaunay_graph, img_delaunay = self._apply_delaunay_triangulation_and_get_graph(ref_id, cur_id)
+        ref_frame = self.slam.map.get_frame(ref_id)
+        cur_frame = self.slam.map.get_frame(cur_id)
         ref_depth = ref_frame.depth_img 
         cur_depth = cur_frame.depth_img
         ref_frame_Tcw = ref_frame.pose
@@ -309,10 +424,6 @@ class DelaunayDynamic:
                 print(f"Component {i} is static, avg length change: {avg_length_change}")
             else:
                 print(f"Component {i} is dynamic, avg length change: {avg_length_change}")
-
-        # For each component, creat a prompt for SAM2 and save all of them in a dictionay set it to the current frame. 
-
-
 
 
         # 8. Visualize connected components
