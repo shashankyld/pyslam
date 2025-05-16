@@ -950,6 +950,8 @@ class Tracking:
                 
         # get previous frame in map as reference        
         f_ref = self.map.get_frame(-1) 
+        print(f'frame ref id: {f_ref.id}, img_id: {f_ref.img_id}, timestamp: {f_ref.timestamp}')
+        print(f'frame  cur id: {f_cur.id}, img_id: {f_cur.img_id}, timestamp: {f_cur.timestamp}')
         #f_ref_2 = self.map.get_frame(-2)
         self.f_ref = f_ref 
         

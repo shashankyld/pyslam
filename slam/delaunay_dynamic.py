@@ -26,7 +26,7 @@ import networkx as nx
 
 
 class DelaunayDynamic:
-    def __init__(self, num_features = 1000, effective_distance_threshold = 0.1, camera = None):
+    def __init__(self, num_features = 1000, effective_distance_threshold = 0.3, camera = None):
         self.num_features = num_features
         self.effective_distance_threshold = effective_distance_threshold
         self.dynamic_objects = DynamicObjects()
@@ -240,8 +240,7 @@ class DelaunayDynamic:
 
         # Effective distance metric = sqrt (( l1cos(theta) - l2)**2 + l1sin(theta)**2)
         nx.set_edge_attributes(delaunay_graph, 
-            {edge: {'effective_distance': np.sqrt((delaunay_graph.edges[edge]['distance_3d'] * 
-                                            np.cos(delaunay_graph.edges[edge]['angle_change']) - 
+            {edge: {'effective_distance': np.sqrt((delaunay_graph.edges[edge]['distance_3d'] * np.cos(delaunay_graph.edges[edge]['angle_change']) - 
                                             delaunay_graph.edges[edge]['distance_3d_other'])**2 + 
                                             (delaunay_graph.edges[edge]['distance_3d'] * 
                                             np.sin(delaunay_graph.edges[edge]['angle_change']))**2)} 
@@ -367,7 +366,7 @@ class DelaunayDynamic:
         ref_feat["keypoint_scores"] = ref_feat["keypoint_scores"][:, valid_indices]
         ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
 
-        print("ref kps scores: ", ref_feat["keypoint_scores"])
+        
     
         return ref_feat
     
@@ -393,7 +392,8 @@ class DelaunayDynamic:
         ref_feat["keypoints"] = ref_feat["keypoints"][:, valid_indices]
         ref_feat["keypoint_scores"] = ref_feat["keypoint_scores"][:, valid_indices]
         ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
-    
+        
+
         return ref_feat
     
     # def _filter_features_for_being_outlier_compared_to_surrounding_pc(self, ref_feat, point_cloud, threshold=0.1):
