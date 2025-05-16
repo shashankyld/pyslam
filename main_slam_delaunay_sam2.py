@@ -241,7 +241,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-    starting_img_id = 250 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 100 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     img_id = starting_img_id
 
     # Set delaunay reference frame 
@@ -413,12 +413,14 @@ if __name__ == "__main__":
                         print("-k_frames_away -1: ", -k_frames_away-1)
                         # print number of frames in the map
                         print("Number of frames in the map: ", len(slam.map.frames))
-                        # TODO: Wait for the map
-
-
-                        if img_id > starting_img_id+6:
+                        
+                        # Wait for the map to add the current frame to the frames list
+                        if delaunay_ref_f == starting_img_id:
+                            print("Waiting for the map to add the current frame to the frames list...")
+                        
+                        if img_id > starting_img_id+25:
                             # Get the frame from k_frames_away
-                            k_frames_away_frame = slam.map.get_frame(-k_frames_away-1)
+                            k_frames_away_frame = slam.map.get_frame(-k_frames_away)
                             print("k_frames_away_frame: ", k_frames_away_frame)
                             print("current frame id: ", cur_frame.id)
                             print("k_frames_away_frame - id: ", k_frames_away_frame.id)
