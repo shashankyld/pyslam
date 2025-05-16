@@ -749,6 +749,7 @@ if __name__ == "__main__":
                                 #     print(f"Dynamic object detected: {dynamic_object_detected}")
                                 #     # Set reference frame to mid point of current frame and the prev-ref frame
                                 #     delaunay_ref_f = (img_id + delaunay_ref_f) // 2
+                                #     slam.delaunay_ref_f = delaunay_ref_f
 
                                 # else:
                                 #     # No prompts
