@@ -28,7 +28,7 @@ import sys
 # cur_id = -1
 
 class DelaunayDynamic:
-    def __init__(self, num_features = 1000, effective_distance_threshold = 0.2, camera = None, slam = None):
+    def __init__(self, num_features = 2000, effective_distance_threshold = 0.2, camera = None, slam = None):
         self.num_features = num_features
         self.effective_distance_threshold = effective_distance_threshold
         self.dynamic_objects = DynamicObjects()

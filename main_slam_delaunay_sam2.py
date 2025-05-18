@@ -463,7 +463,7 @@ if __name__ == "__main__":
                             k_frames_away_frame.print_frame_stats(entity="k_frames_away")
                             
                             ## Checking the new class
-                            delaunay_dynamic = DelaunayDynamic(camera = camera, slam =slam)
+                            delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.1, camera = camera, slam =slam)
                             ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
                             delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
