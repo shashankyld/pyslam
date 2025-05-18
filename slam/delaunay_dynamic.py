@@ -48,6 +48,8 @@ class DelaunayDynamic:
         # New attributes for feature storage
         self.ref_matched_data = {"keypoints": None, "descriptors": None, "keypoint_scores": None, "image_size": None}
         self.ref_id = None  # Stores the reference frame ID
+        self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
+        self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
 
     # def _extract_features(self, ref_id, cur_id): 
     #     """
@@ -231,12 +233,14 @@ class DelaunayDynamic:
         }
 
         self.ref_frame.delaunay_matched_feat = self.ref_matched_data
-        self.cur_frame.delaunay_matched_feat = {
-            "keypoints": torch.unsqueeze(m_kpts1, 0),  # Shape: [1, N, 2]
-            "descriptors": torch.unsqueeze(feats1["descriptors"][matches[..., 1]], 0),  # Shape: [1, N, D]
-            "keypoint_scores": torch.unsqueeze(feats1["keypoint_scores"][matches[..., 1]], 0),  # Shape: [1, N]
-            "image_size": cur_feat["image_size"]  # Shape: [1, 2]
-        }
+        
+        if self.prune_every_frame_kps_not_just_ref:
+            self.cur_frame.delaunay_matched_feat = {
+                "keypoints": torch.unsqueeze(m_kpts1, 0),  # Shape: [1, N, 2]
+                "descriptors": torch.unsqueeze(feats1["descriptors"][matches[..., 1]], 0),  # Shape: [1, N, D]
+                "keypoint_scores": torch.unsqueeze(feats1["keypoint_scores"][matches[..., 1]], 0),  # Shape: [1, N]
+                "image_size": cur_feat["image_size"]  # Shape: [1, 2]
+            }
 
 
 
@@ -467,6 +471,20 @@ class DelaunayDynamic:
             
             log_image("connected_components", connected_components_image)
 
+        update_ref_frame_flag = self.update_ref_frame_flag(ref_id, cur_id)        
+
+        return update_ref_frame_flag
+
+    def update_ref_frame_flag(self, ref_id, cur_id):
+        """
+        Update the reference frame ID and reset the recursion depth.
+        if gap between ref_id and cur_id is more than 25, if object is found - dynamic connected component with more than 5 nodes and clear motion is found.
+        """
+        if abs(cur_id - ref_id) > self.max_gap_between_delaunay_ref_frame_and_cur_frame:
+            # Reset the recursion depth
+            self.recursion_depth = 0
+            print("Resetting recursion depth to 0, and shifting the delaunay_ref_frame due to large gap between ref_id and cur_id")
+            return True
 
     def _filter_features_by_depth(self, ref_feat, depth_scaled, max_depth=6):
         """

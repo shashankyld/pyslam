@@ -241,7 +241,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-    starting_img_id = 10 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 140 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     img_id = starting_img_id
 
     # Set delaunay reference frame 
@@ -404,9 +404,15 @@ if __name__ == "__main__":
                                     print(f"Error drawing feature trails: {e}")                        
                         
                         ### Extract frame from k_frames_away
+                        count = 0
                         if shift_delaunay_ref ==  True:
+                            count += 1
+                            
                             # Shift the delaunay reference frame to the mid point of the current frame and previous reference frame
                             slam.delaunay_ref_f = (slam.delaunay_ref_f + img_id) // 2
+                            if count > 3:
+                                print("Shifting delaunay reference frame: slam.delaunay_ref_f = ", slam.delaunay_ref_f)
+                            shift_delaunay_ref = False
 
                         delaunay_ref_f = slam.delaunay_ref_f
                         k_frames_away = img_id - delaunay_ref_f 
@@ -466,7 +472,7 @@ if __name__ == "__main__":
                             delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.1, camera = camera, slam =slam)
                             ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
-                            delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
+                            shift_delaunay_ref = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
                             ## TODO: Return the shift_delaunay_ref flag from computing the _update_graph_properties
                             # print("Exiting for diagnostics")
                             # sys.exit(0)
