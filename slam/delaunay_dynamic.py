@@ -5,7 +5,7 @@
 # 4. Extract features for both the images, 
 # 5. Removes the points with the dynamic mask, if the number of points is less than half the number of intial # of features, extracts again with double the number of features
 # 6. Matches the features 
-# 7. Apply Delaunay triangulation on the current frame matached points
+# 7. Apply Delaunay triangulation on the reference frame (by default) or current frame matched points
 # 8. Create a graph from delaunay triangulation
 # 9. Unproject the points to the 3D space and 
 # 10. Update properties of nodes and edges of the graph by comparing common edges in both frames - like edge length, angle, etc.
@@ -51,76 +51,12 @@ class DelaunayDynamic:
         self.prune_delaunay_ref_frame_kps = False  # Flag to prune the reference frame
         self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
         self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
-
-    # def _extract_features(self, ref_id, cur_id): 
-    #     """
-    #     Extract features from the reference and current frames.
-    #     """
-    #     ref_frame = self.slam.map.get_frame(ref_id)
-    #     cur_frame = self.slam.map.get_frame(cur_id)
-    #     dynamic_mask_ref = ref_frame.dynamic_mask
-    #     dynamic_mask_cur = cur_frame.dynamic_mask
-    #     # Set known attributes
-    #     self.ref_frame = ref_frame
-    #     self.cur_frame = cur_frame
-    #     self.dynamic_mask = dynamic_mask_cur
-
-    #     ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-    #     cur_torch_HWC = torch.from_numpy(cur_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
-    #     ref_torch_HWC = ref_torch_HWC.to(self.device)
-    #     cur_torch_HWC = cur_torch_HWC.to(self.device)
         
-    #     ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
-    #     cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
+        # New parameter to control Delaunay triangulation on ref frame instead of cur frame
+        self.use_ref_frame_for_delaunay = True  # Set to True to use ref frame for Delaunay
+        self.delaunay_data = None  # Store the Delaunay triangulation data for reuse
 
-    #     print("Keys of ref_feat: ", ref_feat.keys())
-       
-    #     print("ref_feat keypoints before filtering with depth: ", ref_feat["keypoints"].shape)
-    #     print("cur_feat keypoints before filtering with depth: ", cur_feat["keypoints"].shape)
 
-    #     ref_depth = ref_frame.depth_img
-    #     cur_depth = cur_frame.depth_img
-
-    #     # Print max and min of ref_depth and curr_depth
-    #     print("ref_depth max: ", ref_depth.max())   
-    #     print("ref_depth min: ", ref_depth.min())
-    #     print("curr_depth max: ", cur_depth.max())
-    #     print("curr_depth min: ", cur_depth.min())
-
-    #     ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
-    #     cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
-
-    #     # Print # of keypoints after filtering
-    #     print("ref_feat keypoints after filtering depth: ", ref_feat["keypoints"].shape)
-    #     print("curr_feat keypoints after filtering depth: ", cur_feat["keypoints"].shape)
-
-    #     # Remove features that are masked out
-    #     ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
-    #     cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
-    #     print("ref_feat keypoints after filtering mask: ", ref_feat["keypoints"].shape)
-    #     print("curr_feat keypoints after filtering mask: ", cur_feat["keypoints"].shape)
-
-    #     # Increment the recursion depth
-    #     self.recursion_depth += 1
-
-    #     # Check if the number of keypoints is less than half the number of features
-    #     if ref_feat["keypoints"].shape[1] < self.num_features // 2 and self.recursion_depth < self.recursion_limit:
-    #         print("Number of keypoints is less than half the number of features, extracting again with double the number of features")
-    #         self.extractor.conf.max_num_keypoints = self.num_features * 2
-    #         ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
-    #         cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
-    #         ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
-    #         cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
-    #         ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
-    #         cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
-            
-    #     # Print the number of keypoints after filtering
-    #     print("Feature extraction recursion depth: ", self.recursion_depth)
-    #     print("Extracting features with num_features: ", self.extractor.conf.max_num_keypoints)
-    #     print("ref_feat keypoints after filtering with: ", ref_feat["keypoints"].shape)
-    #     print("curr_feat keypoints after filtering: ", cur_feat["keypoints"].shape)
-
-    #     return ref_feat, cur_feat
 
     def _extract_features(self, ref_id, cur_id):
         """
@@ -129,6 +65,14 @@ class DelaunayDynamic:
         # For the first time setup self.ref_id 
         if self.ref_id is None:
             self.ref_id = ref_id
+            if self.use_ref_frame_for_delaunay:
+                self.delaunay_data = None
+                print(f"First-time reference frame set (ID {ref_id}), initializing Delaunay data")
+            
+        # If reference ID changed, reset Delaunay data
+        if self.ref_id != ref_id and self.use_ref_frame_for_delaunay:
+            self.delaunay_data = None
+            print(f"Reference frame changed from {self.ref_id} to {ref_id}, resetting Delaunay data")
 
         cur_frame = self.slam.map.get_frame(cur_id)
         dynamic_mask_cur = cur_frame.dynamic_mask
@@ -231,7 +175,10 @@ class DelaunayDynamic:
                 "keypoints": torch.unsqueeze(m_kpts0, 0),  # Shape: [1, N, 2]
                 "descriptors": torch.unsqueeze(feats0["descriptors"][matches[..., 0]], 0),  # Shape: [1, N, D]
                 "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"][matches[..., 0]], 0),  # Shape: [1, N]
-                "image_size": ref_feat["image_size"]  # Shape: [1, 2]
+                "image_size": ref_feat["image_size"],  # Shape: [1, 2]
+                "keypoints_numpy": m_kpts0.int().cpu().numpy(),  # Numpy version for triangulation
+                "triangulation": None,  # Will be filled in _apply_delaunay_triangulation_and_get_graph
+                "delaunay_image": None  # Will be filled in _apply_delaunay_triangulation_and_get_graph
             }
 
             self.ref_frame.delaunay_matched_feat = self.ref_matched_data
@@ -241,18 +188,29 @@ class DelaunayDynamic:
                     "keypoints": torch.unsqueeze(m_kpts1, 0),  # Shape: [1, N, 2]
                     "descriptors": torch.unsqueeze(feats1["descriptors"][matches[..., 1]], 0),  # Shape: [1, N, D]
                     "keypoint_scores": torch.unsqueeze(feats1["keypoint_scores"][matches[..., 1]], 0),  # Shape: [1, N]
-                    "image_size": cur_feat["image_size"]  # Shape: [1, 2]
+                    "image_size": cur_feat["image_size"],  # Shape: [1, 2]
+                    "keypoints_numpy": m_kpts1.int().cpu().numpy(),  # Numpy version for triangulation
+                    "triangulation": None,  # For potential future use
+                    "delaunay_image": None  # For potential future use
                 }
+                
+            # If we're using a new reference frame, reset the delaunay data
+            if self.ref_id != self.ref_frame.id and self.use_ref_frame_for_delaunay:
+                self.delaunay_data = None
+                print(f"New reference frame (ID {self.ref_frame.id}), resetting Delaunay data")
         else:
             # Just save all the ref_feat and cur_feat
             self.ref_matched_data = {
                 "keypoints": torch.unsqueeze(kpts0, 0),  # Shape: [1, N, 2]
                 "descriptors": torch.unsqueeze(feats0["descriptors"], 0),  # Shape: [1, N, D]
                 "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"], 0),  # Shape: [1, N]
-                "image_size": ref_feat["image_size"]  # Shape: [1, 2]
+                "image_size": ref_feat["image_size"],  # Shape: [1, 2]
+                "keypoints_numpy": kpts0.int().cpu().numpy(),  # Numpy version for triangulation
+                "triangulation": None,  # Will be filled in _apply_delaunay_triangulation_and_get_graph
+                "delaunay_image": None  # Will be filled in _apply_delaunay_triangulation_and_get_graph
             }
 
-            
+
 
 
 
@@ -297,13 +255,88 @@ class DelaunayDynamic:
         print("m_kpts1_np shape: ", m_kpts1_np.shape)
         
         # 2. Apply Delaunay triangulation to the matched keypoints
-        img_delaunay, tri = delaunay_image_kps(cur_frame.img, m_kpts1_np)
-        if True:
-            log_image("world/matched_kps/cur_frame/delaunay_triangulation", img_delaunay)
+        # Check if we need to compute a new triangulation
+        compute_new_triangulation = False
+        
+        # Compute new triangulation if:
+        # 1. This is a new reference frame (ref_id != self.ref_id) or the first time
+        # 2. We don't have stored triangulation data
+        # 3. We're using the old behavior (use_ref_frame_for_delaunay = False)
+        if self.ref_id != ref_id or self.delaunay_data is None or not self.use_ref_frame_for_delaunay:
+            compute_new_triangulation = True
+        
+        if compute_new_triangulation:
+            if self.use_ref_frame_for_delaunay:
+                # Apply triangulation on reference frame
+                img_delaunay, tri = delaunay_image_kps(ref_frame.img, m_kpts0_np)
+                log_entity = "world/matched_kps/ref_frame/delaunay_triangulation"
+                print("Computing new Delaunay triangulation on reference frame")
+                
+                # Store triangulation data for reuse
+                if self.ref_id == ref_id:
+                    self.delaunay_data = {
+                        "triangulation": tri,
+                        "image": img_delaunay
+                    }
+            else:
+                # Original behavior: apply triangulation on current frame
+                img_delaunay, tri = delaunay_image_kps(cur_frame.img, m_kpts1_np)
+                log_entity = "world/matched_kps/cur_frame/delaunay_triangulation"
+                print("Computing new Delaunay triangulation on current frame")
+                
+            if True:
+                log_image(log_entity, img_delaunay)
+        else:
+            # Reuse stored triangulation
+            print("Reusing stored Delaunay triangulation from reference frame")
+            tri = self.delaunay_data["triangulation"]
+            img_delaunay = self.delaunay_data["image"]
+            
+            # Log the reused image
+            if True:
+                log_image("world/matched_kps/ref_frame/reused_delaunay_triangulation", img_delaunay)
         
         # 3. Create a graph from the Delaunay triangulation
         delaunay_graph = convert_delauany_to_networkx(tri)
-        return ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches,delaunay_graph, img_delaunay
+        
+        # When using reference frame for Delaunay, we need to ensure we only keep
+        # edges connecting keypoints that are common between both frames
+        if self.use_ref_frame_for_delaunay:
+            # Create a copy of the graph to modify
+            filtered_graph = delaunay_graph.copy()
+            
+            # Get total number of matched keypoints
+            num_matched_keypoints = m_kpts0_np.shape[0]
+            
+            # Remove edges where one or both endpoints are not in the common set
+            edges_to_remove = []
+            for edge in filtered_graph.edges():
+                if (edge[0] >= num_matched_keypoints or edge[1] >= num_matched_keypoints):
+                    edges_to_remove.append(edge)
+            
+            filtered_graph.remove_edges_from(edges_to_remove)
+            print(f"Removed {len(edges_to_remove)} edges connecting non-common keypoints")
+            
+            # Use filtered graph instead of original
+            delaunay_graph = filtered_graph
+            
+            # Visualize the filtered graph (only for debugging)
+            if True:
+                filtered_img = ref_frame.img.copy()
+                for edge in delaunay_graph.edges():
+                    if edge[0] < m_kpts0_np.shape[0] and edge[1] < m_kpts0_np.shape[0]:
+                        pt1 = tuple(m_kpts0_np[edge[0]])
+                        pt2 = tuple(m_kpts0_np[edge[1]])
+                        cv2.line(filtered_img, pt1, pt2, (0, 255, 0), 1)
+                
+                log_image("world/matched_kps/ref_frame/filtered_delaunay", filtered_img)
+        
+        # Store triangulation in ref_matched_data when using reference frame
+        if self.use_ref_frame_for_delaunay and compute_new_triangulation:
+            self.ref_matched_data["triangulation"] = tri
+            self.ref_matched_data["delaunay_image"] = img_delaunay
+            
+        return ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches, delaunay_graph, img_delaunay
         
 
     
@@ -496,6 +529,12 @@ class DelaunayDynamic:
             # Reset the recursion depth
             self.recursion_depth = 0
             print("Resetting recursion depth to 0, and shifting the delaunay_ref_frame due to large gap between ref_id and cur_id")
+            
+            # Reset Delaunay data when reference frame changes
+            if self.use_ref_frame_for_delaunay:
+                self.delaunay_data = None
+                print("Resetting Delaunay data due to reference frame change")
+            
             return True
 
     def _filter_features_by_depth(self, ref_feat, depth_scaled, max_depth=6):
