@@ -22,7 +22,7 @@ from utils_rerun import *
 from thirdparty.LightGlue.lightglue.utils import rbd
 from utils_delaunay import *
 import networkx as nx
-
+import sys
 # Here 
 # ref_id = -k_frames_away+1 usually
 # cur_id = -1
@@ -46,7 +46,7 @@ class DelaunayDynamic:
         self.extractor = SuperPoint(max_num_keypoints=self.num_features).eval().to(self.device)
         self.matcher = LightGlue(features="superpoint").eval().to(self.device)
         # New attributes for feature storage
-        self.ref_matched_data = None   #Stores matched keypoints, descriptors, scores in extraction-like format
+        self.ref_matched_data = {"keypoints": None, "descriptors": None, "keypoint_scores": None, "image_size": None}
         self.ref_id = None  # Stores the reference frame ID
 
     # def _extract_features(self, ref_id, cur_id): 
@@ -70,6 +70,8 @@ class DelaunayDynamic:
     #     ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
     #     cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
 
+    #     print("Keys of ref_feat: ", ref_feat.keys())
+       
     #     print("ref_feat keypoints before filtering with depth: ", ref_feat["keypoints"].shape)
     #     print("cur_feat keypoints before filtering with depth: ", cur_feat["keypoints"].shape)
 
@@ -121,6 +123,10 @@ class DelaunayDynamic:
         """
         Extract features for the current frame and use stored matched features for the reference frame if available.
         """
+        # For the first time setup self.ref_id 
+        if self.ref_id is None:
+            self.ref_id = ref_id
+
         cur_frame = self.slam.map.get_frame(cur_id)
         dynamic_mask_cur = cur_frame.dynamic_mask
         self.cur_frame = cur_frame
@@ -129,15 +135,39 @@ class DelaunayDynamic:
         cur_torch_HWC = torch.from_numpy(cur_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         cur_torch_HWC = cur_torch_HWC.to(self.device)
 
+        # Get reference frame
+        ref_frame = self.slam.map.get_frame(ref_id)
+        self.ref_frame = ref_frame
+
         # Check if matched features for reference frame can be reused
-        if self.ref_id == ref_id and self.ref_matched_data is not None:
+        ref_feat = None
+        
+        # First, check if we have the same reference frame with cached features
+        if self.ref_matched_data["keypoints"] is not None and self.ref_id == ref_id:
+            print(f"Using precomputed matched features for reference frame {ref_id}")
             ref_feat = self.ref_matched_data
-            print(f"Reusing stored matched features for reference frame {ref_id} with {ref_feat['keypoints'].shape[1]} keypoints")
-        else:
-            # Extract new features for reference frame
-            ref_frame = self.slam.map.get_frame(ref_id)
+            try:
+                print(f"Reusing stored matched features for reference frame {ref_id} with {ref_feat['keypoints'].shape[1]} keypoints")
+            except Exception as e:
+                print(f"Error reusing stored matched features for reference frame {ref_id}: {e}")
+                ref_feat = None
+        
+        # Then, check if the reference frame has pre-calculated features
+        elif hasattr(ref_frame, 'delaunay_matched_feat') and ref_frame.delaunay_matched_feat is not None:
+            print(f"Using pre-stored matched features from reference frame {ref_id}")
+            ref_feat = ref_frame.delaunay_matched_feat
+            self.ref_matched_data = ref_feat
+            self.ref_id = ref_id
+            try:
+                print(f"Using pre-stored features from reference frame {ref_id} with {ref_feat['keypoints'].shape[1]} keypoints")
+            except Exception as e:
+                print(f"Error using pre-stored features from reference frame {ref_id}: {e}")
+                ref_feat = None
+        
+        # If no cached features are available, extract new ones
+        if ref_feat is None:
+            print(f"Extracting new features for reference frame {ref_id}")
             dynamic_mask_ref = ref_frame.dynamic_mask
-            self.ref_frame = ref_frame
             ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
             ref_torch_HWC = ref_torch_HWC.to(self.device)
             ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
@@ -160,14 +190,15 @@ class DelaunayDynamic:
             cur_feat["keypoints"].shape[1] < self.num_features // 2) and self.recursion_depth < self.recursion_limit:
             print("Low keypoint count, doubling num_features and re-extracting")
             self.extractor.conf.max_num_keypoints = self.num_features * 2
-            if self.ref_id != ref_id or self.ref_matched_data is None:
-                ref_frame = self.slam.map.get_frame(ref_id)
+            
+            # Only re-extract reference features if we don't have pre-stored ones
+            if not (hasattr(ref_frame, 'delaunay_matched_feat') and ref_frame.delaunay_matched_feat is not None):
                 ref_torch_HWC = torch.from_numpy(ref_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
                 ref_torch_HWC = ref_torch_HWC.to(self.device)
                 ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
                 ref_feat = self._filter_features_by_depth(ref_feat, ref_frame.depth_img)
                 ref_feat = self._filter_features_by_mask(ref_feat, ref_frame.dynamic_mask)
-                self.ref_id = ref_id
+                
             cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
             cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
             cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
@@ -179,27 +210,7 @@ class DelaunayDynamic:
 
         return ref_feat, cur_feat
 
-    # def _match_features(self, ref_feat, cur_feat):
-    #     """
-    #     Match features between the reference and current frames.
-    #     """
-    #     matches01 = self.matcher({"image0": ref_feat, "image1": cur_feat})
-    #     feats0, feats1, matches01 = [
-    #         rbd(x) for x in [ref_feat, cur_feat, matches01]
-    #     ]  # remove batch dimension
 
-    #     kpts0, kpts1, matches = feats0["keypoints"], feats1["keypoints"], matches01["matches"]
-    #     m_kpts0, m_kpts1 = kpts0[matches[..., 0]], kpts1[matches[..., 1]]
-
-    #     print("Number of keypoints in ref image: ", len(kpts0))
-    #     print("Number of keypoints in curr image: ", len(kpts1))
-    #     print("matches shape: ", matches.shape)
-
-    #     # Visualize matches
-    #     output_img = self._visualize_matches(self.ref_frame.img,self.cur_frame.img,  kpts0, kpts1, matches, add_text=True)
-    #     log_image(entity=f"Matches between Frame curr and Frame k_frames_away", image=output_img)
-
-    #     return m_kpts0, m_kpts1, matches
 
     def _match_features(self, ref_feat, cur_feat):
         """
@@ -215,8 +226,19 @@ class DelaunayDynamic:
         self.ref_matched_data = {
             "keypoints": torch.unsqueeze(m_kpts0, 0),  # Shape: [1, N, 2]
             "descriptors": torch.unsqueeze(feats0["descriptors"][matches[..., 0]], 0),  # Shape: [1, N, D]
-            "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"][matches[..., 0]], 0)  # Shape: [1, N]
+            "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"][matches[..., 0]], 0),  # Shape: [1, N]
+            "image_size": ref_feat["image_size"]  # Shape: [1, 2]
         }
+
+        self.ref_frame.delaunay_matched_feat = self.ref_matched_data
+        self.cur_frame.delaunay_matched_feat = {
+            "keypoints": torch.unsqueeze(m_kpts1, 0),  # Shape: [1, N, 2]
+            "descriptors": torch.unsqueeze(feats1["descriptors"][matches[..., 1]], 0),  # Shape: [1, N, D]
+            "keypoint_scores": torch.unsqueeze(feats1["keypoint_scores"][matches[..., 1]], 0),  # Shape: [1, N]
+            "image_size": cur_feat["image_size"]  # Shape: [1, 2]
+        }
+
+
 
         print(f"Number of keypoints in ref image: {len(kpts0)}")
         print(f"Number of keypoints in curr image: {len(kpts1)}")
@@ -292,6 +314,10 @@ class DelaunayDynamic:
         print("points1 shape: ", points1.shape)
         print("points0 depth zero:", z_1 )
         print("points1 depth zero:", z_2 )
+
+        # Store 3D points in ref_matched_data
+        self.ref_matched_data["points3d"] = points0  # Shape: [N, 3]
+
 
         # Visualize the 3D points
         log_random_pc2(entity= "world/slam/kps matched in k_frames_away", points=points0, colors="green", radius=0.04)

@@ -172,6 +172,7 @@ class Map(object):
         
         # Initialize map snapshot manager
         self.snapshot_manager = MapSnapshotManager()
+
         
     def is_reloaded(self):
         return self.reloaded_session_map_info is not None

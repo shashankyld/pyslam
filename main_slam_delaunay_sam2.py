@@ -245,6 +245,7 @@ if __name__ == "__main__":
     img_id = starting_img_id
 
     # Set delaunay reference frame 
+    shift_delaunay_ref = False # If True, shift the delaunay reference frame to the current frame
     slam.delaunay_ref_f = starting_img_id
 
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
@@ -403,6 +404,10 @@ if __name__ == "__main__":
                                     print(f"Error drawing feature trails: {e}")                        
                         
                         ### Extract frame from k_frames_away
+                        if shift_delaunay_ref ==  True:
+                            # Shift the delaunay reference frame to the mid point of the current frame and previous reference frame
+                            slam.delaunay_ref_f = (slam.delaunay_ref_f + img_id) // 2
+
                         delaunay_ref_f = slam.delaunay_ref_f
                         k_frames_away = img_id - delaunay_ref_f 
                         print("img_id: ", img_id)   
@@ -416,6 +421,8 @@ if __name__ == "__main__":
                         # Wait for the map to add the current frame to the frames list
                         if delaunay_ref_f == starting_img_id:
                             print("Waiting for the map to add the current frame to the frames list...")
+                        
+                        
                         k_frame_away = min(k_frames_away, len(slam.map.frames))
 
 
@@ -460,6 +467,7 @@ if __name__ == "__main__":
                             ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
                             delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
+                            ## TODO: Return the shift_delaunay_ref flag from computing the _update_graph_properties
                             # print("Exiting for diagnostics")
                             # sys.exit(0)
 
