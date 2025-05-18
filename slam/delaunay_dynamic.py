@@ -48,6 +48,7 @@ class DelaunayDynamic:
         # New attributes for feature storage
         self.ref_matched_data = {"keypoints": None, "descriptors": None, "keypoint_scores": None, "image_size": None}
         self.ref_id = None  # Stores the reference frame ID
+        self.prune_delaunay_ref_frame_kps = False  # Flag to prune the reference frame
         self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
         self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
 
@@ -225,22 +226,33 @@ class DelaunayDynamic:
         m_kpts0, m_kpts1 = kpts0[matches[..., 0]], kpts1[matches[..., 1]]
 
         # Store matched data for reference frame in extraction-like format
-        self.ref_matched_data = {
-            "keypoints": torch.unsqueeze(m_kpts0, 0),  # Shape: [1, N, 2]
-            "descriptors": torch.unsqueeze(feats0["descriptors"][matches[..., 0]], 0),  # Shape: [1, N, D]
-            "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"][matches[..., 0]], 0),  # Shape: [1, N]
-            "image_size": ref_feat["image_size"]  # Shape: [1, 2]
-        }
-
-        self.ref_frame.delaunay_matched_feat = self.ref_matched_data
-        
-        if self.prune_every_frame_kps_not_just_ref:
-            self.cur_frame.delaunay_matched_feat = {
-                "keypoints": torch.unsqueeze(m_kpts1, 0),  # Shape: [1, N, 2]
-                "descriptors": torch.unsqueeze(feats1["descriptors"][matches[..., 1]], 0),  # Shape: [1, N, D]
-                "keypoint_scores": torch.unsqueeze(feats1["keypoint_scores"][matches[..., 1]], 0),  # Shape: [1, N]
-                "image_size": cur_feat["image_size"]  # Shape: [1, 2]
+        if self.prune_delaunay_ref_frame_kps:
+            self.ref_matched_data = {
+                "keypoints": torch.unsqueeze(m_kpts0, 0),  # Shape: [1, N, 2]
+                "descriptors": torch.unsqueeze(feats0["descriptors"][matches[..., 0]], 0),  # Shape: [1, N, D]
+                "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"][matches[..., 0]], 0),  # Shape: [1, N]
+                "image_size": ref_feat["image_size"]  # Shape: [1, 2]
             }
+
+            self.ref_frame.delaunay_matched_feat = self.ref_matched_data
+            
+            if self.prune_every_frame_kps_not_just_ref:
+                self.cur_frame.delaunay_matched_feat = {
+                    "keypoints": torch.unsqueeze(m_kpts1, 0),  # Shape: [1, N, 2]
+                    "descriptors": torch.unsqueeze(feats1["descriptors"][matches[..., 1]], 0),  # Shape: [1, N, D]
+                    "keypoint_scores": torch.unsqueeze(feats1["keypoint_scores"][matches[..., 1]], 0),  # Shape: [1, N]
+                    "image_size": cur_feat["image_size"]  # Shape: [1, 2]
+                }
+        else:
+            # Just save all the ref_feat and cur_feat
+            self.ref_matched_data = {
+                "keypoints": torch.unsqueeze(kpts0, 0),  # Shape: [1, N, 2]
+                "descriptors": torch.unsqueeze(feats0["descriptors"], 0),  # Shape: [1, N, D]
+                "keypoint_scores": torch.unsqueeze(feats0["keypoint_scores"], 0),  # Shape: [1, N]
+                "image_size": ref_feat["image_size"]  # Shape: [1, 2]
+            }
+
+            
 
 
 
