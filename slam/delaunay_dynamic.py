@@ -48,7 +48,7 @@ class DelaunayDynamic:
         # New attributes for feature storage
         self.ref_matched_data = {"keypoints": None, "descriptors": None, "keypoint_scores": None, "image_size": None}
         self.ref_id = None  # Stores the reference frame ID
-        self.prune_delaunay_ref_frame_kps = True  # Flag to prune the reference frame
+        self.prune_delaunay_ref_frame_kps = False  # Flag to prune the reference frame
         self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
         self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
         self.min_points_for_dynamic_object = 7  # Minimum number of points in a connected component to consider it a dynamic object
@@ -562,8 +562,8 @@ class DelaunayDynamic:
                     update_ref_frame_flag = False      
 
         update_ref_frame_flag = self.update_ref_frame_flag(ref_id, cur_id)        
-
-        return update_ref_frame_flag
+        is_new_object = False
+        return update_ref_frame_flag, is_new_object
     
     def _check_potential_dynamic_object_prompts(self, prompts):
         # If prompts lie on any of the self.dynamic_objects, add the prompts to associated objec with maximum prompts on it,  in the dynamic_objects list
@@ -578,8 +578,9 @@ class DelaunayDynamic:
                     dynamic_object.prompts.extend(prompts)
                     print(f"Added {len(prompts)} prompts to existing dynamic object {dynamic_object.id}")
                     return dynamic_object.id, False
-        # If no existing dynamic object has the prompts, create a new one
-        dynamic_object_id = f"dynamic_object_{self.ref_id}_{self.cur_frame.id}_{len(self.dynamic_objects)}"
+        # If no existing dynamic object has the prompts, create a new one - random int with out repetition
+        dynamic_object_id = np.random.randint(1000000, 9999999)
+        # dynamic_object_id = f"dynamic_object_{self.ref_id}_{self.cur_frame.id}_{len(self.dynamic_objects)}"
         new_dynamic_object = DynamicObject(
             id=dynamic_object_id,
             prompts=prompts.tolist(),  # Convert to list for JSON serialization

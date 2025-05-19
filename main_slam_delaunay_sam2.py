@@ -241,7 +241,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-    starting_img_id = 140 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 280 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     img_id = starting_img_id
 
     # Set delaunay reference frame 
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     slam.delaunay_ref_f = starting_img_id
 
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
-    end_img_id =600
+    end_img_id =350
 
     sam2_pivot_end = slam.sam2_num_frames_to_propagate_backwards
     
@@ -353,7 +353,7 @@ if __name__ == "__main__":
                         cur_gt_Twc = xyzq2Tmat(x,y,z,qx,qy,qz,qw)
                         
 
-                        cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
+                        #cur_gt_Tcw = np.linalg.inv(cur_gt_Twc)
                         if not args.headless:
                             log_coordinate_axes(entity_path = "world/GT/Curr Frame Pose", pose = cur_gt_Twc, scale=1)
                             log_current_frame_pc(entity_path="world/GT/curr_scan/", points=curr_dense_pc.points, colors=curr_dense_pc.colors, pose = cur_gt_Twc)
@@ -472,7 +472,17 @@ if __name__ == "__main__":
                             delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.1, camera = camera, slam =slam)
                             ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
-                            shift_delaunay_ref = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
+                            shift_delaunay_ref, is_new_object_found = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
+
+                            if is_new_object_found:
+                                # Propagate SAM2 masks to all the frames(inference is all frames in the map) in the map, and apply dynamic masks to those frames  - back propagation
+                                # Also forward propagate the masks to the next frame and save them 
+                                # reset the is_new_object_found flag to False
+
+                            elif not is_new_object_found:
+                                # Propagate using only last few frames with their prompts and the next frame and also save the mask and objects information.
+                                # TODO
+
                             ## TODO: Return the shift_delaunay_ref flag from computing the _update_graph_properties
                             # print("Exiting for diagnostics")
                             # sys.exit(0)
