@@ -743,230 +743,230 @@ if __name__ == "__main__":
                                 
                                 
                                 # # TODO: Use SAM2 for segmentation with the second largest component
-                                # if len(sorted_components) > 0 and len(sorted_components[1].nodes) > 10:
+                                if len(sorted_components) > 0 and len(sorted_components[1].nodes) > 10:
 
-                                #     # Get the  largest component
-                                #     dynamic_component = sorted_components[1]
-                                #     print(f"Second largest component: {dynamic_component.nodes}")
+                                    # Get the  largest component
+                                    dynamic_component = sorted_components[1]
+                                    print(f"Second largest component: {dynamic_component.nodes}")
                                     
-                                #     # Get the points for the second largest component
-                                #     points_for_sam2 = []
-                                #     for node in dynamic_component.nodes:
-                                #         pt = tuple(m_kpts1_np[node])
-                                #         points_for_sam2.append(pt)
+                                    # Get the points for the second largest component
+                                    points_for_sam2 = []
+                                    for node in dynamic_component.nodes:
+                                        pt = tuple(m_kpts1_np[node])
+                                        points_for_sam2.append(pt)
                                     
-                                #     # Convert to numpy array
-                                #     points_for_sam2 = np.array(points_for_sam2, dtype=np.float32)
+                                    # Convert to numpy array
+                                    points_for_sam2 = np.array(points_for_sam2, dtype=np.float32)
                                     
 
-                                #     dynamic_object_detected = True
-                                #     print(f"Dynamic object detected: {dynamic_object_detected}")
-                                #     # Set reference frame to mid point of current frame and the prev-ref frame
-                                #     delaunay_ref_f = (img_id + delaunay_ref_f) // 2
-                                #     slam.delaunay_ref_f = delaunay_ref_f
+                                    dynamic_object_detected = True
+                                    print(f"Dynamic object detected: {dynamic_object_detected}")
+                                    # Set reference frame to mid point of current frame and the prev-ref frame
+                                    delaunay_ref_f = (img_id + delaunay_ref_f) // 2
+                                    slam.delaunay_ref_f = delaunay_ref_f
 
-                                # else:
-                                #     # No prompts
-                                #     points_for_sam2 = np.array([], dtype=np.float32)
+                                else:
+                                    # No prompts
+                                    points_for_sam2 = np.array([], dtype=np.float32)
 
-                                # # Set negative prompts from the static component
-                                # negative_points_for_sam2 = []
-                                # for i, node in enumerate(static_component.nodes):
-                                #     # Randomly sample points from the static component - 10 points
-                                #     total = len(static_component.nodes)
-                                #     if total > 10:
-                                #         if i % (total // 10) == 0:
-                                #             pt = tuple(m_kpts1_np[node])
-                                #             negative_points_for_sam2.append(pt)
-                                #     else:
-                                #         pt = tuple(m_kpts1_np[node])
-                                #         negative_points_for_sam2.append(pt)
+                                # Set negative prompts from the static component
+                                negative_points_for_sam2 = []
+                                for i, node in enumerate(static_component.nodes):
+                                    # Randomly sample points from the static component - 10 points
+                                    total = len(static_component.nodes)
+                                    if total > 10:
+                                        if i % (total // 10) == 0:
+                                            pt = tuple(m_kpts1_np[node])
+                                            negative_points_for_sam2.append(pt)
+                                    else:
+                                        pt = tuple(m_kpts1_np[node])
+                                        negative_points_for_sam2.append(pt)
 
                                 
-                                # # Apply SAM2 for the sam2_folder_path and visualize the results of the mask 
-                                # if sam2_folder_path and len(points_for_sam2) > 0:
-                                #     try:
-                                #         print(f"Running SAM2 on folder: {sam2_folder_path}")
-                                #         # Print # files in folder
-                                #         print(f"Number of files in folder: {len(os.listdir(sam2_folder_path))}")
+                                # Apply SAM2 for the sam2_folder_path and visualize the results of the mask 
+                                if sam2_folder_path and len(points_for_sam2) > 0:
+                                    try:
+                                        print(f"Running SAM2 on folder: {sam2_folder_path}")
+                                        # Print # files in folder
+                                        print(f"Number of files in folder: {len(os.listdir(sam2_folder_path))}")
                                         
-                                #         # Initialize inference state with the video path
-                                #         inference_state = predictor.init_state(video_path=sam2_folder_path)
+                                        # Initialize inference state with the video path
+                                        inference_state = predictor.init_state(video_path=sam2_folder_path)
                                         
-                                #         # Select a subset of points for SAM2 prompt (no more than k_num_resample_prompts)
-                                #         if points_for_sam2.shape[0] > k_num_resample_prompts:
-                                #             # Randomly sample points
-                                #             indices = np.random.choice(points_for_sam2.shape[0], k_num_resample_prompts, replace=False)
-                                #             prompt_points = points_for_sam2[indices]
-                                #         else:
-                                #             prompt_points = points_for_sam2
+                                        # Select a subset of points for SAM2 prompt (no more than k_num_resample_prompts)
+                                        if points_for_sam2.shape[0] > k_num_resample_prompts:
+                                            # Randomly sample points
+                                            indices = np.random.choice(points_for_sam2.shape[0], k_num_resample_prompts, replace=False)
+                                            prompt_points = points_for_sam2[indices]
+                                        else:
+                                            prompt_points = points_for_sam2
                                             
-                                #         # Create labels array (all points are positive)
-                                #         labels = np.ones(prompt_points.shape[0], dtype=np.int32)
+                                        # Create labels array (all points are positive)
+                                        labels = np.ones(prompt_points.shape[0], dtype=np.int32)
 
-                                #         len_of_folder = len(os.listdir(sam2_folder_path))
+                                        len_of_folder = len(os.listdir(sam2_folder_path))
                                         
                                         
-                                #         # For each frame in the video, update prompts inference
-                                #         for i in range(sam2_pivot_end, img_id):
-                                #             prompts = {}
-                                #             # Access from the map 
-                                #             frame = slam.map.get_frame(i)
-                                #             if frame is not None:
-                                #                 # Get the mask for the frame
-                                #                 mask = frame.dynamic_mask
-                                #                 frame_idx = i - sam2_pivot_end
-                                #                 # Apply the mask as a prompt 
-                                #                 frame_idx, obj_ids, video_res_masks = predictor.add_new_mask(
-                                #                                                                         inference_state,
-                                #                                                                         frame_idx,
-                                #                                                                         obj_id=1,
-                                #                                                                         mask=mask)
+                                        # For each frame in the video, update prompts inference
+                                        for i in range(sam2_pivot_end, img_id):
+                                            prompts = {}
+                                            # Access from the map 
+                                            frame = slam.map.get_frame(i)
+                                            if frame is not None:
+                                                # Get the mask for the frame
+                                                mask = frame.dynamic_mask
+                                                frame_idx = i - sam2_pivot_end
+                                                # Apply the mask as a prompt 
+                                                frame_idx, obj_ids, video_res_masks = predictor.add_new_mask(
+                                                                                                        inference_state,
+                                                                                                        frame_idx,
+                                                                                                        obj_id=1,
+                                                                                                        mask=mask)
                                                                                                     
 
 
                                                 
 
-                                #         # Get the last frame in the video
-                                #         # Add points as prompts (use first frame in sequence)
-                                #         _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
-                                #             inference_state=inference_state,
-                                #             frame_idx=len_of_folder-2, # one before the last frame
-                                #             obj_id=1,     # First object ID
-                                #             points=prompt_points,
-                                #             labels=labels
-                                #         )
+                                        # Get the last frame in the video
+                                        # Add points as prompts (use first frame in sequence)
+                                        _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
+                                            inference_state=inference_state,
+                                            frame_idx=len_of_folder-2, # one before the last frame
+                                            obj_id=1,     # First object ID
+                                            points=prompt_points,
+                                            labels=labels
+                                        )
 
 
 
-                                #         dynamic_masks = sam2_logits_to_masks(out_mask_logits, curr_img, threshold=0)
-                                #         # Visualize the masks using rerun
-                                #         for i, mask in enumerate(dynamic_masks):
-                                #             mask = mask.astype(np.uint8) * 255
-                                #             mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-                                #             mask = cv2.addWeighted(curr_img, 0.5, mask, 0.5, 0)
-                                #             log_image(f"sam2/mask_{i}", mask)
-
-                                        
-
-                                #         # Propagate the masks trough the video sequence
-                                #         # Forward propagation
-                                #         forward_segments = {}
-                                #         for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
-                                #             inference_state,
-                                #             start_frame_idx=len_of_folder-2,  # Your prompt frame
-                                #             reverse=False
-                                #         ):
-                                #             forward_segments[out_frame_idx] = {
-                                #                 out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
-                                #                 for i, out_obj_id in enumerate(out_obj_ids)
-                                #             }
-
-                                #         # Backward propagation
-                                #         backward_segments = {}
-                                #         for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
-                                #             inference_state,
-                                #             start_frame_idx=len_of_folder-2,  # Your prompt frame
-                                #             reverse=True
-                                #         ):
-                                #             backward_segments[out_frame_idx] = {
-                                #                 out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
-                                #                 for i, out_obj_id in enumerate(out_obj_ids)
-                                #             }
-
-                                #         # Reverse the backward segments to match the forward order
-                                #         backward_segments = {k: v for k, v in reversed(backward_segments.items())}
-
-                                #         # Combine the segments
-                                #         video_segments = {**backward_segments, **forward_segments}
-
-                                #         # Extract the masks for the next frame
-                                #         print("###################################################")
-                                #         print("video_segments: ", video_segments)
-                                #         print("###################################################")
-                                #         # Log all the masks in the video segments
-                                #         # Log all the masks in the video segments
-                                #         for i, (frame_idx, obj_masks) in enumerate(video_segments.items()):
-                                #             print(f"Frame {frame_idx} masks: {obj_masks}")
-                                #             for obj_id, mask in obj_masks.items():  # Iterate through dict items (obj_id, mask)
-                                #                 if isinstance(mask, np.ndarray):  # Ensure mask is a NumPy array
-                                #                     try:
-                                #                         # Extract first channel if mask has multiple dimensions
-                                #                         if len(mask.shape) == 3 and mask.shape[0] == 1:
-                                #                             mask = mask[0]  # Get the first mask if it's shaped [1, H, W]
-                                                        
-                                #                         # Convert boolean to uint8
-                                #                         mask = mask.astype(np.uint8) * 255
-                                                        
-                                #                         # Convert to BGR for blending (same as the working code above)
-                                #                         mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-                                                        
-                                #                         # Blend with the original image
-                                #                         mask = cv2.addWeighted(curr_img, 0.5, mask, 0.5, 0)
-
-                                                        
-                                #                         # Log the result
-                                #                         log_image(f"mask_{i}_{obj_id}", mask)
-                                #                     except Exception as e:
-                                #                         print(f"Error processing mask for object {obj_id}: {e}")
-                                #                         print(f"Mask shape: {mask.shape}, Image shape: {curr_img.shape}")
-                                #                 else:
-                                #                     print(f"Mask for object {obj_id} is not a valid NumPy array: {type(mask)}")        
-
-                                #         predictor.reset_state(inference_state)
-
-                                #         # Get the mask for the next frame   
-                                #         dynamic_mask = video_segments[len_of_folder-1][1]  # Assuming you want the first object
-                                #         # Convert to uint8, numpy and with shape np.zeros_like(img)[:, :, 0]
-                                #         dynamic_mask = dynamic_mask.astype(np.uint8) * 255 # Black and white mask means black - 0 and white - 255
-                                #         # Reshape to H x W
-                                #         dynamic_mask = dynamic_mask.reshape(curr_img.shape[0], curr_img.shape[1])
-                                #         kernel = np.ones((5, 5), np.uint8)
-                                #         dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
-                                        
-                                #         # For each frame, update in the map.frame object, its mask and for the current frame, update its prompts as a dict for each object. 
-                                #         # Update the current frame with the mask
-                                #         cur_frame.dynamic_mask = dynamic_mask
-                                #         cur_frame.dynamic_prompts = {1: dynamic_mask}  # Assuming you want the first object
-
-                                #         # For each frame in the video, update the corresponding map.frame object with the mask 
-                                #         for frame_idx, obj_masks in video_segments.items(): # Frame_idx 0 for the first frame in the video, which is img_id-k_segment_upto frame
-                                #             for obj_id, mask in obj_masks.items():
-                                #                 if isinstance(mask, np.ndarray):
-                                #                     frame = slam.map.get_frame(img_id-k_segment_upto+frame_idx)
-                                #                     if frame is not None:
-                                #                         # Convert to uint8, numpy and with shape np.zeros_like(img)[:, :, 0]
-                                #                         mask = mask.astype(np.uint8) * 255
-                                #                         # Reshape to H x W
-                                #                         mask = mask.reshape(frame.img.shape[0], frame.img.shape[1])
-                                #                         kernel = np.ones((8, 8), np.uint8)
-                                #                         mask = cv2.dilate(mask, kernel, iterations=5)
-                                #                         frame.dynamic_mask = mask
-                                #                         # Sample 20 points from the mask and add them to the frame as prompts
-                                #                         mask_points = np.argwhere(mask > 0)
-                                #                         if len(mask_points) > 20:
-                                #                             indices = np.random.choice(mask_points.shape[0], 20, replace=False)
-                                #                             mask_points = mask_points[indices]
-
-                                #                         # Convert to float32
-                                #                         mask_points = mask_points.astype(np.float32)
-                                #                         # Add the points to the frame as prompts
-                                #                         frame.dynamic_prompts[obj_id] = mask_points
-                                                        
-                                #                 else:   
-                                #                     print(f"Mask for object {obj_id} is not a valid NumPy array: {type(mask)}")
-                                        
-                                        
+                                        dynamic_masks = sam2_logits_to_masks(out_mask_logits, curr_img, threshold=0)
+                                        # Visualize the masks using rerun
+                                        for i, mask in enumerate(dynamic_masks):
+                                            mask = mask.astype(np.uint8) * 255
+                                            mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+                                            mask = cv2.addWeighted(curr_img, 0.5, mask, 0.5, 0)
+                                            log_image(f"sam2/mask_{i}", mask)
 
                                         
 
+                                        # Propagate the masks trough the video sequence
+                                        # Forward propagation
+                                        forward_segments = {}
+                                        for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
+                                            inference_state,
+                                            start_frame_idx=len_of_folder-2,  # Your prompt frame
+                                            reverse=False
+                                        ):
+                                            forward_segments[out_frame_idx] = {
+                                                out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
+                                                for i, out_obj_id in enumerate(out_obj_ids)
+                                            }
 
-                                #     except Exception as e:
-                                #         print(f"Error in SAM2 processing: {e}")
-                                #         print(traceback.format_exc())
-                                #         print("Continuing without SAM2 mask...")
-                                # else:
-                                #     print("No SAM2 processing - either no folder path or no points available")
+                                        # Backward propagation
+                                        backward_segments = {}
+                                        for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
+                                            inference_state,
+                                            start_frame_idx=len_of_folder-2,  # Your prompt frame
+                                            reverse=True
+                                        ):
+                                            backward_segments[out_frame_idx] = {
+                                                out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
+                                                for i, out_obj_id in enumerate(out_obj_ids)
+                                            }
+
+                                        # Reverse the backward segments to match the forward order
+                                        backward_segments = {k: v for k, v in reversed(backward_segments.items())}
+
+                                        # Combine the segments
+                                        video_segments = {**backward_segments, **forward_segments}
+
+                                        # Extract the masks for the next frame
+                                        print("###################################################")
+                                        print("video_segments: ", video_segments)
+                                        print("###################################################")
+                                        # Log all the masks in the video segments
+                                        # Log all the masks in the video segments
+                                        for i, (frame_idx, obj_masks) in enumerate(video_segments.items()):
+                                            print(f"Frame {frame_idx} masks: {obj_masks}")
+                                            for obj_id, mask in obj_masks.items():  # Iterate through dict items (obj_id, mask)
+                                                if isinstance(mask, np.ndarray):  # Ensure mask is a NumPy array
+                                                    try:
+                                                        # Extract first channel if mask has multiple dimensions
+                                                        if len(mask.shape) == 3 and mask.shape[0] == 1:
+                                                            mask = mask[0]  # Get the first mask if it's shaped [1, H, W]
+                                                        
+                                                        # Convert boolean to uint8
+                                                        mask = mask.astype(np.uint8) * 255
+                                                        
+                                                        # Convert to BGR for blending (same as the working code above)
+                                                        mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+                                                        
+                                                        # Blend with the original image
+                                                        mask = cv2.addWeighted(curr_img, 0.5, mask, 0.5, 0)
+
+                                                        
+                                                        # Log the result
+                                                        log_image(f"mask_{i}_{obj_id}", mask)
+                                                    except Exception as e:
+                                                        print(f"Error processing mask for object {obj_id}: {e}")
+                                                        print(f"Mask shape: {mask.shape}, Image shape: {curr_img.shape}")
+                                                else:
+                                                    print(f"Mask for object {obj_id} is not a valid NumPy array: {type(mask)}")        
+
+                                        predictor.reset_state(inference_state)
+
+                                        # Get the mask for the next frame   
+                                        dynamic_mask = video_segments[len_of_folder-1][1]  # Assuming you want the first object
+                                        # Convert to uint8, numpy and with shape np.zeros_like(img)[:, :, 0]
+                                        dynamic_mask = dynamic_mask.astype(np.uint8) * 255 # Black and white mask means black - 0 and white - 255
+                                        # Reshape to H x W
+                                        dynamic_mask = dynamic_mask.reshape(curr_img.shape[0], curr_img.shape[1])
+                                        kernel = np.ones((5, 5), np.uint8)
+                                        dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
+                                        
+                                        # For each frame, update in the map.frame object, its mask and for the current frame, update its prompts as a dict for each object. 
+                                        # Update the current frame with the mask
+                                        cur_frame.dynamic_mask = dynamic_mask
+                                        cur_frame.dynamic_prompts = {1: dynamic_mask}  # Assuming you want the first object
+
+                                        # For each frame in the video, update the corresponding map.frame object with the mask 
+                                        for frame_idx, obj_masks in video_segments.items(): # Frame_idx 0 for the first frame in the video, which is img_id-k_segment_upto frame
+                                            for obj_id, mask in obj_masks.items():
+                                                if isinstance(mask, np.ndarray):
+                                                    frame = slam.map.get_frame(img_id-k_segment_upto+frame_idx)
+                                                    if frame is not None:
+                                                        # Convert to uint8, numpy and with shape np.zeros_like(img)[:, :, 0]
+                                                        mask = mask.astype(np.uint8) * 255
+                                                        # Reshape to H x W
+                                                        mask = mask.reshape(frame.img.shape[0], frame.img.shape[1])
+                                                        kernel = np.ones((8, 8), np.uint8)
+                                                        mask = cv2.dilate(mask, kernel, iterations=5)
+                                                        frame.dynamic_mask = mask
+                                                        # Sample 20 points from the mask and add them to the frame as prompts
+                                                        mask_points = np.argwhere(mask > 0)
+                                                        if len(mask_points) > 20:
+                                                            indices = np.random.choice(mask_points.shape[0], 20, replace=False)
+                                                            mask_points = mask_points[indices]
+
+                                                        # Convert to float32
+                                                        mask_points = mask_points.astype(np.float32)
+                                                        # Add the points to the frame as prompts
+                                                        frame.dynamic_prompts[obj_id] = mask_points
+                                                        
+                                                else:   
+                                                    print(f"Mask for object {obj_id} is not a valid NumPy array: {type(mask)}")
+                                        
+                                        
+
+                                        
+
+
+                                    except Exception as e:
+                                        print(f"Error in SAM2 processing: {e}")
+                                        print(traceback.format_exc())
+                                        print("Continuing without SAM2 mask...")
+                                else:
+                                    print("No SAM2 processing - either no folder path or no points available")
 
                                     
                     if online_trajectory_writer is not None and slam.tracking.cur_R is not None and slam.tracking.cur_t is not None:

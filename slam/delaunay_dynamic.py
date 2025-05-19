@@ -51,7 +51,7 @@ class DelaunayDynamic:
         self.prune_delaunay_ref_frame_kps = True  # Flag to prune the reference frame
         self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
         self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
-        
+        self.min_points_for_dynamic_object = 7  # Minimum number of points in a connected component to consider it a dynamic object
         # New parameter to control Delaunay triangulation on ref frame instead of cur frame
         self.use_ref_frame_for_delaunay = True  # Set to True to use ref frame for Delaunay
         self.delaunay_data = None  # Store the Delaunay triangulation data for reuse
@@ -319,6 +319,43 @@ class DelaunayDynamic:
             
             # Use filtered graph instead of original
             delaunay_graph = filtered_graph
+
+            ## For the delaunay graph - add more edges connecting nodes that are at the borders of the image connect them densly, connect only kps that are 10% away from the extreme points in all four directions
+            # Get image dimensions
+            img_height, img_width = ref_frame.img.shape[:2]
+            # Define border threshold (10% of image dimensions)
+            border_threshold_x = int(img_width * 0.05)
+            border_threshold_y = int(img_height * 0.05)
+
+            ## Left most kp, right most kp, top most kp, bottom most kp
+            left_most_kp = np.min(m_kpts0_np[:, 0])
+            right_most_kp = np.max(m_kpts0_np[:, 0])
+            top_most_kp = np.min(m_kpts0_np[:, 1])
+            bottom_most_kp = np.max(m_kpts0_np[:, 1])
+
+            # Create a set to store border keypoints
+            border_kps = set()
+            # Iterate through keypoints and check if they are within the border threshold
+            for i, kp in enumerate(m_kpts0_np):
+                x, y = kp
+                if (abs(x-left_most_kp) < border_threshold_x or
+                    abs(x-right_most_kp) < border_threshold_x or
+                    abs(y-top_most_kp) < border_threshold_y or
+                    abs(y-bottom_most_kp) < border_threshold_y):
+                    border_kps.add(i)
+                    
+
+                # if (x < border_threshold_x or x > img_width - border_threshold_x or 
+                #     y < border_threshold_y or y > img_height - border_threshold_y):
+                #     border_kps.add(i)
+            # Add edges between border keypoints
+            for i in border_kps:
+                for j in border_kps:
+                    if i != j and not delaunay_graph.has_edge(i, j):
+                        delaunay_graph.add_edge(i, j)
+
+            # Log the number of edges in the filtered graph
+
             
             # Visualize the filtered graph (only for debugging)
             if True:
@@ -330,6 +367,8 @@ class DelaunayDynamic:
                         cv2.line(filtered_img, pt1, pt2, (0, 255, 0), 1)
                 
                 log_image("world/matched_kps/ref_frame/filtered_delaunay", filtered_img)
+
+            
         
         # Store triangulation in ref_matched_data when using reference frame
         if self.use_ref_frame_for_delaunay and compute_new_triangulation:
@@ -481,17 +520,20 @@ class DelaunayDynamic:
             avg_length_change = np.mean([delaunay_graph.nodes[node]['length_change'] for node in component.nodes])
             # print avg motion and number of nodes
             print(f"Component {i}: Avg motion: {avg_motion}, Number of nodes: {len(component.nodes)}, Avg length change: {avg_length_change}")
+            # Average 
 
         ## For components with avg length change < effective_distance_threshold/factor, remove them from connected components list and create a new static_component by combining them 
         static_component = nx.Graph()
         for i, component in enumerate(connected_components):
             avg_length_change = np.mean([delaunay_graph.nodes[node]['length_change'] for node in component.nodes])
-            if avg_length_change < effective_distance_threshold / 2:
+            avg_motion = np.mean([delaunay_graph.nodes[node]['length_change_vector'] for node in component.nodes], axis=0)
+            avg_motion = np.linalg.norm(avg_motion)
+            if avg_motion < effective_distance_threshold * 2.5:
                 # Add nodes and edges to static component
                 static_component.add_nodes_from(component.nodes)
                 static_component.add_edges_from(component.edges)
                 # Remove component from connected components list
-                # connected_components.remove(component)
+                connected_components.remove(component)
                 print(f"Component {i} is static, avg length change: {avg_length_change}")
             else:
                 print(f"Component {i} is dynamic, avg length change: {avg_length_change}")
@@ -521,8 +563,27 @@ class DelaunayDynamic:
                         cv2.line(connected_components_image, pt1, pt2, color, 5)
                     cv2.line(connected_components_image, pt1, pt2, color, 1)
             
-            log_image("connected_components", connected_components_image)
+            log_image("connected_components_only dynamic", connected_components_image)
 
+            # IF there is a connected component with more than self.min_points_for_dynamic_object nodes, create a dynamic object
+        self.dynamic_objects_found = False
+        for i, component in enumerate(connected_components):
+            if component.number_of_nodes() >= self.min_points_for_dynamic_object:
+                self.dynamic_objects_found = True
+                print(f"Dynamic object found in component {i} with {component.number_of_nodes()} nodes")
+                # Create a DynamicObject instance
+                """ 
+                class DynamicObject:
+                    def __init__(self, id, prompts, mask):
+                        self.id = id
+                        self.prompts = prompts
+                        self.mask = mask
+                """
+                #generate a unique ID for the dynamic object
+                dynamic_object_id = f"dynamic_object_{ref_id}_{cur_id}_{i}"
+                # Prompts are kps in the component
+                prompts = [m_kpts1_np[node] for node in component.nodes]
+                # Mask is the dynamic mask of the current frame
         update_ref_frame_flag = self.update_ref_frame_flag(ref_id, cur_id)        
 
         return update_ref_frame_flag
