@@ -32,7 +32,7 @@ class DelaunayDynamic:
         self.num_features = num_features
         self.effective_distance_threshold = effective_distance_threshold
         self.dynamic_objects = DynamicObjects()
-        self.dynamic_mask = None
+        self.dynamic_mask = None # When features of the cur_frame are extracted, dynamic mask of the cur_frame is copied and hence will already have propagated mask from the previous frame
         self.camera = camera
         self.dynamic_objects_found = False
         self.graph = None
@@ -52,6 +52,7 @@ class DelaunayDynamic:
         self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
         self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
         self.min_points_for_dynamic_object = 7  # Minimum number of points in a connected component to consider it a dynamic object
+        self.num_of_points_to_consider_static_by_default = 100
         # New parameter to control Delaunay triangulation on ref frame instead of cur frame
         self.use_ref_frame_for_delaunay = True  # Set to True to use ref frame for Delaunay
         self.delaunay_data = None  # Store the Delaunay triangulation data for reuse
@@ -78,6 +79,8 @@ class DelaunayDynamic:
         dynamic_mask_cur = cur_frame.dynamic_mask
         self.cur_frame = cur_frame
         self.dynamic_mask = dynamic_mask_cur
+        self.dynamic_objects = cur_frame.dynamic_objects
+        
 
         cur_torch_HWC = torch.from_numpy(cur_frame.img).permute(2, 0, 1).unsqueeze(0).float() / 255.0
         cur_torch_HWC = cur_torch_HWC.to(self.device)
@@ -320,39 +323,7 @@ class DelaunayDynamic:
             # Use filtered graph instead of original
             delaunay_graph = filtered_graph
 
-            ## For the delaunay graph - add more edges connecting nodes that are at the borders of the image connect them densly, connect only kps that are 10% away from the extreme points in all four directions
-            # Get image dimensions
-            img_height, img_width = ref_frame.img.shape[:2]
-            # Define border threshold (10% of image dimensions)
-            border_threshold_x = int(img_width * 0.05)
-            border_threshold_y = int(img_height * 0.05)
 
-            ## Left most kp, right most kp, top most kp, bottom most kp
-            left_most_kp = np.min(m_kpts0_np[:, 0])
-            right_most_kp = np.max(m_kpts0_np[:, 0])
-            top_most_kp = np.min(m_kpts0_np[:, 1])
-            bottom_most_kp = np.max(m_kpts0_np[:, 1])
-
-            # Create a set to store border keypoints
-            border_kps = set()
-            # Iterate through keypoints and check if they are within the border threshold
-            for i, kp in enumerate(m_kpts0_np):
-                x, y = kp
-                if (abs(x-left_most_kp) < border_threshold_x or
-                    abs(x-right_most_kp) < border_threshold_x or
-                    abs(y-top_most_kp) < border_threshold_y or
-                    abs(y-bottom_most_kp) < border_threshold_y):
-                    border_kps.add(i)
-                    
-
-                # if (x < border_threshold_x or x > img_width - border_threshold_x or 
-                #     y < border_threshold_y or y > img_height - border_threshold_y):
-                #     border_kps.add(i)
-            # Add edges between border keypoints
-            for i in border_kps:
-                for j in border_kps:
-                    if i != j and not delaunay_graph.has_edge(i, j):
-                        delaunay_graph.add_edge(i, j)
 
             # Log the number of edges in the filtered graph
 
@@ -528,7 +499,17 @@ class DelaunayDynamic:
             avg_length_change = np.mean([delaunay_graph.nodes[node]['length_change'] for node in component.nodes])
             avg_motion = np.mean([delaunay_graph.nodes[node]['length_change_vector'] for node in component.nodes], axis=0)
             avg_motion = np.linalg.norm(avg_motion)
-            if avg_motion < effective_distance_threshold * 2.5:
+
+            # If component has many nodes, consider static
+            if component.number_of_nodes() >= self.num_of_points_to_consider_static_by_default:
+
+                print(f"Component {i} is static due to large number of nodes: {component.number_of_nodes()}")
+                static_component.add_nodes_from(component.nodes)
+                static_component.add_edges_from(component.edges)
+                connected_components.remove(component)
+                continue
+
+            if avg_motion < effective_distance_threshold * 1.2:
                 # Add nodes and edges to static component
                 static_component.add_nodes_from(component.nodes)
                 static_component.add_edges_from(component.edges)
@@ -569,24 +550,47 @@ class DelaunayDynamic:
         self.dynamic_objects_found = False
         for i, component in enumerate(connected_components):
             if component.number_of_nodes() >= self.min_points_for_dynamic_object:
-                self.dynamic_objects_found = True
-                print(f"Dynamic object found in component {i} with {component.number_of_nodes()} nodes")
-                # Create a DynamicObject instance
-                """ 
-                class DynamicObject:
-                    def __init__(self, id, prompts, mask):
-                        self.id = id
-                        self.prompts = prompts
-                        self.mask = mask
-                """
-                #generate a unique ID for the dynamic object
-                dynamic_object_id = f"dynamic_object_{ref_id}_{cur_id}_{i}"
-                # Prompts are kps in the component
-                prompts = [m_kpts1_np[node] for node in component.nodes]
-                # Mask is the dynamic mask of the current frame
+                dynamic_object_id, is_new_object = self._check_potential_dynamic_object_prompts(m_kpts1_np[component.nodes])
+                if is_new_object:
+                    self.dynamic_objects_found = True
+                    print(f"Dynamic object {dynamic_object_id} created with {component.number_of_nodes()} nodes")
+
+                    update_ref_frame_flag = True
+                    return update_ref_frame_flag
+                else:
+                    print(f"Dynamic object {dynamic_object_id} already exists, adding {component.number_of_nodes()} nodes")
+                    update_ref_frame_flag = False      
+
         update_ref_frame_flag = self.update_ref_frame_flag(ref_id, cur_id)        
 
         return update_ref_frame_flag
+    
+    def _check_potential_dynamic_object_prompts(self, prompts):
+        # If prompts lie on any of the self.dynamic_objects, add the prompts to associated objec with maximum prompts on it,  in the dynamic_objects list
+        # Else return "create new dynamic object" with a new id and add it to the dynamic_objects list
+        for dynamic_object in self.dynamic_objects:
+            # Find the object with max prompts on it if at all any objects exist that have prompts on them
+            if dynamic_object.mask is not None:
+                dynamic_object_mask = dynamic_object.mask
+                # Check if any of the prompts lie on the mask
+                if np.any(dynamic_object_mask[prompts[:, 1].astype(int), prompts[:, 0].astype(int)]):
+                    # Add the prompts to the dynamic object
+                    dynamic_object.prompts.extend(prompts)
+                    print(f"Added {len(prompts)} prompts to existing dynamic object {dynamic_object.id}")
+                    return dynamic_object.id, False
+        # If no existing dynamic object has the prompts, create a new one
+        dynamic_object_id = f"dynamic_object_{self.ref_id}_{self.cur_frame.id}_{len(self.dynamic_objects)}"
+        new_dynamic_object = DynamicObject(
+            id=dynamic_object_id,
+            prompts=prompts.tolist(),  # Convert to list for JSON serialization
+            mask=self.dynamic_mask if self.dynamic_mask is not None else None
+        )
+        self.dynamic_objects.append(new_dynamic_object)
+        print(f"Created new dynamic object {dynamic_object_id} with {len(prompts)} prompts")
+        return dynamic_object_id, True
+
+        
+        
 
     def update_ref_frame_flag(self, ref_id, cur_id):
         """

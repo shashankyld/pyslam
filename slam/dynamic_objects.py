@@ -23,12 +23,28 @@ class DynamicObjects:
         self.combined_prompts = []
         self.mask_size = mask_size
         
+    def __iter__(self):
+        """Allow iteration over the objects."""
+        return iter(self.objects.values())
+    
+    def __len__(self):
+        """Return the number of objects."""
+        return len(self.objects)
+    
+    def append(self, dynamic_object):
+        """Add a dynamic object to the collection (alias for add_object)."""
+        self.add_object(dynamic_object)
 
     def add_object(self, dynamic_object):
         if dynamic_object.id not in self.objects:
             self.objects[dynamic_object.id] = dynamic_object
         else:
-            raise ValueError(f"Object with id {dynamic_object.id} already exists.")
+            # Update the existing object instead of raising an error
+            # Merge prompts and update mask if needed
+            existing_obj = self.objects[dynamic_object.id]
+            existing_obj.prompts.extend(dynamic_object.prompts)
+            if dynamic_object.mask is not None:
+                existing_obj.mask = dynamic_object.mask
 
     def remove_object(self, id):
         if id in self.objects:
@@ -56,4 +72,4 @@ class DynamicObjects:
                 self.combined_prompts.extend(obj.prompts)
         return self.combined_prompts
 
-    
+
