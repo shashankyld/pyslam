@@ -48,7 +48,7 @@ class DelaunayDynamic:
         # New attributes for feature storage
         self.ref_matched_data = {"keypoints": None, "descriptors": None, "keypoint_scores": None, "image_size": None}
         self.ref_id = None  # Stores the reference frame ID
-        self.prune_delaunay_ref_frame_kps = False  # Flag to prune the reference frame
+        self.prune_delaunay_ref_frame_kps = True  # Flag to prune the reference frame
         self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
         self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
         
@@ -452,10 +452,17 @@ class DelaunayDynamic:
             if 'effective_distance' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['effective_distance'] > effective_distance_threshold:
                 is_dynamic = True
             if is_dynamic:
-                # Draw dynamic edges in blue
-                pt1 = tuple(m_kpts1_np[edge[0]])
-                pt2 = tuple(m_kpts1_np[edge[1]])
-                cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+                if self.use_ref_frame_for_delaunay:
+                    # Draw dynamic edges in blue on the reference frame triangulation image
+                    pt1 = tuple(m_kpts0_np[edge[0]])
+                    pt2 = tuple(m_kpts0_np[edge[1]])
+                    cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+                else:
+                    # Draw dynamic edges in blue on the current frame triangulation image
+                    pt1 = tuple(m_kpts1_np[edge[0]])
+                    pt2 = tuple(m_kpts1_np[edge[1]])
+                    cv2.line(dynamic_edge_image, pt1, pt2, (255, 0, 0), 1)
+                
                 # Remove edge from graph
                 modified_delaunay_graph.remove_edge(edge[0], edge[1])
         
