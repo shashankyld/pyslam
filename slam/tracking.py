@@ -668,7 +668,12 @@ class Tracking:
                         cond3 = min_dist > self.max_fov_centers_distance
         
         #print(f'KF conditions: cond1a: {cond1a}, cond1b: {cond1b}, cond1c: {cond1c}, cond1d: {cond1d}, cond2: {cond2}')
-        condition_checks = ( (cond1a or cond1b or cond1c or cond1d) and cond2 ) or cond3    
+        condition_checks = ( (cond1a or cond1b or cond1c or cond1d) and cond2 ) or cond3   
+
+        # If f_cur.id - kf_last.id < 3 - then False
+        if f_cur.id - self.kf_last.id < 3:
+            condition_checks = False
+            print(f'Not enough frames since last KF: {f_cur.id - self.kf_last.id} < 3') 
                                                         
         if condition_checks:
             if is_local_mapping_idle:

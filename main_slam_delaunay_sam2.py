@@ -486,13 +486,18 @@ if __name__ == "__main__":
                                 with slam.map._lock:
                                     # get keyframe ids + cur_frame.id + next frame id
                                     sam2_run_ids = [kf.id for kf in slam.map.keyframes]
+                                    print("Keyframe ids: ", sam2_run_ids)
                                     if cur_frame.id not in sam2_run_ids:
+                                        print("Current frame id not in keyframe ids, adding it")
                                         sam2_run_ids += [cur_frame.id, cur_frame.id + 1]  # Add the next frame id
                                     else:
+                                        print("Current frame id already in keyframe ids, adding next frame id")
                                         sam2_run_ids.append(cur_frame.id + 1)
 
                                     # Add starting_img_id to all the ids
                                     sam2_run_ids = [id + starting_img_id for id in sam2_run_ids]
+                                    # Also add the frames in the sam2_frame_object_dict - keys 
+                                    sam2_run_ids += list(slam.sam2_frame_object_dict.keys())
                                     print("SAM2 run ids: ", sam2_run_ids)
                                 
                                 dataset_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_person_tracking/rgb_jpg/"
@@ -502,6 +507,9 @@ if __name__ == "__main__":
                                 print("Initial prompts: ", init_prompts)
                                 print(f"Temporary frames: {temp_frames}")
                                 print("New object prompts: ", new_object_prompts)
+                                # Convert prompt key value from frame_id to frame index in the temp_frames basically len(temp_frames) - 2
+                                new_object_prompts = {len(temp_frames) - 2: prompts for frame_id, prompts in new_object_prompts.items()}
+                                print("New object prompts after conversion of key from frame_id to local index in sym_link: ", new_object_prompts)
                                 # Combine the initial prompts with the new object prompts
                                 for frame_id, prompts in new_object_prompts.items():
                                     if frame_id in init_prompts:
@@ -510,6 +518,8 @@ if __name__ == "__main__":
                                         init_prompts[frame_id] = prompts
                                 print("Combined prompts: ", init_prompts)
                                 # Results from SAM2 
+                                # slam.sam2_frame_object_dict  add {frame_id: {object_id: {points: np.array([[x, y]], dtype=np.float32), labels: np.array([1], dtype=np.int32)}}}
+                                slam.sam2_frame_object_dict[img_id] = {new_dynamic_object_id: {'points': np.array([[0, 0]], dtype=np.float32), 'labels': np.array([1], dtype=np.int32)}}
                                 results = slam.sam2_streamer.update_symlinks(temp_frames, init_prompts)
                                 print("SAM2 results: ", results)
                                 # Visualize all the frames and the masks 
@@ -527,7 +537,7 @@ if __name__ == "__main__":
                                     # Visualize the image and masks
                                     visualize_results(image, masks)
                                 # End the program
-                                sys.exit(0)
+                                # sys.exit(0)
                                 # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
                                 # Else
                                 # new_object_id = # TODO # Create a new unique id for the new dynamic object

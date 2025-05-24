@@ -108,6 +108,7 @@ class Slam(object):
         self.feature_tracker = None
         self.init_feature_tracker(feature_tracker_config)
         self.sam2_streamer = None  # used for SAM2 streaming, if needed
+        self.sam2_frame_object_dict = {}
         self.map = Map()
         self.local_mapping = LocalMapping(self)        
         self.loop_closing = None
