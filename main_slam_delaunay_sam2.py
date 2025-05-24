@@ -169,7 +169,7 @@ if __name__ == "__main__":
     sys.path.append(os.path.join(SLAM_ROOT, "thirdparty", "sam2"))
     
     from sam2.build_sam import build_sam2_video_predictor
-    from sam2.sam2_streamer import SAM2SymlinkStreamer
+    from sam2_streaming.sam2_streaming import SAM2SymlinkStreamer
 
     
     # Setup device
@@ -478,27 +478,27 @@ if __name__ == "__main__":
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
                             shift_delaunay_ref, is_new_object_found = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
 
-                            if is_new_object_found:
+                            # if is_new_object_found:
                 
-                                print("New object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
-                                new_prompts = # TODO # Get prompts froms the new delaunay dynamic 
-                                # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
-                                # Else
-                                new_object_id = # TODO # Create a new unique id for the new dynamic object
-                                # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
-                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
-                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
-                                # reset the is_new_object_found flag to False
+                            #     print("New object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
+                            #     new_prompts = # TODO # Get prompts froms the new delaunay dynamic 
+                            #     # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
+                            #     # Else
+                            #     new_object_id = # TODO # Create a new unique id for the new dynamic object
+                            #     # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
+                            #     # Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                            #     # Set dynamic_mask using the dynamic objects combined mask of the next frame
+                            #     # reset the is_new_object_found flag to False
 
 
 
-                            elif not is_new_object_found:
-                                # Propagate using only last few frames with their prompts and the next frame and also save the mask and objects information.
-                                # TODO
-                                # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
-                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
-                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
-                                print("No new object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
+                            # elif not is_new_object_found:
+                            #     # Propagate using only last few frames with their prompts and the next frame and also save the mask and objects information.
+                            #     # TODO
+                            #     # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
+                            #     # Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                            #     # Set dynamic_mask using the dynamic objects combined mask of the next frame
+                            #     print("No new object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
 
                             
 
