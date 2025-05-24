@@ -169,7 +169,7 @@ if __name__ == "__main__":
     sys.path.append(os.path.join(SLAM_ROOT, "thirdparty", "sam2"))
     
     from sam2.build_sam import build_sam2_video_predictor
-    
+    from sam2.sam2_streamer import SAM2SymlinkStreamer
 
     
     # Setup device
@@ -186,7 +186,9 @@ if __name__ == "__main__":
     model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
     
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
-    
+    temp_folder_from_list = os.path.join(sam2_dir, "temp_sam2_symlink")
+
+
     # Change back to original directory
     os.chdir(original_dir)
 
@@ -197,6 +199,8 @@ if __name__ == "__main__":
                 config=config,
                 headless=args.headless)
     slam.set_viewer_scale(dataset.scale_viewer_3d)
+
+    slam.sam2_streamer = SAM2SymlinkStreamer(predictor, temp_folder_from_list)
     time.sleep(1) # to show initial messages 
     
     # load system state if requested         
@@ -241,7 +245,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-    starting_img_id = 280 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 200 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     img_id = starting_img_id
 
     # Set delaunay reference frame 
@@ -344,7 +348,7 @@ if __name__ == "__main__":
                             # log_mask_type("dynamic_mask_dilated", dynamic_mask)
                         """
                         
-
+                        
 
                         # curr_dense_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50, scale=depth_factor)
                         curr_dense_pc = depth2pointcloud_with_mask(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=dynamic_mask, scale=depth_factor)
@@ -475,17 +479,28 @@ if __name__ == "__main__":
                             shift_delaunay_ref, is_new_object_found = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
 
                             if is_new_object_found:
-                                # Propagate SAM2 masks to all the frames(inference is all frames in the map) in the map, and apply dynamic masks to those frames  - back propagation
-                                # Also forward propagate the masks to the next frame and save them 
+                
+                                print("New object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
+                                new_prompts = # TODO # Get prompts froms the new delaunay dynamic 
+                                # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
+                                # Else
+                                new_object_id = # TODO # Create a new unique id for the new dynamic object
+                                # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
+                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
                                 # reset the is_new_object_found flag to False
+
+
 
                             elif not is_new_object_found:
                                 # Propagate using only last few frames with their prompts and the next frame and also save the mask and objects information.
                                 # TODO
+                                # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
+                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
+                                print("No new object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
 
-                            ## TODO: Return the shift_delaunay_ref flag from computing the _update_graph_properties
-                            # print("Exiting for diagnostics")
-                            # sys.exit(0)
+                            
 
                             if False:
                                 # Skip iteration 

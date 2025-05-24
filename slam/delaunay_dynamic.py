@@ -556,7 +556,7 @@ class DelaunayDynamic:
                     print(f"Dynamic object {dynamic_object_id} created with {component.number_of_nodes()} nodes")
 
                     update_ref_frame_flag = True
-                    return update_ref_frame_flag
+                    return update_ref_frame_flag, is_new_object
                 else:
                     print(f"Dynamic object {dynamic_object_id} already exists, adding {component.number_of_nodes()} nodes")
                     update_ref_frame_flag = False      
