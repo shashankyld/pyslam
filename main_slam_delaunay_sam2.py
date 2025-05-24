@@ -170,7 +170,7 @@ if __name__ == "__main__":
     
     from sam2.build_sam import build_sam2_video_predictor
     from sam2_streaming.sam2_streaming import SAM2SymlinkStreamer
-
+    from sam2_streaming.sam2_streamer_utils import *
     
     # Setup device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -182,8 +182,8 @@ if __name__ == "__main__":
     os.chdir(sam2_dir)
     
     # Load SAM2 model
-    sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_tiny.pt")
-    model_cfg = "configs/sam2.1/sam2.1_hiera_t.yaml"
+    sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_small.pt")
+    model_cfg = "configs/sam2.1/sam2.1_hiera_s.yaml"
     
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
     temp_folder_from_list = os.path.join(sam2_dir, "temp_sam2_symlink")
@@ -476,19 +476,65 @@ if __name__ == "__main__":
                             delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.1, camera = camera, slam =slam)
                             ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
-                            shift_delaunay_ref, is_new_object_found = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
+                            shift_delaunay_ref, is_new_object_found, new_dynamic_object_id, new_object_prompts = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
 
-                            # if is_new_object_found:
+                            if is_new_object_found:
                 
-                            #     print("New object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
-                            #     new_prompts = # TODO # Get prompts froms the new delaunay dynamic 
-                            #     # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
-                            #     # Else
-                            #     new_object_id = # TODO # Create a new unique id for the new dynamic object
-                            #     # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
-                            #     # Update current frame, all key frames, and next frame with the new properties of dynamic objects
-                            #     # Set dynamic_mask using the dynamic objects combined mask of the next frame
-                            #     # reset the is_new_object_found flag to False
+                                print("New object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
+                                print("New dynamic object id: ", new_dynamic_object_id)
+                                print("New object prompts: ", new_object_prompts)
+                                with slam.map._lock:
+                                    # get keyframe ids + cur_frame.id + next frame id
+                                    sam2_run_ids = [kf.id for kf in slam.map.keyframes]
+                                    if cur_frame.id not in sam2_run_ids:
+                                        sam2_run_ids += [cur_frame.id, cur_frame.id + 1]  # Add the next frame id
+                                    else:
+                                        sam2_run_ids.append(cur_frame.id + 1)
+
+                                    # Add starting_img_id to all the ids
+                                    sam2_run_ids = [id + starting_img_id for id in sam2_run_ids]
+                                    print("SAM2 run ids: ", sam2_run_ids)
+                                
+                                dataset_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_person_tracking/rgb_jpg/"
+                                temp_folder = create_temp_symlink_folder_from_list_of_ids(dataset_path, sam2_run_ids)
+                                temp_frames = get_sam2_streamer_frames_from_sym_link(temp_folder)
+                                init_prompts = initialize_sam2_streamer_frames_prompts(temp_frames)
+                                print("Initial prompts: ", init_prompts)
+                                print(f"Temporary frames: {temp_frames}")
+                                print("New object prompts: ", new_object_prompts)
+                                # Combine the initial prompts with the new object prompts
+                                for frame_id, prompts in new_object_prompts.items():
+                                    if frame_id in init_prompts:
+                                        init_prompts[frame_id].update(prompts)
+                                    else:
+                                        init_prompts[frame_id] = prompts
+                                print("Combined prompts: ", init_prompts)
+                                # Results from SAM2 
+                                results = slam.sam2_streamer.update_symlinks(temp_frames, init_prompts)
+                                print("SAM2 results: ", results)
+                                # Visualize all the frames and the masks 
+                                for frame_id, result in results.items():
+                                        # Load the corresponding image
+                                    image_path = os.path.join(temp_folder, sorted(os.listdir(temp_folder))[frame_id])
+                                    image = cv2.imread(image_path)
+                                    if image is None:
+                                        raise FileNotFoundError(f"Image not found at {image_path}")
+                                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert to RGB if needed
+
+                                    # Convert results to a list of masks
+                                    masks = list(result.values())
+                                    
+                                    # Visualize the image and masks
+                                    visualize_results(image, masks)
+                                # End the program
+                                sys.exit(0)
+                                # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
+                                # Else
+                                # new_object_id = # TODO # Create a new unique id for the new dynamic object
+                                # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
+                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
+                                # reset the is_new_object_found flag to False
 
 
 

@@ -556,14 +556,24 @@ class DelaunayDynamic:
                     print(f"Dynamic object {dynamic_object_id} created with {component.number_of_nodes()} nodes")
 
                     update_ref_frame_flag = True
-                    return update_ref_frame_flag, is_new_object
+                    new_object_nodes = np.array(component.nodes)
+                    # get coordinates of the new object nodes
+                    new_object_coords   = m_kpts1_np[new_object_nodes]
+                    frame_id = cur_frame.id
+                    # Create new prompts for the dynamic object
+                    new_object_prompts = {frame_id: {dynamic_object_id: {
+                        "points": new_object_coords, 
+                        "labels": np.ones(new_object_coords.shape[0], dtype=int)  # All points are positive
+                    }}}
+                    # Prompts format :: {0:{1:{"points": np.array([[x1, y1], [x2, y2], ...]), "labels": np.array([label1, label2, ...])}}} # 0 is frame is, then 1 is object id and then coords, labels - 1 is positive, 0 is negative
+                    return update_ref_frame_flag, is_new_object, dynamic_object_id, new_object_prompts
                 else:
                     print(f"Dynamic object {dynamic_object_id} already exists, adding {component.number_of_nodes()} nodes")
                     update_ref_frame_flag = False      
 
         update_ref_frame_flag = self.update_ref_frame_flag(ref_id, cur_id)        
         is_new_object = False
-        return update_ref_frame_flag, is_new_object
+        return update_ref_frame_flag, is_new_object, None, None
     
     def _check_potential_dynamic_object_prompts(self, prompts):
         # If prompts lie on any of the self.dynamic_objects, add the prompts to associated objec with maximum prompts on it,  in the dynamic_objects list
@@ -588,6 +598,8 @@ class DelaunayDynamic:
         )
         self.dynamic_objects.append(new_dynamic_object)
         print(f"Created new dynamic object {dynamic_object_id} with {len(prompts)} prompts")
+        # Update the current frame with the new dynamic object
+        self.cur_frame.dynamic_objects = self.dynamic_objects
         return dynamic_object_id, True
 
         
