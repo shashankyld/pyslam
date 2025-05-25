@@ -550,7 +550,7 @@ class DelaunayDynamic:
         self.dynamic_objects_found = False
         for i, component in enumerate(connected_components):
             if component.number_of_nodes() >= self.min_points_for_dynamic_object:
-                dynamic_object_id, is_new_object = self._check_potential_dynamic_object_prompts(m_kpts1_np[component.nodes])
+                dynamic_object_id, is_new_object = self._check_potential_dynamic_object_prompts_robust(m_kpts1_np[component.nodes])
                 if is_new_object:
                     self.dynamic_objects_found = True
                     print(f"Dynamic object {dynamic_object_id} created with {component.number_of_nodes()} nodes")
@@ -602,6 +602,104 @@ class DelaunayDynamic:
         self.cur_frame.dynamic_objects = self.dynamic_objects
         return dynamic_object_id, True
 
+    def _check_potential_dynamic_object_prompts_robust(self, prompts):
+        """
+        Check if prompts belong to existing dynamic objects or should create a new one.
+        Uses mask dilation to improve matching and handles edge cases better.
+        
+        Args:
+            prompts: Numpy array of shape (N, 2) with (x, y) coordinates
+            
+        Returns:
+            dynamic_object_id: ID of the object the prompts belong to
+            is_new: Boolean indicating if a new object was created
+        """
+        # Skip if no prompts provided
+        if len(prompts) == 0:
+            print("No prompts provided, cannot check for dynamic objects")
+            return None, False
+        
+        # Early return if no dynamic objects exist yet
+        if not self.dynamic_objects:
+            # Create first dynamic object
+            dynamic_object_id = np.random.randint(1000000, 9999999)
+            new_dynamic_object = DynamicObject(
+                id=dynamic_object_id,
+                prompts=prompts.tolist(),  # Convert to list for JSON serialization
+                mask=self.dynamic_mask if self.dynamic_mask is not None else None
+            )
+            self.dynamic_objects.append(new_dynamic_object)
+            print(f"Created first dynamic object {dynamic_object_id} with {len(prompts)} prompts")
+            self.cur_frame.dynamic_objects = self.dynamic_objects
+            return dynamic_object_id, True
+        
+        # Create a map to track overlap counts for each object
+        object_overlap_counts = {}
+        
+        # Create a dilated version of each mask to improve matching
+        kernel = np.ones((5, 5), np.uint8)
+        
+
+
+
+
+        # Check each dynamic object for prompt overlaps
+        for dynamic_object in self.dynamic_objects:
+            if dynamic_object.mask is not None:
+                # Create dilated mask
+                dilated_mask = cv2.dilate(dynamic_object.mask.astype(np.uint8), kernel, iterations=3)
+                
+                # Count how many prompts overlap with this object's dilated mask
+                prompt_points_y = prompts[:, 1].astype(int)
+                prompt_points_x = prompts[:, 0].astype(int)
+                
+                # Clip coordinates to prevent out-of-bounds indexing
+                valid_indices = (
+                    (prompt_points_y >= 0) &
+                    (prompt_points_y < dilated_mask.shape[0]) &
+                    (prompt_points_x >= 0) &
+                    (prompt_points_x < dilated_mask.shape[1])
+                )
+                
+                if np.any(valid_indices):
+                    valid_y = prompt_points_y[valid_indices]
+                    valid_x = prompt_points_x[valid_indices]
+                    
+                    # Count overlapping prompts for this object
+                    overlap_count = np.sum(dilated_mask[valid_y, valid_x] > 0)
+                    
+                    if overlap_count > 0:
+                        object_overlap_counts[dynamic_object.id] = overlap_count
+                        print(f"Found {overlap_count} overlapping prompts for object {dynamic_object.id}")
+
+                        import sys
+                        sys.exit(0)
+        # If any overlaps found, add prompts to the object with the most overlaps
+        if object_overlap_counts:
+            # Find object with maximum overlap
+            best_object_id = max(object_overlap_counts, key=object_overlap_counts.get)
+            overlap_count = object_overlap_counts[best_object_id]
+            
+            # Find the dynamic object with this ID
+            for dynamic_object in self.dynamic_objects:
+                if dynamic_object.id == best_object_id:
+                    # Add the prompts to the dynamic object
+                    dynamic_object.prompts.extend(prompts.tolist())
+                    print(f"Added {len(prompts)} prompts to existing dynamic object {dynamic_object.id} with {overlap_count} overlaps")
+                    return dynamic_object.id, False
+        
+        # If no existing dynamic object has the prompts or no overlaps found, create a new one
+        dynamic_object_id = np.random.randint(1000000, 9999999)
+        new_dynamic_object = DynamicObject(
+            id=dynamic_object_id,
+            prompts=prompts.tolist(),  # Convert to list for JSON serialization
+            mask=self.dynamic_mask if self.dynamic_mask is not None else None
+        )
+        self.dynamic_objects.append(new_dynamic_object)
+        print(f"Created new dynamic object {dynamic_object_id} with {len(prompts)} prompts")
+        # Update the current frame with the new dynamic object
+        self.cur_frame.dynamic_objects = self.dynamic_objects
+        return dynamic_object_id, True
         
         
 

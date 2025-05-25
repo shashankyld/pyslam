@@ -551,20 +551,22 @@ if __name__ == "__main__":
 
                                     dynamic_obj_masks, dynamic_mask = slam.sam2_streamer.get_next_frame_dynamic_mask(results)
                                 
-                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
-                                # reset the is_new_object_found flag to False
-
+                                is_new_object_found = False
+                                print("New dynamic objects added to the current frame and all the key frames")
 
 
                             elif not is_new_object_found:
-                                # Propagate using only last few frames with their prompts and the next frame and also save the mask and objects information.
-                                # TODO
+                                # Propagate using only last few key frames frames and current frame and the next frame and also save the mask and objects information.
                                 # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
-                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
-                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
-                                print("No new object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
+                                # Update current frame, all key frames, with the new properties of dynamic objects
+                                # Extract the next frame mask from the sam2 propagation results
+                                # Set dynamic_mask using the dynamic objects combined mask of the next frame - maybe propagate only to the front and not backwards
+                                print("No new object found, propagating SAM2 masks to the next frames in the map and applying dynamic masks to those frames")
 
-                            
+
+                            # # Log dynamic mask 
+                            # if not args.headless:
+                            #     log_mask_type("Next frame dynamic_mask", dynamic_mask)
 
                             if False:
                                 # Skip iteration 
