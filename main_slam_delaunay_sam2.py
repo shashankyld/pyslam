@@ -245,7 +245,7 @@ if __name__ == "__main__":
     num_frames = 0
 
     rr.set_time_seconds("frame_timestamp", 0)
-    starting_img_id = 200 #210, 340, 400, 770   # you can start from a desired frame id if needed 
+    starting_img_id = 0 #210, 340, 400, 770   # you can start from a desired frame id if needed 
     img_id = starting_img_id
 
     # Set delaunay reference frame 
@@ -253,7 +253,7 @@ if __name__ == "__main__":
     slam.delaunay_ref_f = starting_img_id
 
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
-    end_img_id =350
+    end_img_id =480
 
     sam2_pivot_end = slam.sam2_num_frames_to_propagate_backwards
     
@@ -438,6 +438,7 @@ if __name__ == "__main__":
 
 
                         if img_id > starting_img_id+2:
+                        # if False: 
                             
                             
                             # Assert img id of slam.map.get_frame(-1) == img_id, if not exception
@@ -473,15 +474,15 @@ if __name__ == "__main__":
                             k_frames_away_frame.print_frame_stats(entity="k_frames_away")
                             
                             ## Checking the new class
-                            delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.1, camera = camera, slam =slam)
+                            delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.3, camera = camera, slam =slam)
                             ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
                             shift_delaunay_ref, is_new_object_found, new_dynamic_object_id, new_object_prompts = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
 
                             dataset_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_person_tracking/rgb_jpg/"
 
-                            if slam.atleast_one_object_found:
-                                is_new_object_found = False
+                            # if slam.atleast_one_object_found:
+                            #     is_new_object_found = False
 
                             if is_new_object_found:
                 
@@ -501,6 +502,7 @@ if __name__ == "__main__":
                                     else:
                                         print("Current frame id already in keyframe ids, adding next frame id")
                                         sam2_run_ids.append(cur_frame.id + 1)
+                                        
 
                                     # Add starting_img_id to all the ids
                                     sam2_run_ids = [id + starting_img_id for id in sam2_run_ids]
