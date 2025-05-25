@@ -547,10 +547,10 @@ if __name__ == "__main__":
                                     # Iterate through all kfs and current frame and the next frame and update its dynamic objects
                                     # First update current frame - dynamci objects 
                                     # log cur_frame_dynamic_mask before updating
-                                    log_mask_type("Current frame dynamic_mask before update", cur_frame.dynamic_objects.get_combined_mask())
+                                    # log_mask_type("Current frame dynamic_mask before update", cur_frame.dynamic_objects.get_combined_mask())
                                     cur_frame.dynamic_objects.update_from_sam2_results(results, sam2_run_ids)
                                     cur_frame.set_dynamic_objects(cur_frame.dynamic_objects)
-                                    log_mask_type("Current frame dynamic_mask after update", cur_frame.dynamic_objects.get_combined_mask())
+                                    # log_mask_type("Current frame dynamic_mask after update", cur_frame.dynamic_objects.get_combined_mask())
 
                                     dynamic_obj_masks, dynamic_mask = slam.sam2_streamer.get_next_frame_dynamic_mask(results)
                                     # Dilate the dynamic mask to make it more robust
@@ -567,8 +567,8 @@ if __name__ == "__main__":
                                         kf.set_dynamic_objects(kf.dynamic_objects)
                                         kf.apply_dynamic_mask(kf.dynamic_mask)
                                         # Log dynamic mask of the keyframe with its id as the entity path
-                                        log_mask_type(f"Keyframe {kf.id} dynamic_mask", kf.dynamic_objects.get_combined_mask())
-                                        log_mask_type(f"Keyframe {kf.id} dynamic_mask_dilated", kf.dynamic_mask)
+                                        # log_mask_type(f"Keyframe {kf.id} dynamic_mask", kf.dynamic_objects.get_combined_mask())
+                                        # log_mask_type(f"Keyframe {kf.id} dynamic_mask_dilated", kf.dynamic_mask)
 
                                     # sys.exit(0)  # Exit the program after processing the new dynamic object
 

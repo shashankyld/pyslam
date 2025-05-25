@@ -77,7 +77,7 @@ class DynamicObjects:
 
         # Dilate the combined mask to fill in gaps
         kernel = np.ones((5, 5), np.uint8)
-        self.combined_mask = cv2.dilate(self.combined_mask, kernel, iterations=5)
+        self.combined_mask = cv2.dilate(self.combined_mask, kernel, iterations=2)
 
         return self.combined_mask
     
