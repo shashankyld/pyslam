@@ -448,7 +448,7 @@ if __name__ == "__main__":
                                 
                             # Get the frame from k_frames_away
 
-                            delaunay_ref_id = -k_frames_away+1
+                            delaunay_ref_id = -k_frames_away+ 1
                             delaunay_cur_id = -1
 
                             k_frames_away_frame = slam.map.get_frame(delaunay_ref_id)
@@ -498,6 +498,8 @@ if __name__ == "__main__":
                                     sam2_run_ids = [id + starting_img_id for id in sam2_run_ids]
                                     # Also add the frames in the sam2_frame_object_dict - keys 
                                     sam2_run_ids += list(slam.sam2_frame_object_dict.keys())
+                                    # Sort the run ids
+                                    sam2_run_ids = sorted(set(sam2_run_ids))  # Remove duplicates and sort
                                     print("SAM2 run ids: ", sam2_run_ids)
                                 
                                 dataset_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_person_tracking/rgb_jpg/"
@@ -539,22 +541,28 @@ if __name__ == "__main__":
                                 # End the program
                                 # sys.exit(0)
                                 # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
-                                # Else
-                                # new_object_id = # TODO # Create a new unique id for the new dynamic object
-                                # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
-                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                                
+                                #Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                                with slam.map._lock:
+                                    # Iterate through all kfs and current frame and the next frame and update its dynamic objects
+                                    # First update current frame - dynamci objects 
+                                    cur_frame.dynamic_objects.update_from_sam2_results(results, sam2_run_ids)
+                                    cur_frame.set_dynamic_objects(cur_frame.dynamic_objects)
+
+                                    dynamic_obj_masks, dynamic_mask = slam.sam2_streamer.get_next_frame_dynamic_mask(results)
+                                
                                 # Set dynamic_mask using the dynamic objects combined mask of the next frame
                                 # reset the is_new_object_found flag to False
 
 
 
-                            # elif not is_new_object_found:
-                            #     # Propagate using only last few frames with their prompts and the next frame and also save the mask and objects information.
-                            #     # TODO
-                            #     # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
-                            #     # Update current frame, all key frames, and next frame with the new properties of dynamic objects
-                            #     # Set dynamic_mask using the dynamic objects combined mask of the next frame
-                            #     print("No new object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
+                            elif not is_new_object_found:
+                                # Propagate using only last few frames with their prompts and the next frame and also save the mask and objects information.
+                                # TODO
+                                # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
+                                # Update current frame, all key frames, and next frame with the new properties of dynamic objects
+                                # Set dynamic_mask using the dynamic objects combined mask of the next frame
+                                print("No new object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
 
                             
 
