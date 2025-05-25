@@ -104,7 +104,7 @@ class Slam(object):
         self.delaunay_ref_f = None
         self.sam2_num_frames_to_propagate_backwards = 8
         self.sam2_num_frames_to_propagate_forwards = 1
-
+        self.atleast_one_object_found = False
         self.feature_tracker = None
         self.init_feature_tracker(feature_tracker_config)
         self.sam2_streamer = None  # used for SAM2 streaming, if needed

@@ -478,6 +478,11 @@ if __name__ == "__main__":
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
                             shift_delaunay_ref, is_new_object_found, new_dynamic_object_id, new_object_prompts = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
 
+                            dataset_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_person_tracking/rgb_jpg/"
+
+                            if slam.atleast_one_object_found:
+                                is_new_object_found = False
+
                             if is_new_object_found:
                 
                                 print("New object found, propagating SAM2 masks to all frames in the map and applying dynamic masks to those frames")
@@ -486,6 +491,9 @@ if __name__ == "__main__":
                                 with slam.map._lock:
                                     # get keyframe ids + cur_frame.id + next frame id
                                     sam2_run_ids = [kf.id for kf in slam.map.keyframes]
+                                    # Sort and only pick the last 5 keyframes
+                                    sam2_run_ids = sorted(sam2_run_ids)
+                                    sam2_run_ids = sam2_run_ids[-5:]  # Get the last 5 keyframes
                                     print("Keyframe ids: ", sam2_run_ids)
                                     if cur_frame.id not in sam2_run_ids:
                                         print("Current frame id not in keyframe ids, adding it")
@@ -502,7 +510,6 @@ if __name__ == "__main__":
                                     sam2_run_ids = sorted(set(sam2_run_ids))  # Remove duplicates and sort
                                     print("SAM2 run ids: ", sam2_run_ids)
                                 
-                                dataset_path = "/home/shashank/Documents/UniBonn/Sem4/ThesisPrep/pyslam/data/TUM/rgbd_bonn_person_tracking/rgb_jpg/"
                                 temp_folder = create_temp_symlink_folder_from_list_of_ids(dataset_path, sam2_run_ids)
                                 temp_frames = get_sam2_streamer_frames_from_sym_link(temp_folder)
                                 init_prompts = initialize_sam2_streamer_frames_prompts(temp_frames)
@@ -537,7 +544,8 @@ if __name__ == "__main__":
                                     masks = list(result.values())
                                     
                                     # Visualize the image and masks
-                                    visualize_results(image, masks)
+                                    # visualize_results(image, masks)
+
                                 # End the program
                                 # sys.exit(0)
                                 # Check if these prompts lie on the mask of any of the propagated dynamic objects, if so, add these prompts to the same dynamic object
@@ -573,23 +581,77 @@ if __name__ == "__main__":
                                     # sys.exit(0)  # Exit the program after processing the new dynamic object
 
                                         
-
+                                slam.atleast_one_object_found = True
                                 is_new_object_found = False
                                 print("New dynamic objects added to the current frame and all the key frames")
 
+                            
 
-                            elif not is_new_object_found:
+                            elif is_new_object_found == False and slam.atleast_one_object_found:
                                 # Propagate using only last few key frames frames and current frame and the next frame and also save the mask and objects information.
                                 # Get all keyframe ids, add this current_frame_id and the next frame id to a list and then run SAM2 Propagation
                                 # Update current frame, all key frames, with the new properties of dynamic objects
                                 # Extract the next frame mask from the sam2 propagation results
                                 # Set dynamic_mask using the dynamic objects combined mask of the next frame - maybe propagate only to the front and not backwards
                                 print("No new object found, propagating SAM2 masks to the next frames in the map and applying dynamic masks to those frames")
-
-
-                            # # Log dynamic mask 
-                            # if not args.headless:
-                            #     log_mask_type("Next frame dynamic_mask", dynamic_mask)
+                                with slam.map._lock:
+                                    # get keyframe ids + cur_frame.id + next frame id
+                                    sam2_run_ids = [kf.id for kf in slam.map.keyframes]
+                                    # Sort and only pick the last 5 keyframes
+                                    sam2_run_ids = sorted(sam2_run_ids)
+                                    sam2_run_ids = sam2_run_ids[-5:]  # Get the last 5 keyframes
+                                    print("Keyframe ids: ", sam2_run_ids)
+                                    if cur_frame.id not in sam2_run_ids:
+                                        print("Current frame id not in keyframe ids, adding it")
+                                        sam2_run_ids += [cur_frame.id, cur_frame.id + 1]
+                                    else:
+                                        print("Current frame id already in keyframe ids, adding next frame id")
+                                        sam2_run_ids.append(cur_frame.id + 1)
+                                    # Add starting_img_id to all the ids
+                                    sam2_run_ids = [id + starting_img_id for id in sam2_run_ids]
+                                    # Also add the frames in the sam2_frame_object_dict - keys
+                                    sam2_run_ids += list(slam.sam2_frame_object_dict.keys())
+                                    # Sort the run ids
+                                    sam2_run_ids = sorted(set(sam2_run_ids))  # Remove duplicates and sort
+                                    print("SAM2 run ids: ", sam2_run_ids)
+                                temp_folder = create_temp_symlink_folder_from_list_of_ids(dataset_path, sam2_run_ids)
+                                temp_frames = get_sam2_streamer_frames_from_sym_link(temp_folder)
+                                init_prompts = initialize_sam2_streamer_frames_prompts(temp_frames)
+                                print("Initial prompts: ", init_prompts)
+                                # Results from SAM2
+                                # slam.sam2_frame_object_dict  add {frame_id: {object_id: {points: np.array([[x, y]], dtype=np.float32), labels: np.array([1], dtype=np.int32)}}}
+                                results = slam.sam2_streamer.update_symlinks(temp_frames, init_prompts, only_forward=True)
+                                print("SAM2 results: ", results)
+                                # sys.exit(0)
+                                # Visualize all the frames and the masks
+                                for frame_id, result in results.items():
+                                    # Load the corresponding image
+                                    image_path = os.path.join(temp_folder, sorted(os.listdir(temp_folder))[frame_id])
+                                    image = cv2.imread(image_path)
+                                    if image is None:
+                                        raise FileNotFoundError(f"Image not found at {image_path}")
+                                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                                    # Convert results to a list of masks
+                                    masks = list(result.values())
+                                    # Visualize the image and masks
+                                    # visualize_results(image, masks)
+                                # End the program
+                                # sys.exit(0)
+                                # Update current frame and next frame with the new properties of dynamic objects - dont update keyframes since no new object was found
+                                with slam.map._lock:
+                                    # Update current frame dynamic objects
+                                    cur_frame.dynamic_objects.update_from_sam2_results(results, sam2_run_ids)
+                                    cur_frame.set_dynamic_objects(cur_frame.dynamic_objects)
+                                    # Get the next frame dynamic mask from the results
+                                    dynamic_obj_masks, dynamic_mask = slam.sam2_streamer.get_next_frame_dynamic_mask(results)
+                                    # Dilate the dynamic mask to make it more robust
+                                    kernel = np.ones((5, 5), np.uint8)
+                                    dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
+                                    
+                            # Log dynamic mask 
+                            if not args.headless:
+                                log_mask_type("Reference frame dynamic_mask", k_frames_away_frame.dynamic_mask)
+                                log_mask_type("Next frame dynamic_mask", dynamic_mask)
 
                             if False:
                                 # Skip iteration 
