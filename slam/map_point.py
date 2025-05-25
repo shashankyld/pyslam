@@ -220,8 +220,9 @@ class MapPointBase(object):
             else:
                 return False                 
 
-    def remove_frame_view(self, frame, idx=None): 
-        assert(not frame.is_keyframe)        
+    def remove_frame_view(self, frame, idx=None, even_from_keyframe=False): 
+        if not even_from_keyframe:
+            assert(not frame.is_keyframe)        
         with self._lock_features:
             # remove point from frame     
             if idx is not None:

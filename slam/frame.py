@@ -654,7 +654,7 @@ class Frame(FrameBase):
                             num_map_points_removed += 1
                         else:  # Uncertain dynamic: only remove frame view
                             with point._lock_features:
-                                point.remove_frame_view(self, idx)
+                                point.remove_frame_view(self, idx, even_from_keyframe=True)
                             num_map_points_removed += 1
             else:
                 num_map_points_removed = 0
@@ -692,9 +692,9 @@ class Frame(FrameBase):
             print(f"Remaining {num_map_points_remaining} map points after applying dynamic mask.")
             print(f"Removed {num_map_points_removed} map points due to dynamic mask.")
             print(f"Removed {num_confident_map_points_removed} confidently dynamic map points (deleted entirely).")
-            # Exception error for proof: num_confident_map_points_removed > 0
-            if num_confident_map_points_removed > 0:
-                raise Exception(f"Removed {num_confident_map_points_removed} confidently dynamic map points (deleted entirely).")
+            # # Exception error for proof: num_confident_map_points_removed > 0
+            # if num_confident_map_points_removed > 0:
+            #     raise Exception(f"Removed {num_confident_map_points_removed} confidently dynamic map points (deleted entirely).")
                 
     def set_img_right(self, img_right): 
         self.img_right = img_right.copy()

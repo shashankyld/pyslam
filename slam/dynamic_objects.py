@@ -143,7 +143,7 @@ class DynamicObjects:
             sam2_results: Dictionary mapping SAM2 frame indices to object masks
                 {sam2_frame_idx: {obj_id: binary_mask, ...}, ...}
             sam2_run_ids: Mapping between SAM2 indices and actual frame IDs
-                {sam2_frame_idx: actual_frame_id, ...}
+                [frame_id1, frame_id2, ...]
                 
         This method updates objects only for the matching frame_id.
         """
@@ -156,47 +156,57 @@ class DynamicObjects:
             return
             
         for sam2_run_frame_idx, frame_results in sam2_results.items():
-            if self.frame_img_id == sam2_run_ids[sam2_run_frame_idx]:
+            if sam2_run_frame_idx < len(sam2_run_ids) and self.frame_img_id == sam2_run_ids[sam2_run_frame_idx]:
+                print(f"Found matching frame {self.frame_img_id} at SAM2 index {sam2_run_frame_idx}")
                 for obj_id, binary_mask in frame_results.items():
-                    # Convert mask to correct format if needed
-                    if binary_mask.dtype != np.uint8:
-                        mask = binary_mask.astype(np.uint8) * 255
-                    else:
-                        mask = binary_mask
+                    try:
+                        # Convert mask to correct format if needed
+                        if binary_mask.dtype != np.uint8:
+                            mask = binary_mask.astype(np.uint8) * 255
+                        else:
+                            mask = binary_mask
                         
-                    # Ensure mask has correct dimensions
-                    if mask.shape != self.mask_size:
-                        try:
-                            # Debug info
-                            print(f"Resizing mask from {mask.shape} to {self.mask_size}")
-                            print(f"Resize dimensions: width={self.mask_size[1]}, height={self.mask_size[0]}")
-                            
+                        # Handle 3D masks - squeeze out singleton dimensions
+                        if len(mask.shape) == 3 and mask.shape[0] == 1:
+                            mask = mask[0]  # Remove the first singleton dimension
+                        
+                        print(f"Processing mask for object {obj_id}, shape after squeeze: {mask.shape}")
+                        
+                        # Now ensure mask has correct dimensions
+                        if mask.shape != self.mask_size:
                             # Validate dimensions before resizing
                             if self.mask_size[0] > 0 and self.mask_size[1] > 0:
+                                print(f"Resizing mask from {mask.shape} to {self.mask_size}")
                                 mask = cv2.resize(mask, (self.mask_size[1], self.mask_size[0]), 
                                                 interpolation=cv2.INTER_NEAREST)
                             else:
                                 print(f"Error: Cannot resize to invalid dimensions: {self.mask_size}")
                                 continue
-                        except Exception as e:
-                            print(f"Error resizing mask: {e}")
-                            continue
+                        
+                        # Update existing object or create new one
+                        if obj_id in self.objects:
+                            # Update existing object
+                            self.objects[obj_id].mask = mask
+                            print(f"Updated object {obj_id}, mask shape: {mask.shape}")
+                        else:
+                            # Create new object with empty prompts list
+                            new_obj = DynamicObject(id=obj_id, prompts=[], mask=mask)
+                            self.add_object(new_obj)
+                            print(f"Created new object {obj_id}, mask shape: {mask.shape}")
                     
-                    # Update existing object or create new one
-                    if obj_id in self.objects:
-                        # Update existing object
-                        self.objects[obj_id].mask = mask
-                    else:
-                        # Create new object with empty prompts list
-                        new_obj = DynamicObject(id=obj_id, prompts=[], mask=mask)
-                        self.add_object(new_obj)
+                    except Exception as e:
+                        print(f"Error processing mask for object {obj_id}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        continue
                 
                 # Reset combined mask since objects were updated
                 self.combined_mask = None
                 self.combined_prompts = []
                 
                 # Regenerate combined mask immediately
-                self.get_combined_mask()
+                combined_mask = self.get_combined_mask()
+                print(f"Combined mask updated, shape: {combined_mask.shape}, max value: {np.max(combined_mask)}")
                 
                 # We found the matching frame, so we can stop
                 break
