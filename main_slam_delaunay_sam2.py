@@ -69,7 +69,7 @@ from datetime import datetime
 import traceback
 
 import argparse
-
+import sys
 
 datetime_string = datetime.now().strftime("%Y%m%d_%H%M%S")
 k_num_resample_prompts = 20
@@ -522,7 +522,7 @@ if __name__ == "__main__":
                                 # Results from SAM2 
                                 # slam.sam2_frame_object_dict  add {frame_id: {object_id: {points: np.array([[x, y]], dtype=np.float32), labels: np.array([1], dtype=np.int32)}}}
                                 slam.sam2_frame_object_dict[img_id] = {new_dynamic_object_id: {'points': np.array([[0, 0]], dtype=np.float32), 'labels': np.array([1], dtype=np.int32)}}
-                                results = slam.sam2_streamer.update_symlinks(temp_frames, init_prompts)
+                                results = slam.sam2_streamer.update_symlinks(temp_frames, init_prompts, only_forward = False)
                                 print("SAM2 results: ", results)
                                 # Visualize all the frames and the masks 
                                 for frame_id, result in results.items():
@@ -546,11 +546,34 @@ if __name__ == "__main__":
                                 with slam.map._lock:
                                     # Iterate through all kfs and current frame and the next frame and update its dynamic objects
                                     # First update current frame - dynamci objects 
+                                    # log cur_frame_dynamic_mask before updating
+                                    log_mask_type("Current frame dynamic_mask before update", cur_frame.dynamic_objects.get_combined_mask())
                                     cur_frame.dynamic_objects.update_from_sam2_results(results, sam2_run_ids)
                                     cur_frame.set_dynamic_objects(cur_frame.dynamic_objects)
+                                    log_mask_type("Current frame dynamic_mask after update", cur_frame.dynamic_objects.get_combined_mask())
 
                                     dynamic_obj_masks, dynamic_mask = slam.sam2_streamer.get_next_frame_dynamic_mask(results)
-                                
+                                    # Dilate the dynamic mask to make it more robust
+                                    kernel = np.ones((5, 5), np.uint8)
+                                    dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
+                                    # Get the keyframes and update their dynamic objects and also apply the combined mask so we can remove map points
+                                    for kf in slam.map.keyframes:
+                                        print("trying to update keyframe: ", kf.id)
+                                        print("trying to update dynamic objects of keyframe: ", kf.img_id)
+                                        print("Sam2 run ids: ", sam2_run_ids)
+                                        kf.dynamic_objects.update_from_sam2_results(results, sam2_run_ids)
+                                        print("Updated dynamic objects of keyframe items: ", kf.dynamic_objects)
+                                        
+                                        kf.set_dynamic_objects(kf.dynamic_objects)
+                                        kf.apply_dynamic_mask(kf.dynamic_mask)
+                                        # Log dynamic mask of the keyframe with its id as the entity path
+                                        log_mask_type(f"Keyframe {kf.id} dynamic_mask", kf.dynamic_objects.get_combined_mask())
+                                        log_mask_type(f"Keyframe {kf.id} dynamic_mask_dilated", kf.dynamic_mask)
+
+                                    # sys.exit(0)  # Exit the program after processing the new dynamic object
+
+                                        
+
                                 is_new_object_found = False
                                 print("New dynamic objects added to the current frame and all the key frames")
 

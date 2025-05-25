@@ -17,6 +17,7 @@ class DynamicObject:
         self.prompts = prompts
         self.mask = mask
         self.frame_id = None  # To track the frame in which this object was detected
+        self.frame_img_id = None  # To track the image ID of the frame
         self.frame = None
 class DynamicObjects:
     def __init__(self, mask_size=(480, 640)):
@@ -25,6 +26,7 @@ class DynamicObjects:
         self.combined_prompts = []
         self.mask_size = mask_size
         self.frame_id = None
+        self.frame_img_id = None
         self.frame = None
         
     def __iter__(self):
@@ -42,6 +44,10 @@ class DynamicObjects:
     def add_object(self, dynamic_object):
         if dynamic_object.id not in self.objects:
             self.objects[dynamic_object.id] = dynamic_object
+            # Sync frame data with DynamicObjects collection
+            dynamic_object.frame_id = self.frame_id
+            dynamic_object.frame_img_id = self.frame_img_id
+            dynamic_object.frame = self.frame
         else:
             # Update the existing object instead of raising an error
             # Merge prompts and update mask if needed
@@ -49,6 +55,10 @@ class DynamicObjects:
             existing_obj.prompts.extend(dynamic_object.prompts)
             if dynamic_object.mask is not None:
                 existing_obj.mask = dynamic_object.mask
+            # Ensure frame info is consistently updated
+            existing_obj.frame_id = self.frame_id
+            existing_obj.frame_img_id = self.frame_img_id
+            existing_obj.frame = self.frame
 
     def remove_object(self, id):
         if id in self.objects:
@@ -68,6 +78,7 @@ class DynamicObjects:
         # Dilate the combined mask to fill in gaps
         kernel = np.ones((5, 5), np.uint8)
         self.combined_mask = cv2.dilate(self.combined_mask, kernel, iterations=5)
+
         return self.combined_mask
     
     def get_combined_prompts(self):
@@ -76,7 +87,7 @@ class DynamicObjects:
                 self.combined_prompts.extend(obj.prompts)
         return self.combined_prompts
 
-    def update_from_sam2_results(self, sam2_results, sam2_run_ids):
+    def update_from_sam2_results_back(self, sam2_results, sam2_run_ids):
         """
         Update dynamic objects from SAM2 segmentation results.
         
@@ -92,7 +103,7 @@ class DynamicObjects:
             return
             
         for sam2_run_frame_idx, frame_results in sam2_results.items():
-            if self.frame_id == sam2_run_ids[sam2_run_frame_idx]:
+            if self.frame_img_id == sam2_run_ids[sam2_run_frame_idx]:
                 for obj_id, binary_mask in frame_results.items():
                     # Convert mask to correct format if needed
                     if binary_mask.dtype != np.uint8:
@@ -124,6 +135,72 @@ class DynamicObjects:
                 # We found the matching frame, so we can stop
                 break
 
+    def update_from_sam2_results(self, sam2_results, sam2_run_ids):
+        """
+        Update dynamic objects from SAM2 segmentation results.
+        
+        Args:
+            sam2_results: Dictionary mapping SAM2 frame indices to object masks
+                {sam2_frame_idx: {obj_id: binary_mask, ...}, ...}
+            sam2_run_ids: Mapping between SAM2 indices and actual frame IDs
+                {sam2_frame_idx: actual_frame_id, ...}
+                
+        This method updates objects only for the matching frame_id.
+        """
+        if not sam2_results or not sam2_run_ids:
+            return
+            
+        # Ensure we have valid mask dimensions
+        if self.mask_size is None or self.mask_size[0] <= 0 or self.mask_size[1] <= 0:
+            print(f"Warning: Invalid mask_size: {self.mask_size}, skipping update")
+            return
+            
+        for sam2_run_frame_idx, frame_results in sam2_results.items():
+            if self.frame_img_id == sam2_run_ids[sam2_run_frame_idx]:
+                for obj_id, binary_mask in frame_results.items():
+                    # Convert mask to correct format if needed
+                    if binary_mask.dtype != np.uint8:
+                        mask = binary_mask.astype(np.uint8) * 255
+                    else:
+                        mask = binary_mask
+                        
+                    # Ensure mask has correct dimensions
+                    if mask.shape != self.mask_size:
+                        try:
+                            # Debug info
+                            print(f"Resizing mask from {mask.shape} to {self.mask_size}")
+                            print(f"Resize dimensions: width={self.mask_size[1]}, height={self.mask_size[0]}")
+                            
+                            # Validate dimensions before resizing
+                            if self.mask_size[0] > 0 and self.mask_size[1] > 0:
+                                mask = cv2.resize(mask, (self.mask_size[1], self.mask_size[0]), 
+                                                interpolation=cv2.INTER_NEAREST)
+                            else:
+                                print(f"Error: Cannot resize to invalid dimensions: {self.mask_size}")
+                                continue
+                        except Exception as e:
+                            print(f"Error resizing mask: {e}")
+                            continue
+                    
+                    # Update existing object or create new one
+                    if obj_id in self.objects:
+                        # Update existing object
+                        self.objects[obj_id].mask = mask
+                    else:
+                        # Create new object with empty prompts list
+                        new_obj = DynamicObject(id=obj_id, prompts=[], mask=mask)
+                        self.add_object(new_obj)
+                
+                # Reset combined mask since objects were updated
+                self.combined_mask = None
+                self.combined_prompts = []
+                
+                # Regenerate combined mask immediately
+                self.get_combined_mask()
+                
+                # We found the matching frame, so we can stop
+                break
+
     def copy(self):
         """
         Create a deep copy of the DynamicObjects instance using deepcopy.
@@ -132,3 +209,13 @@ class DynamicObjects:
             A new DynamicObjects instance with copies of all objects.
         """
         return deepcopy(self)
+    
+    # Create a print method for debugging
+    def __str__(self):
+        """String representation for debugging. Also print the mask completely."""
+        object_info = [f"ID: {obj.id}, Prompts: {len(obj.prompts)}, Mask shape: {obj.mask.shape}" 
+                       for obj in self.objects.values()]
+        return f"DynamicObjects with {len(self.objects)} objects:\n" + "\n".join(object_info)
+    def __repr__(self):
+        """String representation for debugging."""
+        return self.__str__()
