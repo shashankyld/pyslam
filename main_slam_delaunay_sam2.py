@@ -182,8 +182,8 @@ if __name__ == "__main__":
     os.chdir(sam2_dir)
     
     # Load SAM2 model
-    sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_small.pt")
-    model_cfg = "configs/sam2.1/sam2.1_hiera_s.yaml"
+    sam2_checkpoint = os.path.join("checkpoints", "sam2.1_hiera_large.pt")
+    model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
     
     predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint, device=device)
     temp_folder_from_list = os.path.join(sam2_dir, "temp_sam2_symlink")
@@ -199,6 +199,7 @@ if __name__ == "__main__":
                 config=config,
                 headless=args.headless)
     slam.set_viewer_scale(dataset.scale_viewer_3d)
+    delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.3, camera = camera, slam =slam)
 
     slam.sam2_streamer = SAM2SymlinkStreamer(predictor, temp_folder_from_list)
     time.sleep(1) # to show initial messages 
@@ -437,7 +438,7 @@ if __name__ == "__main__":
 
 
 
-                        if img_id > starting_img_id+2:
+                        if img_id > starting_img_id+40:
                         # if False: 
                             
                             
@@ -474,8 +475,7 @@ if __name__ == "__main__":
                             k_frames_away_frame.print_frame_stats(entity="k_frames_away")
                             
                             ## Checking the new class
-                            delaunay_dynamic = DelaunayDynamic(num_features = 1000, effective_distance_threshold = 0.3, camera = camera, slam =slam)
-                            ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
+                            # ref_feat, cur_feat, m_kpts0, m_kpts1, matches = delaunay_dynamic._extract_and_match_features(delaunay_ref_id, delaunay_cur_id)
                             # delaunay_dynamic._apply_delaunay_triangulation_and_get_graph(k_frames_away_frame, cur_frame, dynamic_mask)
                             shift_delaunay_ref, is_new_object_found, new_dynamic_object_id, new_object_prompts = delaunay_dynamic._update_graph_properties(delaunay_ref_id, delaunay_cur_id)
 

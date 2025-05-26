@@ -26,9 +26,10 @@ import sys
 # Here 
 # ref_id = -k_frames_away+1 usually
 # cur_id = -1
-
+import logging
+logging.basicConfig(level=logging.INFO)
 class DelaunayDynamic:
-    def __init__(self, num_features = 1000, effective_distance_threshold = 0.2, camera = None, slam = None):
+    def __init__(self, num_features = 1000, effective_distance_threshold = 0.25, camera = None, slam = None):
         self.num_features = num_features
         self.effective_distance_threshold = effective_distance_threshold
         self.dynamic_objects = DynamicObjects()
@@ -48,21 +49,22 @@ class DelaunayDynamic:
         # New attributes for feature storage
         self.ref_matched_data = {"keypoints": None, "descriptors": None, "keypoint_scores": None, "image_size": None}
         self.ref_id = None  # Stores the reference frame ID
-        self.prune_delaunay_ref_frame_kps = False  # Flag to prune the reference frame
+        self.prune_delaunay_ref_frame_kps = True  # Flag to prune the reference frame
         self.prune_every_frame_kps_not_just_ref = False  # Flag to prune every frame, not just the reference frame
-        self.max_gap_between_delaunay_ref_frame_and_cur_frame = 25  # Max gap between reference frame and current frame to update the reference frame
-        self.min_points_for_dynamic_object = 7  # Minimum number of points in a connected component to consider it a dynamic object
-        self.num_of_points_to_consider_static_by_default = 100
+        self.max_gap_between_delaunay_ref_frame_and_cur_frame = 50  # Max gap between reference frame and current frame to update the reference frame
+        self.min_points_for_dynamic_object = 8  # Minimum number of points in a connected component to consider it a dynamic object
+        self.num_of_points_to_consider_static_by_default = 50
         # New parameter to control Delaunay triangulation on ref frame instead of cur frame
         self.use_ref_frame_for_delaunay = True  # Set to True to use ref frame for Delaunay
         self.delaunay_data = None  # Store the Delaunay triangulation data for reuse
-
+        self.min_feat_extraction_distance = 5  # Minimum distance between features to avoid clustering
 
 
     def _extract_features(self, ref_id, cur_id):
         """
         Extract features for the current frame and use stored matched features for the reference frame if available.
         """
+        print("self.delaunay_data at the start of _extract_features: ", self.delaunay_data)
         # For the first time setup self.ref_id 
         if self.ref_id is None:
             self.ref_id = ref_id
@@ -125,6 +127,7 @@ class DelaunayDynamic:
             ref_depth = ref_frame.depth_img
             ref_feat = self._filter_features_by_depth(ref_feat, ref_depth)
             ref_feat = self._filter_features_by_mask(ref_feat, dynamic_mask_ref)
+            ref_feat = self._filter_features_if_they_are_close_to_other_features(ref_feat, self.min_feat_extraction_distance)
             self.ref_id = ref_id
             print(f"Extracted new features for reference frame {ref_id} with {ref_feat['keypoints'].shape[1]} keypoints")
 
@@ -133,6 +136,7 @@ class DelaunayDynamic:
         cur_depth = cur_frame.depth_img
         cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
         cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
+        cur_feat = self._filter_features_if_they_are_close_to_other_features(cur_feat, self.min_feat_extraction_distance)
 
         # Handle low keypoint count with recursion
         self.recursion_depth += 1
@@ -148,32 +152,40 @@ class DelaunayDynamic:
                 ref_feat = self.extractor.extract(ref_torch_HWC.to(self.device))
                 ref_feat = self._filter_features_by_depth(ref_feat, ref_frame.depth_img)
                 ref_feat = self._filter_features_by_mask(ref_feat, ref_frame.dynamic_mask)
+                ref_feat = self._filter_features_if_they_are_close_to_other_features(ref_feat, self.min_feat_extraction_distance)
                 
             cur_feat = self.extractor.extract(cur_torch_HWC.to(self.device))
             cur_feat = self._filter_features_by_depth(cur_feat, cur_depth)
             cur_feat = self._filter_features_by_mask(cur_feat, dynamic_mask_cur)
+            cur_feat = self._filter_features_if_they_are_close_to_other_features(cur_feat,self.min_feat_extraction_distance)
 
         print(f"Feature extraction recursion depth: {self.recursion_depth}")
         print(f"Extracting features with num_features: {self.extractor.conf.max_num_keypoints}")
         print(f"ref_feat keypoints: {ref_feat['keypoints'].shape}")
         print(f"cur_feat keypoints: {cur_feat['keypoints'].shape}")
 
+        print("self.delaunay_data after feature extraction: ", self.delaunay_data)
+
         return ref_feat, cur_feat
 
 
 
-    def _match_features(self, ref_feat, cur_feat):
+    def _match_features(self, ref_feat, cur_feat, ref_id):
         """
         Match features and store matched data for the reference frame in extraction-like format.
         """
+
+        print("self.delaunay_data at the start of _match_features: ", self.delaunay_data)
         matches01 = self.matcher({"image0": ref_feat, "image1": cur_feat})
         feats0, feats1, matches01 = [rbd(x) for x in [ref_feat, cur_feat, matches01]]
 
         kpts0, kpts1, matches = feats0["keypoints"], feats1["keypoints"], matches01["matches"]
         m_kpts0, m_kpts1 = kpts0[matches[..., 0]], kpts1[matches[..., 1]]
-
+        print(f"Matched {matches.shape[0]} keypoints between reference frame {ref_id} and current frame {self.cur_frame.id}")
         # Store matched data for reference frame in extraction-like format
         if self.prune_delaunay_ref_frame_kps:
+
+            print("Pruning reference frame keypoints based on matches")
             self.ref_matched_data = {
                 "keypoints": torch.unsqueeze(m_kpts0, 0),  # Shape: [1, N, 2]
                 "descriptors": torch.unsqueeze(feats0["descriptors"][matches[..., 0]], 0),  # Shape: [1, N, D]
@@ -187,6 +199,7 @@ class DelaunayDynamic:
             self.ref_frame.delaunay_matched_feat = self.ref_matched_data
             
             if self.prune_every_frame_kps_not_just_ref:
+                print("Pruning current frame keypoints based on matches")
                 self.cur_frame.delaunay_matched_feat = {
                     "keypoints": torch.unsqueeze(m_kpts1, 0),  # Shape: [1, N, 2]
                     "descriptors": torch.unsqueeze(feats1["descriptors"][matches[..., 1]], 0),  # Shape: [1, N, D]
@@ -196,9 +209,12 @@ class DelaunayDynamic:
                     "triangulation": None,  # For potential future use
                     "delaunay_image": None  # For potential future use
                 }
-                
+            print("self.ref_id: ", self.ref_id, "ref_id: ", ref_id)
             # If we're using a new reference frame, reset the delaunay data
-            if self.ref_id != self.ref_frame.id and self.use_ref_frame_for_delaunay:
+            if self.ref_id != ref_id and self.use_ref_frame_for_delaunay:
+
+                print(f"Reference frame changed from {self.ref_id} to {self.ref_frame.id}, resetting Delaunay data")
+                print("use ref frame for delaunay: ", self.use_ref_frame_for_delaunay)
                 self.delaunay_data = None
                 print(f"New reference frame (ID {self.ref_frame.id}), resetting Delaunay data")
         else:
@@ -229,18 +245,21 @@ class DelaunayDynamic:
 
         log_image(entity=f"Matches between Frame curr and Frame k_frames_away", image=output_img)
 
+        print("self.delaunay_data after matching features: ", self.delaunay_data)
         return m_kpts0, m_kpts1, matches
 
     def _extract_and_match_features(self, ref_id, cur_id):
         """
         Extract and match features between the reference and current frames.
         """
+        print("self.delaunay_data at the start of _extract_and_match_features: ", self.delaunay_data)
         # Extract features
         ref_feat, cur_feat = self._extract_features(ref_id, cur_id)
 
         # Match features
-        m_kpts0, m_kpts1, matches = self._match_features(ref_feat, cur_feat)
+        m_kpts0, m_kpts1, matches = self._match_features(ref_feat, cur_feat, ref_id)
         print(m_kpts0.shape, m_kpts1.shape, matches.shape)
+        print("self.delaunay_data after extracting and matching features: ", self.delaunay_data)
         return ref_feat, cur_feat, m_kpts0, m_kpts1, matches
 
     
@@ -249,6 +268,7 @@ class DelaunayDynamic:
         """
         Apply Delaunay triangulation on the matched keypoints and get the graph.
         """
+        print("self.delaunay_data at the start of _apply_delaunay_triangulation_and_get_graph: ", self.delaunay_data)
         ref_frame = self.slam.map.get_frame(ref_id)
         cur_frame = self.slam.map.get_frame(cur_id)
         # Extract and match features
@@ -263,12 +283,18 @@ class DelaunayDynamic:
         # 2. Apply Delaunay triangulation to the matched keypoints
         # Check if we need to compute a new triangulation
         compute_new_triangulation = False
-        
+        print("self.ref_id: ", self.ref_id, "ref_id: ", ref_id, "cur_id: ", cur_id)
+        print("self.delaunay_data before checking for new triangulation requirement: ", self.delaunay_data)
         # Compute new triangulation if:
         # 1. This is a new reference frame (ref_id != self.ref_id) or the first time
         # 2. We don't have stored triangulation data
         # 3. We're using the old behavior (use_ref_frame_for_delaunay = False)
         if self.ref_id != ref_id or self.delaunay_data is None or not self.use_ref_frame_for_delaunay:
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            print("Reason for computing new triangulation: either new reference frame or no stored triangulation data")
+            print(f"Current ref_id: {self.ref_id}, New ref_id: {ref_id}")
+            print(f"Stored triangulation data: {self.delaunay_data is not None}")
+            print(f"use_ref_frame_for_delaunay: {self.use_ref_frame_for_delaunay}")
             compute_new_triangulation = True
         
         if compute_new_triangulation:
@@ -284,6 +310,8 @@ class DelaunayDynamic:
                         "triangulation": tri,
                         "image": img_delaunay
                     }
+                print("self.delaunay_data after new computation of the triangulation: ", self.delaunay_data)
+                print(f"Stored triangulation data for reference frame {ref_id}")
             else:
                 # Original behavior: apply triangulation on current frame
                 img_delaunay, tri = delaunay_image_kps(cur_frame.img, m_kpts1_np)
@@ -297,6 +325,7 @@ class DelaunayDynamic:
             print("Reusing stored Delaunay triangulation from reference frame")
             tri = self.delaunay_data["triangulation"]
             img_delaunay = self.delaunay_data["image"]
+            sys.exit(0)
             
             # Log the reused image
             if True:
@@ -305,6 +334,8 @@ class DelaunayDynamic:
         # 3. Create a graph from the Delaunay triangulation
         delaunay_graph = convert_delauany_to_networkx(tri)
         
+
+
         # When using reference frame for Delaunay, we need to ensure we only keep
         # edges connecting keypoints that are common between both frames
         if self.use_ref_frame_for_delaunay:
@@ -348,6 +379,8 @@ class DelaunayDynamic:
         if self.use_ref_frame_for_delaunay and compute_new_triangulation:
             self.ref_matched_data["triangulation"] = tri
             self.ref_matched_data["delaunay_image"] = img_delaunay
+
+        print("self.delaunay_data after applying Delaunay triangulation and getting graph: ", self.delaunay_data)
             
         return ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches, delaunay_graph, img_delaunay
         
@@ -357,6 +390,8 @@ class DelaunayDynamic:
         """
         Update the graph properties based on the matched keypoints and their 3D coordinates.
         """
+        
+        logging.info("self.delaunay_data at the start of _update_graph_properties: %s", self.delaunay_data)
         ref_feat, cur_feat, m_kpts0_np, m_kpts1_np, matches,delaunay_graph, img_delaunay = self._apply_delaunay_triangulation_and_get_graph(ref_id, cur_id)
         ref_frame = self.slam.map.get_frame(ref_id)
         cur_frame = self.slam.map.get_frame(cur_id)
@@ -458,12 +493,12 @@ class DelaunayDynamic:
             # Check if edge properties exist
             if 'distance_diff' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['distance_diff'] > effective_distance_threshold:
                 is_dynamic = True
-            elif 'R_theta' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['R_theta'] > effective_distance_threshold:
-                is_dynamic = True
+            # elif 'R_theta' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['R_theta'] > effective_distance_threshold:
+            #     is_dynamic = True
 
-            # Check effective distance 
-            if 'effective_distance' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['effective_distance'] > effective_distance_threshold:
-                is_dynamic = True
+            # # Check effective distance 
+            # if 'effective_distance' in delaunay_graph.edges[edge] and delaunay_graph.edges[edge]['effective_distance'] > effective_distance_threshold:
+            #     is_dynamic = True
             if is_dynamic:
                 if self.use_ref_frame_for_delaunay:
                     # Draw dynamic edges in blue on the reference frame triangulation image
@@ -576,9 +611,11 @@ class DelaunayDynamic:
 
         update_ref_frame_flag = self.update_ref_frame_flag(ref_id, cur_id)        
         is_new_object = False
+        logging.info("No new dynamic objects found, returning existing state")
         return update_ref_frame_flag, is_new_object, None, None
     
     def _check_potential_dynamic_object_prompts(self, prompts):
+        logging.info("self.delaunay_data at the start of _check_potential_dynamic_object_prompts: %s", self.delaunay_data)
         # If prompts lie on any of the self.dynamic_objects, add the prompts to associated objec with maximum prompts on it,  in the dynamic_objects list
         # Else return "create new dynamic object" with a new id and add it to the dynamic_objects list
         for dynamic_object in self.dynamic_objects:
@@ -603,6 +640,7 @@ class DelaunayDynamic:
         print(f"Created new dynamic object {dynamic_object_id} with {len(prompts)} prompts")
         # Update the current frame with the new dynamic object
         self.cur_frame.dynamic_objects = self.dynamic_objects
+        logging.info("self.delaunay_data after checking potential dynamic object prompts: %s", self.delaunay_data)
         return dynamic_object_id, True
 
     def _check_potential_dynamic_object_prompts_robust(self, prompts):
@@ -617,6 +655,7 @@ class DelaunayDynamic:
             dynamic_object_id: ID of the object the prompts belong to
             is_new: Boolean indicating if a new object was created
         """
+        logging.info("self.delaunay_data at the start of _check_potential_dynamic_object_prompts_robust: %s", self.delaunay_data)
         # Skip if no prompts provided
         if len(prompts) == 0:
             print("No prompts provided, cannot check for dynamic objects")
@@ -702,6 +741,7 @@ class DelaunayDynamic:
         print(f"Created new dynamic object {dynamic_object_id} with {len(prompts)} prompts")
         # Update the current frame with the new dynamic object
         self.cur_frame.dynamic_objects = self.dynamic_objects
+        logging.info("self.delaunay_data after checking potential dynamic object prompts: %s", self.delaunay_data)
         return dynamic_object_id, True
         
         
@@ -711,16 +751,20 @@ class DelaunayDynamic:
         Update the reference frame ID and reset the recursion depth.
         if gap between ref_id and cur_id is more than 25, if object is found - dynamic connected component with more than 5 nodes and clear motion is found.
         """
+
+        logging.info("self.delaunay_data at the start of update_ref_frame_flag: %s", self.delaunay_data)
         if abs(cur_id - ref_id) > self.max_gap_between_delaunay_ref_frame_and_cur_frame:
             # Reset the recursion depth
             self.recursion_depth = 0
+            print("cur_id: ", cur_id, "ref_id: ", ref_id, "max_gap_between_delaunay_ref_frame_and_cur_frame: ", self.max_gap_between_delaunay_ref_frame_and_cur_frame)
+            print("abs(cur-ref)", abs(cur_id - ref_id), "is greater than max_gap_between_delaunay_ref_frame_and_cur_frame: ", self.max_gap_between_delaunay_ref_frame_and_cur_frame)
             print("Resetting recursion depth to 0, and shifting the delaunay_ref_frame due to large gap between ref_id and cur_id")
             
-            # Reset Delaunay data when reference frame changes
-            if self.use_ref_frame_for_delaunay:
-                self.delaunay_data = None
-                print("Resetting Delaunay data due to reference frame change")
-            
+            # # Reset Delaunay data when reference frame changes
+            # if self.use_ref_frame_for_delaunay:
+            #     self.delaunay_data = None
+            #     print("Resetting Delaunay data due to reference frame change")
+            logging.info("self.delaunay_data after updating ref frame flag: %s", self.delaunay_data)
             return True
 
     def _filter_features_by_depth(self, ref_feat, depth_scaled, max_depth=6):
@@ -734,6 +778,7 @@ class DelaunayDynamic:
         Returns:
             ref_feat: Filtered reference features
         """
+        logging.info("self.delaunay_data at the start of _filter_features_by_depth: %s", self.delaunay_data)
         max_depth = 6 #m
         ref_feat_kps = ref_feat["keypoints"][0].int().cpu().numpy()
         valid_indices = [
@@ -747,7 +792,7 @@ class DelaunayDynamic:
         ref_feat["keypoint_scores"] = ref_feat["keypoint_scores"][:, valid_indices]
         ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
 
-        
+        logging.info("self.delaunay_data after filtering features by depth: %s", self.delaunay_data)
     
         return ref_feat
     
@@ -762,6 +807,8 @@ class DelaunayDynamic:
         Returns:
             ref_feat: Filtered reference features
         """
+        logging.info("self.delaunay_data at the start of _filter_features_by_mask: %s", self.delaunay_data)
+
         ref_feat_kps = ref_feat["keypoints"][0].int().cpu().numpy()
         valid_indices = [
             i for i, kp in enumerate(ref_feat_kps)
@@ -773,10 +820,54 @@ class DelaunayDynamic:
         ref_feat["keypoints"] = ref_feat["keypoints"][:, valid_indices]
         ref_feat["keypoint_scores"] = ref_feat["keypoint_scores"][:, valid_indices]
         ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
-        
+        logging.info("self.delaunay_data after filtering features by mask: %s", self.delaunay_data)
 
         return ref_feat
     
+    def _filter_features_if_they_are_close_to_other_features(self, ref_feat, min_distance= 10): #10 pixels
+        """
+        Filters keypoints from reference features that are too close to each other.
+        Args:
+            ref_feat: Dictionary containing feature data (keypoints, keypoint_scores, descriptors)
+            min_distance: Minimum distance between keypoints in pixels
+        Returns:
+            ref_feat: Filtered reference features with the highest scores kept.
+        """
+        logging.info("self.delaunay_data at the start of _filter_features_if_they_are_close_to_other_features: %s", self.delaunay_data)
+        ref_feat_kps = ref_feat["keypoints"][0].int().cpu().numpy()
+        valid_indices = []
+        used_indices = set()
+
+        for i, kp in enumerate(ref_feat_kps):
+            if i in used_indices:
+                continue
+            valid_indices.append(i)
+            used_indices.add(i)
+
+            # Check distance to other keypoints
+            for j in range(i + 1, len(ref_feat_kps)):
+                if j in used_indices:
+                    continue
+                dist = np.linalg.norm(kp - ref_feat_kps[j])
+                if dist < min_distance:
+                    # Keep the one with higher score
+                    if ref_feat["keypoint_scores"][0, i] > ref_feat["keypoint_scores"][0, j]:
+                        used_indices.add(j)
+                    else:
+                        used_indices.add(i)
+        
+        if len(valid_indices) < len(ref_feat_kps):
+            print(f"Removing {len(ref_feat_kps) - len(valid_indices)} keypoints that are too close to each other")
+        
+        ref_feat["keypoints"] = ref_feat["keypoints"][:, valid_indices]
+        ref_feat["keypoint_scores"] = ref_feat["keypoint_scores"][:, valid_indices]
+        ref_feat["descriptors"] = ref_feat["descriptors"][:, valid_indices]
+
+        logging.info("self.delaunay_data after filtering features that are too close to each other: %s", self.delaunay_data)
+
+        return ref_feat
+        
+
     # def _filter_features_for_being_outlier_compared_to_surrounding_pc(self, ref_feat, point_cloud, threshold=0.1):
         
     def _visualize_matches(self, img0, img1, kpts0, kpts1, matches, color=(0, 255, 0), thickness=2, radius=6,  add_text = False):
@@ -798,6 +889,7 @@ class DelaunayDynamic:
         Returns:
             output_img:  A combined image with matches visualized.
         """
+        logging.info("self.delaunay_data at the start of _visualize_matches: %s", self.delaunay_data)
         if isinstance(img0, torch.Tensor):
             img0 = img0.squeeze(0).permute(1, 2, 0).cpu().numpy()
         if isinstance(img1, torch.Tensor):
@@ -825,7 +917,7 @@ class DelaunayDynamic:
             cv2.circle(output_img, pt0, radius, color, -1)
             cv2.circle(output_img, pt1, radius, color, -1)
             # cv2.line(output_img, pt0, pt1, color, thickness)
-
+        logging.info("self.delaunay_data after visualizing matches: %s", self.delaunay_data)
             
         return output_img
 
@@ -841,6 +933,7 @@ class DelaunayDynamic:
         output:
         points: 3D points in the camera or world coordinates depending on the transform_to_world flag
         """
+        logging.info("self.delaunay_data at the start of _unproject_kps: %s", self.delaunay_data)
         # Unproject keypoints to 3D points
         points = []
         depth_zero_count = 0
@@ -871,7 +964,7 @@ class DelaunayDynamic:
         print(f"Number of keypoints with zero depth: {depth_zero_count}")
         print(f"Number of valid keypoints: {len(points)}")
         print("total keypoints", len(kps))
-        
+        logging.info("self.delaunay_data after unprojecting keypoints: %s", self.delaunay_data)
         
 
         return points, depth_zero_count
@@ -889,6 +982,7 @@ class DelaunayDynamic:
         Returns:
             list: List of nx.Graph objects, each a connected component, sorted by node count
         """
+        logging.info("self.delaunay_data at the start of _get_connected_components: %s", self.delaunay_data)
         def dfs(v, visited, component_nodes):
             """DFS to collect nodes of a connected component."""
             visited.add(v)
@@ -926,6 +1020,7 @@ class DelaunayDynamic:
         # Sort components by number of nodes in decreasing order
         components.sort(key=lambda x: x.number_of_nodes(), reverse=True)
 
+        logging.info("self.delaunay_data after getting connected components: %s", self.delaunay_data)
         
         return components
     
