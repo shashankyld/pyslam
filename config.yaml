@@ -47,10 +47,10 @@ BONN_DATASET:
   #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
   # name: rgbd_bonn_moving_nonobstructing_box
-  # name: rgbd_bonn_person_tracking2
+  name: rgbd_bonn_person_tracking2
   # name: rgbd_bonn_static_close_far
   # name: rgbd_bonn_balloon_tracking2
-  name: rgbd_bonn_static
+  # name: rgbd_bonn_static
   
 
 
