@@ -5,7 +5,7 @@ from torchvision.transforms import functional as F
 import numpy as np
 
 class MaskRCNNUtils:
-    def __init__(self, threshold=0.8, device='cuda'):
+    def __init__(self, threshold=0.8, device='cpu'):
         """
         Initializes MaskRCNNUtils with specified threshold and device.
 

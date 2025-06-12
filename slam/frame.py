@@ -25,7 +25,7 @@ import numpy as np
 from scipy import ndimage as ndi
 #import json
 import ujson as json
-from utils_rerun import ensure_rgb
+from utilities.utils_rerun import ensure_rgb
 
 from threading import RLock, Thread, current_thread
 from scipy.spatial import cKDTree
@@ -45,9 +45,9 @@ from feature_types import FeatureInfo
 from feature_matcher import FeatureMatcherTypes
 from concurrent.futures import ThreadPoolExecutor
 
-from utils_draw import draw_feature_matches
-from utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad, descriptor_sigma_mad_v2, stereo_match_subpixel_correlation
-from utils_serialization import NumpyJson, NumpyB64Json
+from utilities.utils_draw import draw_feature_matches
+from utilities.utils_features import compute_NSAD_between_matched_keypoints, descriptor_sigma_mad, descriptor_sigma_mad_v2, stereo_match_subpixel_correlation
+from utilities.utils_serialization import NumpyJson, NumpyB64Json
 
 import rerun as rr              # pip install rerun-sdk
 from rerun_interface import Rerun

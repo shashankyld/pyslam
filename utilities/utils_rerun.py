@@ -80,11 +80,45 @@ def ensure_rgb(image):
     
     return image
 
-def log_image(entity, image):
+def log_image(entity, image, ensure_rgb_flag=False):
     """Logs an image to rerun."""
     if image is None:
         print(f"Warning: Attempted to log None image to {entity}")
         return
+    # Convert image to RGB if it's in BGR format
+    if ensure_rgb_flag:
+        image = ensure_rgb(image)
+    
+    
+    # Check for empty or invalid image
+    if not isinstance(image, np.ndarray) or image.size == 0 or len(image.shape) < 2:
+        print(f"Warning: Invalid image shape {getattr(image, 'shape', 'unknown')} for {entity}")
+        # Create a small placeholder image instead
+        placeholder = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.putText(placeholder, "No Image", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        rr.log(f"{entity}", rr.Image(ensure_rgb(placeholder)))
+        return
+    
+    try:
+        # Convert to RGB before logging
+        rgb_image = ensure_rgb(image)
+        rr.log(f"{entity}", rr.Image(rgb_image))
+    except Exception as e:
+        print(f"Error logging image to {entity}: {e}")
+        # Create a small error image instead
+        error_img = np.zeros((100, 100, 3), dtype=np.uint8)
+        cv2.putText(error_img, "Error", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+        rr.log(f"{entity}", rr.Image(ensure_rgb(error_img)))
+
+def log_image2(entity, image, ensure_rgb_flag=False):
+    """Logs an image to rerun."""
+    if image is None:
+        print(f"Warning: Attempted to log None image to {entity}")
+        return
+    # Convert image to RGB if it's in BGR format
+    if not ensure_rgb_flag:
+        image = ensure_rgb(image)
+    
     
     # Check for empty or invalid image
     if not isinstance(image, np.ndarray) or image.size == 0 or len(image.shape) < 2:
@@ -245,6 +279,7 @@ def log_sam2_folder(entity="sam2", path=None):
             y = row * images[0].shape[0] + 20
             cv2.putText(concatenated_image, img_file, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
+        concatenated_image = ensure_rgb(concatenated_image)  # Ensure the image is in RGB format
         rr.log(f"{entity}/images", rr.Image(concatenated_image))
     else:
         print(f"Warning: No images found in folder {path} to log to {entity}")
@@ -331,6 +366,13 @@ def log_frame_dense_pc(frame_id, entity_path, points, colors=None, pose = np.eye
     points = points[indexs]
     if colors is not None:
         colors = colors[indexs]
+        # Change colors to rgb
+        colors = (colors * 255).astype(np.uint8)
+    # Change from bgr to rgb 
+    if colors is not None and colors.shape[1] == 3:
+        colors = colors[:, [2, 1, 0]]
+    elif colors is not None and colors.shape[1] == 1:
+        colors = np.repeat(colors, 3, axis=1)
     
     radii = np.ones(points.shape[0]) * point_size  # Set a default radius for points
     # points = get_current_frame_3d(frame_id)  # Removed the call to get_current_frame_3d

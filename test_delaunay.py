@@ -18,7 +18,7 @@ from thirdparty.LightGlue.lightglue import viz2d
 from thirdparty.LightGlue.lightglue.utils import rbd
 import time
 import rerun as rr 
-from utils_rerun import *
+from utilities.utils_rerun import *
 
 import networkx as nx
 
@@ -248,6 +248,26 @@ def display_depth(depth_img, title="Depth"):
     
     log_image(entity=title, image=depth_vis)
 
+def ensure_rgb(image):
+    """
+    Convert image to RGB format if it's a BGR image.
+    
+    Args:
+        image: An image array
+    
+    Returns:
+        The image in RGB format
+    """
+    if image is None:
+        return None
+        
+    # Check if image has 3 channels (color image)
+    if isinstance(image, np.ndarray) and len(image.shape) == 3 and image.shape[2] == 3:
+        # Convert from BGR to RGB
+        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    return image
+
 def visualize_matches(img0, img1, kpts0, kpts1, matches, color=(0, 255, 0), thickness=2, radius=6,  add_text = False):
     """
     Visualizes keypoint matches between two images.
@@ -282,6 +302,7 @@ def visualize_matches(img0, img1, kpts0, kpts1, matches, color=(0, 255, 0), thic
 
     # Create a blank canvas for the output image
     output_img = np.hstack((img0, img1))
+    output_img = ensure_rgb(output_img)
 
     # Draw keypoints and matches
     for i in range(matches.shape[0]):
