@@ -2,8 +2,8 @@ DATASET:
   # select your dataset (decomment only one of the following lines) 
   #type: EUROC_DATASET  
   #type: KITTI_DATASET
-  type: TUM_DATASET
-  # type: BONN_DATASET
+  # type: TUM_DATASET
+  type: BONN_DATASET
   #type: ICL_NUIM_DATASET
   #type: REPLICA_DATASET
   #type: TARTANAIR_DATASET
@@ -46,9 +46,11 @@ BONN_DATASET:
   #name: rgbd_dataset_freiburg3_long_office_household
   #settings: settings/TUM3.yaml # do not forget to correctly set the corresponding camera settings file    
   #
+  # name: rgbd_bonn_moving_nonobstructing_box
+  # name: rgbd_bonn_person_tracking2
   # name: rgbd_bonn_static_close_far
-  name: rgbd_bonn_balloon_tracking2
-  # name: rgbd_bonn_static
+  # name: rgbd_bonn_balloon_tracking2
+  name: rgbd_bonn_static
   
 
 

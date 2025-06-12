@@ -98,7 +98,7 @@ if __name__ == "__main__":
     metrics_save_dir = trajectory_saving_base_path
         
     groundtruth = groundtruth_factory(config.dataset_settings)
-
+    dynamic_mask_path = "/home/shashank/Downloads/prompt1/combined_masks"
     camera = PinholeCamera(config)
     depth_factor = 1/camera.depth_factor #eg final value = 5000
     
@@ -201,7 +201,7 @@ if __name__ == "__main__":
             
     img_id = 0#210, 340, 400, 770   # you can start from a desired frame id if needed 
     log_coordinate_axes(entity_path="world/Origin", pose=np.eye(4), scale=1)
-    end_img_id = 575
+    end_img_id = 775
     
     try:
         print("Entering main loop...")
@@ -263,26 +263,38 @@ if __name__ == "__main__":
                         
                         # Entry point to dynamic object segmentation
                         #  TODO: Firstly make use of GPU, then try to see if this can be parallelized, I can see that loop detection code is much faster and is waiting for this code to finish 
-                        # maskrcnn = MaskRCNNUtils()
-                        # logging.debug("Estimating dynamic mask")
-                        # dynamic_mask = maskrcnn.human_mask(img)
-                        # # Visualize the mask
-                        # if not args.headless:
-                        #     print("logging mask")
-                        #     # log_mask_type("dynamic_mask", dynamic_mask)
-                        # # Dialte the mask to make it more robust - dialate a lot
-                        # kernel = np.ones((5, 5), np.uint8)
-                        # dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
+                        
+                        # Load dynamic mask from path instead of using MaskRCNN
+                        logging.debug("Loading dynamic mask from path")
+                        # For img_id 0, load mask named 1, for img_id 1 load mask named 2, etc.
+                        mask_file_name = f"{img_id + 1}.png"
+                        mask_file_path = os.path.join(dynamic_mask_path, mask_file_name)
+                        
+                        # Check if mask file exists
+                        if os.path.exists(mask_file_path):
+                            dynamic_mask = cv2.imread(mask_file_path, cv2.IMREAD_GRAYSCALE)
+                            # Ensure mask is binary (0 or 255)
+                            _, dynamic_mask = cv2.threshold(dynamic_mask, 127, 255, cv2.THRESH_BINARY)
+                            
+                            # Ensure mask has the same shape as the input image
+                            if dynamic_mask.shape != (img.shape[0], img.shape[1]):
+                                logging.warning(f"Resizing mask from {dynamic_mask.shape} to {img.shape[0:2]}")
+                                dynamic_mask = cv2.resize(dynamic_mask, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST)
+                        else:
+                            logging.warning(f"Mask file {mask_file_path} does not exist. Using empty mask.")
+                            # Create an empty mask (all zeros) with the same size as the image
+                            dynamic_mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
+                        
+                        # Dilate the mask to make it more robust
+                        kernel = np.ones((5, 5), np.uint8)
+                        dynamic_mask = cv2.dilate(dynamic_mask, kernel, iterations=5)
 
-                        # # Visualize the mask
-                        # if not args.headless:
-                        #     print("logging mask")
-
-                        # log_mask_type("dynamic_mask_dilated", dynamic_mask)
-                        # Set full black mask by force with one channel
-                        dynamic_mask = np.zeros_like(img)[:, :, 0]
-                        print("Dynamic mask shape: ", dynamic_mask.shape) # (480, 640)
-
+                        # Visualize the mask
+                        if not args.headless:
+                            print("logging mask")
+                            # log_mask_type("dynamic_mask_dilated", dynamic_mask)
+                        
+                        print("Dynamic mask shape: ", dynamic_mask.shape) # Expected (480, 640)
 
                         # curr_pc = depth2pointcloud(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50, scale=depth_factor)
                         curr_pc = depth2pointcloud_with_mask(depth, img, camera.fx, camera.fy, camera.cx, camera.cy, max_depth=50000000, mask=dynamic_mask, scale=depth_factor)
